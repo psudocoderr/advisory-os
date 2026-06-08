@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: advisory-os-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: advisory_os
+      POSTGRES_USER: advisory_app
+      POSTGRES_PASSWORD: advisory_app_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - advisory-os-postgres:/var/lib/postgresql/data
+
+volumes:
+  advisory-os-postgres:

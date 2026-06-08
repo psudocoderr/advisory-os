@@ -1,0 +1,349 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ADVISOR
+}
+
+enum ProspectSource {
+  REFERRAL
+  WALK_IN
+  EVENT
+  ONLINE
+}
+
+enum ProspectStage {
+  LEAD
+  MEETING_HELD
+  PLAN_SENT
+  ONBOARDED
+  DROPPED
+}
+
+enum KycStatus {
+  VERIFIED
+  PENDING
+  EXPIRED
+}
+
+enum MeetingKind {
+  PROSPECT
+  CLIENT
+  PLAN
+  REVIEW
+}
+
+enum PlanType {
+  SIP
+  LUMP_SUM
+  ELSS
+  MIXED
+}
+
+enum PlanFrequency {
+  MONTHLY
+  QUARTERLY
+  ONE_TIME
+}
+
+enum PlanGoal {
+  RETIREMENT
+  EDUCATION
+  WEALTH
+  TAX_SAVING
+  OTHER
+}
+
+enum PlanStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  ACTIVE
+  CLOSED
+}
+
+enum ModuleCode {
+  M1
+  M2
+  M3
+  M4
+  M5
+}
+
+enum TestSessionStatus {
+  IN_PROGRESS
+  PASSED
+  FAILED
+  ABANDONED
+}
+
+enum CertificationStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(ADVISOR)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignedProspects Prospect[]       @relation("ProspectAssignment")
+  assignedClients   Client[]         @relation("ClientAssignment")
+  meetings          MeetingLog[]     @relation("MeetingOwner")
+  auditLogs         AuditLog[]       @relation("AuditActor")
+  questions         QuestionItem[]    @relation("QuestionAuthor")
+  testSessions      TestSession[]
+  certifications    Certification[]
+
+  @@map("users")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  summary   String
+  createdAt DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Prospect {
+  id               String        @id @default(cuid())
+  name             String
+  phone            String
+  source           ProspectSource
+  firstContactDate DateTime
+  stage            ProspectStage @default(LEAD)
+  notes            String
+  followUpDate     DateTime?
+  assignedToId     String
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  assignedTo User         @relation("ProspectAssignment", fields: [assignedToId], references: [id])
+  meetings   MeetingLog[] @relation("ProspectMeetings")
+
+  @@index([stage])
+  @@index([assignedToId])
+  @@map("prospects")
+}
+
+model Client {
+  id             String    @id @default(cuid())
+  name           String
+  phone          String
+  pan            String
+  kycStatus      KycStatus @default(PENDING)
+  aum            Decimal   @db.Decimal(18, 2)
+  onboardingDate DateTime
+  assignedToId   String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  assignedTo       User              @relation("ClientAssignment", fields: [assignedToId], references: [id])
+  meetings         MeetingLog[]      @relation("ClientMeetings")
+  investmentPlans  InvestmentPlan[]
+  portfolioReviews PortfolioReview[]
+
+  @@index([kycStatus])
+  @@index([assignedToId])
+  @@map("clients")
+}
+
+model MeetingLog {
+  id           String      @id @default(cuid())
+  kind         MeetingKind
+  summary      String
+  notes        String
+  meetingDate  DateTime    @default(now())
+  followUpDate DateTime?
+  ownerId      String
+  prospectId   String?
+  clientId     String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  owner    User      @relation("MeetingOwner", fields: [ownerId], references: [id])
+  prospect Prospect? @relation("ProspectMeetings", fields: [prospectId], references: [id], onDelete: Cascade)
+  client   Client?   @relation("ClientMeetings", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([meetingDate])
+  @@index([ownerId])
+  @@map("meeting_logs")
+}
+
+model InvestmentPlan {
+  id           String        @id @default(cuid())
+  clientId     String
+  planType     PlanType
+  amount       Decimal       @db.Decimal(18, 2)
+  frequency    PlanFrequency
+  goal         PlanGoal
+  status       PlanStatus    @default(DRAFT)
+  sentDate     DateTime?
+  acceptedDate DateTime?
+  notes        String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("investment_plans")
+}
+
+model PortfolioReview {
+  id             String   @id @default(cuid())
+  clientId       String
+  reviewDate     DateTime
+  currentAum     Decimal  @db.Decimal(18, 2)
+  returns        Decimal  @db.Decimal(8, 2)
+  actions        String
+  nextReviewDate DateTime
+  attachmentNote String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([nextReviewDate])
+  @@map("portfolio_reviews")
+}
+
+model KnowledgeCategory {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entries SopEntry[]
+
+  @@unique([order])
+  @@map("knowledge_categories")
+}
+
+model SopEntry {
+  id           String   @id @default(cuid())
+  categoryId   String
+  module       ModuleCode?
+  title        String
+  slug         String   @unique
+  what         String
+  when         String
+  steps        Json
+  outcomes     Json
+  commonErrors Json
+  references   Json
+  isPublished  Boolean  @default(true)
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  category  KnowledgeCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  questions QuestionItem[]
+
+  @@index([module])
+  @@map("sop_entries")
+}
+
+model QuestionItem {
+  id             String     @id @default(cuid())
+  module         ModuleCode
+  content        String
+  options        Json
+  correctKey     String
+  explanation    String
+  difficulty     Float      @default(0)
+  discrimination Float      @default(1)
+  guessing        Float      @default(0.25)
+  linkedSopId    String
+  createdById    String
+  isActive       Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  linkedSop SopEntry      @relation(fields: [linkedSopId], references: [id])
+  createdBy User          @relation("QuestionAuthor", fields: [createdById], references: [id])
+  responses ResponseLog[]
+
+  @@index([module])
+  @@map("question_items")
+}
+
+model TestSession {
+  id              String            @id @default(cuid())
+  userId          String
+  module          ModuleCode
+  startedAt       DateTime          @default(now())
+  completedAt     DateTime?
+  abilityEstimate Float             @default(0)
+  standardError   Float             @default(99)
+  certified       Boolean           @default(false)
+  attemptNumber   Int               @default(1)
+  status          TestSessionStatus @default(IN_PROGRESS)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  responses     ResponseLog[]
+  certification Certification?
+
+  @@index([userId, module])
+  @@map("test_sessions")
+}
+
+model ResponseLog {
+  id             String   @id @default(cuid())
+  sessionId      String
+  questionId     String
+  selectedKey    String
+  isCorrect      Boolean
+  responseTimeMs Int
+  abilityAfter   Float
+  seAfter        Float
+  createdAt      DateTime @default(now())
+
+  session  TestSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question QuestionItem @relation(fields: [questionId], references: [id])
+
+  @@unique([sessionId, questionId])
+  @@map("response_logs")
+}
+
+model Certification {
+  id           String              @id @default(cuid())
+  userId       String
+  module       ModuleCode
+  sessionId    String              @unique
+  abilityScore Float
+  level        String
+  issuedAt     DateTime            @default(now())
+  expiresAt    DateTime
+  status       CertificationStatus @default(ACTIVE)
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session TestSession @relation(fields: [sessionId], references: [id])
+
+  @@unique([userId, module, status])
+  @@map("certifications")
+}

@@ -1,0 +1,53 @@
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+secrets/
+credentials/
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Prisma/local databases
+prisma/generated/
+*.db
+*.db-journal
+*.sqlite
+*.sql
+*.dump
+backups/
+
+# Testing and logs
+coverage/
+test-results/
+playwright-report/
+logs/
+*.log
+
+# OS/editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# Misc
+.cache/
+tmp/
+temp/
+.turbo/
