@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { LoginForm } from "@/components/login-form";
 
 export default function LoginPage() {
@@ -17,7 +18,9 @@ export default function LoginPage() {
         </div>
       </section>
       <section className="flex items-center justify-center px-6">
-        <LoginForm />
+        <Suspense fallback={<div className="h-80 w-full max-w-sm rounded border border-line bg-panel shadow-soft" />}>
+          <LoginForm />
+        </Suspense>
       </section>
     </main>
   );

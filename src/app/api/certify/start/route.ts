@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { IRT } from "@/lib/irt";
 
 const schema = z.object({
-  module: z.enum(["M1", "M2", "M3", "M4"])
+  module: z.enum(["M1", "M2", "M3", "M4", "M5"])
 });
 
 export async function POST(request: Request) {
@@ -15,6 +15,18 @@ export async function POST(request: Request) {
 
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "Invalid module" }, { status: 400 });
+
+  const activeAttempt = await prisma.testSession.findFirst({
+    where: {
+      userId: session.user.id,
+      module: parsed.data.module,
+      status: "IN_PROGRESS"
+    },
+    orderBy: { startedAt: "desc" }
+  });
+  if (activeAttempt) {
+    return NextResponse.json({ sessionId: activeAttempt.id, resumed: true });
+  }
 
   const latestFailure = await prisma.testSession.findFirst({
     where: {

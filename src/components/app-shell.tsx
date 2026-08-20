@@ -26,6 +26,7 @@ const nav = [
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
   const adminNav = session.user.role === "ADMIN" ? [{ href: "/admin", label: "Admin", icon: ShieldCheck }] : [];
+  const items = [...nav, ...adminNav];
   return (
     <div className="min-h-screen bg-wash">
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 border-r border-line bg-panel lg:flex lg:flex-col">
@@ -41,7 +42,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <nav className="flex-1 space-y-1 px-3 py-4">
-          {[...nav, ...adminNav].map((item) => {
+          {items.map((item) => {
             const Icon = item.icon;
             return (
               <Link
@@ -69,6 +70,35 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <main className="lg:pl-64">
+        <div className="sticky top-0 z-10 border-b border-line bg-panel/95 backdrop-blur lg:hidden">
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded bg-navy text-white">
+                <Gauge size={18} />
+              </div>
+              <div>
+                <div className="font-semibold text-ink">Advisory OS</div>
+                <div className="mono text-[10px] uppercase text-muted">{session.user.role.toLowerCase()}</div>
+              </div>
+            </div>
+            <LogoutButton />
+          </div>
+          <nav className="flex gap-2 overflow-x-auto px-4 pb-3">
+            {items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="inline-flex shrink-0 items-center gap-2 rounded border border-line bg-wash px-3 py-2 text-xs font-semibold text-slate-700"
+                >
+                  <Icon size={14} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
         <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">{children}</div>
       </main>
     </div>

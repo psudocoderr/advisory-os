@@ -10,14 +10,15 @@ const modules: { code: ModuleCode; title: string; description: string }[] = [
   { code: "M1", title: "KYC & Compliance", description: "Identity verification, KRA fetches, PAN checks, and proof protocol." },
   { code: "M2", title: "Client Onboarding", description: "Readiness checks, account setup, and first-review scheduling." },
   { code: "M3", title: "Investment Operations", description: "SIP, lump sum, ELSS, and transaction workflow controls." },
-  { code: "M4", title: "Portfolio Reviews", description: "AUM, XIRR, allocation drift, actions, and next-review cadence." }
+  { code: "M4", title: "Portfolio Reviews", description: "AUM, XIRR, allocation drift, actions, and next-review cadence." },
+  { code: "M5", title: "Full Advisory Certification", description: "Composite workflow judgment across CRM, KYC, planning, reviews, and certification controls." }
 ];
 
 export default async function CertifyPage() {
   const session = await requireSession();
   const [certifications, counts] = await Promise.all([
     prisma.certification.findMany({
-      where: session.user.role === "ADMIN" ? {} : { userId: session.user.id },
+      where: { status: "ACTIVE", ...(session.user.role === "ADMIN" ? {} : { userId: session.user.id }) },
       orderBy: { issuedAt: "desc" },
       include: { user: true }
     }),

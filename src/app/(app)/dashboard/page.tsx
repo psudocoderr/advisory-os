@@ -9,8 +9,9 @@ export default async function DashboardPage() {
   const session = await requireSession();
   const scope = scopedUserFilter(session);
   const meetingScope = session.user.role === "ADMIN" ? {} : { ownerId: session.user.id };
+  const now = new Date();
 
-  const [meetings, prospects, clients, plans, reviews, recent, upcoming, certs] = await Promise.all([
+  const [meetings, prospects, clients, plans, reviews, recent, upcoming, reviewDue, certs] = await Promise.all([
     prisma.meetingLog.count({ where: meetingScope }),
     prisma.prospect.groupBy({ by: ["stage"], where: scope, _count: true }),
     prisma.client.findMany({ where: scope, select: { aum: true, kycStatus: true } }),
@@ -23,13 +24,22 @@ export default async function DashboardPage() {
       include: { prospect: true, client: true, owner: true }
     }),
     prisma.meetingLog.findMany({
-      where: { ...meetingScope, followUpDate: { gte: new Date() } },
+      where: { ...meetingScope, followUpDate: { gte: now } },
       orderBy: { followUpDate: "asc" },
       take: 5,
       include: { prospect: true, client: true }
     }),
+    prisma.portfolioReview.findMany({
+      where: {
+        client: scope,
+        nextReviewDate: { gte: now }
+      },
+      orderBy: { nextReviewDate: "asc" },
+      take: 5,
+      include: { client: true }
+    }),
     prisma.certification.findMany({
-      where: session.user.role === "ADMIN" ? {} : { userId: session.user.id },
+      where: { status: "ACTIVE", expiresAt: { gte: now }, ...(session.user.role === "ADMIN" ? {} : { userId: session.user.id }) },
       orderBy: { issuedAt: "desc" },
       take: 5,
       include: { user: true }
@@ -111,6 +121,24 @@ export default async function DashboardPage() {
                 ))
               ) : (
                 <div className="px-4 py-6 text-sm text-muted">No upcoming follow-ups.</div>
+              )}
+            </div>
+          </Card>
+          <Card>
+            <div className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted">Upcoming reviews</div>
+            <div className="divide-y divide-line">
+              {reviewDue.length ? (
+                reviewDue.map((item) => (
+                  <div key={item.id} className="flex items-center gap-3 px-4 py-3">
+                    <Clock size={16} className="text-teal" />
+                    <div>
+                      <div className="text-sm font-semibold text-ink">{item.client.name}</div>
+                      <div className="text-xs text-muted">{dateLabel(item.nextReviewDate)}</div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="px-4 py-6 text-sm text-muted">No upcoming reviews.</div>
               )}
             </div>
           </Card>

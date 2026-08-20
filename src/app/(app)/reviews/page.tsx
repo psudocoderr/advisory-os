@@ -4,12 +4,38 @@ import { compactInr, dateLabel } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatusBadge, SubmitButton } from "@/components/ui";
 
-export default async function ReviewsPage() {
+export default async function ReviewsPage({ searchParams }: { searchParams: Promise<{ q?: string; due?: string }> }) {
   const session = await requireSession();
   const scope = scopedUserFilter(session);
+  const params = await searchParams;
+  const query = params.q?.trim();
+  const due = params.due === "next30" ? params.due : undefined;
+  const now = new Date();
+  const next30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
   const [reviews, clients] = await Promise.all([
     prisma.portfolioReview.findMany({
-      where: { client: scope },
+      where: {
+        client: scope,
+        ...(due ? { nextReviewDate: { gte: now, lte: next30 } } : {}),
+        ...(query
+          ? {
+              OR: [
+                { actions: { contains: query, mode: "insensitive" } },
+                { attachmentNote: { contains: query, mode: "insensitive" } },
+                {
+                  client: {
+                    ...scope,
+                    OR: [
+                      { name: { contains: query, mode: "insensitive" } },
+                      { phone: { contains: query } },
+                      { pan: { contains: query.toUpperCase() } }
+                    ]
+                  }
+                }
+              ]
+            }
+          : {})
+      },
       orderBy: { reviewDate: "desc" },
       include: { client: { include: { assignedTo: true } } }
     }),
@@ -19,6 +45,16 @@ export default async function ReviewsPage() {
   return (
     <>
       <PageHeader title="Portfolio Reviews" description="Record AUM, returns, rebalancing actions, and next review dates." />
+      <Card className="mb-5 p-4">
+        <form className="grid gap-3 md:grid-cols-[1fr_220px_auto]" action="/reviews">
+          <input className="field" name="q" placeholder="Search client, PAN, phone, actions, or attachment note" defaultValue={query || ""} />
+          <select className="field" name="due" defaultValue={due || ""}>
+            <option value="">All reviews</option>
+            <option value="next30">Due next 30 days</option>
+          </select>
+          <button className="rounded bg-navy px-4 py-2 text-sm font-semibold text-white">Filter</button>
+        </form>
+      </Card>
       <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
         <Card className="overflow-hidden">
           <table className="w-full min-w-[820px] text-left text-sm">

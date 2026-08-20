@@ -4,12 +4,36 @@ import { compactInr, dateLabel, titleCase } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatusBadge, SubmitButton } from "@/components/ui";
 
-export default async function PlansPage() {
+export default async function PlansPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string }> }) {
   const session = await requireSession();
   const scope = scopedUserFilter(session);
+  const params = await searchParams;
+  const statuses = ["DRAFT", "SENT", "ACCEPTED", "ACTIVE", "CLOSED"] as const;
+  const query = params.q?.trim();
+  const status = statuses.includes(params.status as (typeof statuses)[number]) ? params.status : undefined;
   const [plans, clients] = await Promise.all([
     prisma.investmentPlan.findMany({
-      where: { client: scope },
+      where: {
+        client: scope,
+        ...(status ? { status: status as never } : {}),
+        ...(query
+          ? {
+              OR: [
+                { notes: { contains: query, mode: "insensitive" } },
+                {
+                  client: {
+                    ...scope,
+                    OR: [
+                      { name: { contains: query, mode: "insensitive" } },
+                      { phone: { contains: query } },
+                      { pan: { contains: query.toUpperCase() } }
+                    ]
+                  }
+                }
+              ]
+            }
+          : {})
+      },
       orderBy: { updatedAt: "desc" },
       include: { client: { include: { assignedTo: true } } }
     }),
@@ -19,6 +43,18 @@ export default async function PlansPage() {
   return (
     <>
       <PageHeader title="Investment Plans" description="Track SIP, ELSS, lump sum, and mixed plans from draft through activation." />
+      <Card className="mb-5 p-4">
+        <form className="grid gap-3 md:grid-cols-[1fr_220px_auto]" action="/plans">
+          <input className="field" name="q" placeholder="Search client, PAN, phone, or notes" defaultValue={query || ""} />
+          <select className="field" name="status" defaultValue={status || ""}>
+            <option value="">All statuses</option>
+            {statuses.map((value) => (
+              <option key={value} value={value}>{titleCase(value)}</option>
+            ))}
+          </select>
+          <button className="rounded bg-navy px-4 py-2 text-sm font-semibold text-white">Filter</button>
+        </form>
+      </Card>
       <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
         <Card className="overflow-hidden">
           <table className="w-full min-w-[820px] text-left text-sm">
@@ -55,7 +91,7 @@ export default async function PlansPage() {
                     <form action={updatePlanStatus} className="flex gap-2">
                       <input type="hidden" name="id" value={plan.id} />
                       <select className="field min-w-32" name="status" defaultValue={plan.status}>
-                        {["DRAFT", "SENT", "ACCEPTED", "ACTIVE", "CLOSED"].map((value) => (
+                        {statuses.map((value) => (
                           <option key={value} value={value}>{titleCase(value)}</option>
                         ))}
                       </select>

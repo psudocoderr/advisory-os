@@ -4,10 +4,26 @@ import { compactInr, dateLabel, maskPan, maskPhone, titleCase } from "@/lib/form
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatusBadge, SubmitButton } from "@/components/ui";
 
-export default async function ClientsPage() {
+export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ q?: string; kyc?: string }> }) {
   const session = await requireSession();
+  const params = await searchParams;
+  const kycStatuses = ["VERIFIED", "PENDING", "EXPIRED"] as const;
+  const query = params.q?.trim();
+  const kyc = kycStatuses.includes(params.kyc as (typeof kycStatuses)[number]) ? params.kyc : undefined;
   const clients = await prisma.client.findMany({
-    where: scopedUserFilter(session),
+    where: {
+      ...scopedUserFilter(session),
+      ...(kyc ? { kycStatus: kyc as never } : {}),
+      ...(query
+        ? {
+            OR: [
+              { name: { contains: query, mode: "insensitive" } },
+              { phone: { contains: query } },
+              { pan: { contains: query.toUpperCase() } }
+            ]
+          }
+        : {})
+    },
     orderBy: { updatedAt: "desc" },
     include: { assignedTo: true, investmentPlans: true, portfolioReviews: { orderBy: { reviewDate: "desc" }, take: 1 } }
   });
@@ -15,6 +31,18 @@ export default async function ClientsPage() {
   return (
     <>
       <PageHeader title="Clients" description="Searchable active-client log with masked PAN and phone in the list view." />
+      <Card className="mb-5 p-4">
+        <form className="grid gap-3 md:grid-cols-[1fr_220px_auto]" action="/clients">
+          <input className="field" name="q" placeholder="Search name, phone, or PAN" defaultValue={query || ""} />
+          <select className="field" name="kyc" defaultValue={kyc || ""}>
+            <option value="">All KYC states</option>
+            {kycStatuses.map((value) => (
+              <option key={value} value={value}>{titleCase(value)}</option>
+            ))}
+          </select>
+          <button className="rounded bg-navy px-4 py-2 text-sm font-semibold text-white">Filter</button>
+        </form>
+      </Card>
       <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
         <Card className="overflow-hidden">
           <table className="w-full min-w-[820px] text-left text-sm">
@@ -45,9 +73,9 @@ export default async function ClientsPage() {
                     <form action={updateClientKyc} className="flex gap-2">
                       <input type="hidden" name="id" value={client.id} />
                       <select className="field min-w-32" name="kycStatus" defaultValue={client.kycStatus}>
-                        <option value="VERIFIED">Verified</option>
-                        <option value="PENDING">Pending</option>
-                        <option value="EXPIRED">Expired</option>
+                        {kycStatuses.map((value) => (
+                          <option key={value} value={value}>{titleCase(value)}</option>
+                        ))}
                       </select>
                       <button className="rounded border border-line px-2 text-xs font-bold">Update</button>
                     </form>

@@ -74,6 +74,15 @@ export async function POST(request: Request) {
         completedAt: new Date()
       }
     });
+    await prisma.auditLog.create({
+      data: {
+        actorId: auth.user.id,
+        action: passed ? "PASS" : "FAIL",
+        entity: "TestSession",
+        entityId: testSession.id,
+        summary: `${passed ? "Passed" : "Failed"} ${testSession.module} certification at theta ${estimate.theta.toFixed(2)}`
+      }
+    });
 
     if (passed) {
       const expiresAt = new Date();
@@ -100,7 +109,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const remediation = passed ? [] : await weakestSops(testSession.id, question.id, isCorrect);
+    const remediation = passed ? [] : await weakestSops(testSession.id);
     return NextResponse.json({
       complete: true,
       result: {
@@ -144,15 +153,11 @@ function sanitizeQuestion(question: { id: string; content: string; options: unkn
   };
 }
 
-async function weakestSops(sessionId: string, latestQuestionId: string, latestCorrect: boolean) {
+async function weakestSops(sessionId: string) {
   const incorrect = await prisma.responseLog.findMany({
     where: { sessionId, isCorrect: false },
     include: { question: { include: { linkedSop: true } } }
   });
-  if (!latestCorrect) {
-    const latest = await prisma.questionItem.findUnique({ where: { id: latestQuestionId }, include: { linkedSop: true } });
-    if (latest) incorrect.push({ question: latest } as never);
-  }
   const counts = new Map<string, { title: string; slug: string; count: number }>();
   for (const row of incorrect) {
     const sop = row.question.linkedSop;

@@ -10,13 +10,13 @@ const details: Record<ModuleCode, { title: string; body: string }> = {
   M2: { title: "Client Onboarding", body: "Readiness checks, onboarding controls, and first-review scheduling." },
   M3: { title: "Investment Operations", body: "SIP, ELSS, lump sum, and operational follow-up controls." },
   M4: { title: "Portfolio Reviews", body: "AUM, XIRR, allocation drift, action capture, and next-review discipline." },
-  M5: { title: "Full Advisory Certification", body: "Composite module reserved for post-MVP." }
+  M5: { title: "Full Advisory Certification", body: "Composite adaptive testing across CRM, compliance, planning, review, and operating controls." }
 };
 
 export default async function ModulePage({ params }: { params: Promise<{ moduleId: ModuleCode }> }) {
   await requireSession();
   const { moduleId } = await params;
-  if (!details[moduleId] || moduleId === "M5") notFound();
+  if (!details[moduleId]) notFound();
   const [questionCount, sopEntries] = await Promise.all([
     prisma.questionItem.count({ where: { module: moduleId, isActive: true } }),
     prisma.sopEntry.findMany({ where: { module: moduleId, isPublished: true }, orderBy: { title: "asc" } })

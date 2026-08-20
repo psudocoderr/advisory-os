@@ -268,6 +268,13 @@ async function seedKnowledge() {
         description: "Review meeting preparation, XIRR checks, and rebalancing decisions.",
         order: 4
       }
+    }),
+    prisma.knowledgeCategory.create({
+      data: {
+        title: "Integrated Advisory Practice",
+        description: "End-to-end advisory judgment across CRM, compliance, planning, and reviews.",
+        order: 5
+      }
     })
   ]);
 
@@ -310,6 +317,14 @@ async function seedKnowledge() {
         "Identify allocation drift and fund underperformance.",
         "Record rebalancing actions and client consent.",
         "Set the next review date before closing the review."
+      ])
+    }),
+    prisma.sopEntry.create({
+      data: sop(categories[4].id, "M5", "Full Advisory Workflow", "full-advisory-workflow", [
+        "Qualify the prospect and record source, stage, notes, and next action.",
+        "Complete KYC and onboarding controls before activating a client.",
+        "Create a suitable plan linked to the documented goal and risk context.",
+        "Review portfolio outcomes and update the next operating action."
       ])
     })
   ]);
@@ -390,10 +405,23 @@ async function seedQuestions(adminId: string, sopMap: Map<ModuleCode, string>) {
       "What should happen after a review finds KYC expiry?",
       "Which view should surface upcoming reviews?"
     ],
-    M5: []
+    M5: [
+      "What is the best first CRM action after receiving a qualified referral?",
+      "Which condition should block client activation?",
+      "How should an advisor justify an investment plan?",
+      "What should happen when a prospect accepts a plan?",
+      "Which item best supports auditability across the advisory workflow?",
+      "What is the safest action when KYC expires before a new transaction?",
+      "Why should review AUM be synced to the client record?",
+      "Which signal belongs on the dashboard for day-to-day execution?",
+      "What makes a certification attempt defensible?",
+      "How should weak test areas be remediated?",
+      "Which CRM data should stay masked in list views?",
+      "What is the final control before closing a portfolio review?"
+    ],
   };
 
-  const rows = (["M1", "M2", "M3", "M4"] as ModuleCode[]).flatMap((module) =>
+  const rows = (["M1", "M2", "M3", "M4", "M5"] as ModuleCode[]).flatMap((module) =>
     stems[module].map((content, index) => ({
       module,
       content,
@@ -475,7 +503,20 @@ function correctAnswer(module: ModuleCode, index: number) {
       "Start re-KYC before new transactions",
       "Dashboard"
     ],
-    M5: []
+    M5: [
+      "Create the prospect with source, stage, notes, and follow-up",
+      "Incomplete mandatory KYC checks",
+      "By linking recommendations to goal, risk, and client context",
+      "Move the plan through accepted or active status and retain dates",
+      "Structured notes, status changes, and linked follow-up dates",
+      "Start re-KYC before executing the transaction",
+      "It keeps the client summary aligned with the latest review",
+      "Upcoming follow-ups, review dates, and certification status",
+      "Server-side scoring with a controlled question bank",
+      "Review linked SOPs before the next attempt",
+      "PAN and phone number",
+      "Set actions, consent, and the next review date"
+    ],
   };
   return answers[module][index];
 }
