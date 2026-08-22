@@ -1,4 +1,4 @@
-import { Clock, PlusCircle, BookOpen, Award, CheckCircle2 } from "lucide-react";
+import { Clock, PlusCircle, BookOpen, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { requireSession, scopedUserFilter } from "@/lib/auth";
 import { compactInr, dateLabel, titleCase } from "@/lib/format";
