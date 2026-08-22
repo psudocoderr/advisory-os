@@ -243,107 +243,172 @@ async function seedKnowledge() {
   const categories = await Promise.all([
     prisma.knowledgeCategory.create({
       data: {
-        title: "KYC & Compliance",
-        description: "Identity verification, KRA checks, PAN validation, and re-KYC workflows.",
+        title: "Week 1: Regulatory & Identity Compliance (Days 1–7)",
+        description: "AMFI/SEBI regulatory rules, NISM Series V-A, EUIN/ARN registration, C-KYC, KRA, and FATCA/CRS compliance.",
         order: 1
       }
     }),
     prisma.knowledgeCategory.create({
       data: {
-        title: "Client Onboarding",
-        description: "Client setup, nomination, bank details, and AMC account readiness.",
+        title: "Week 2: Client Onboarding & Mandates (Days 8–14)",
+        description: "Account classification, bank penny-drop, e-NACH mandate registration, Risk Profiling, and Nomination setup.",
         order: 2
       }
     }),
     prisma.knowledgeCategory.create({
       data: {
-        title: "Investment Operations",
-        description: "SIP, lump sum, ELSS, redemption, and switch operating procedures.",
+        title: "Week 3: Platform Operations & Transactions (Days 15–21)",
+        description: "BSE StAR MF & NSE NMF II order routing, CAMS & KFintech RTA processing, ELSS cut-off timing, and transaction reconciliation.",
         order: 3
       }
     }),
     prisma.knowledgeCategory.create({
       data: {
-        title: "Portfolio Reviews",
-        description: "Review meeting preparation, XIRR checks, and rebalancing decisions.",
+        title: "Week 4: Portfolio Reviews & Rebalancing (Days 22–28)",
+        description: "Portfolio XIRR computation, allocation drift analysis, annual review execution, consent capture, and practice audit hygiene.",
         order: 4
       }
     }),
     prisma.knowledgeCategory.create({
       data: {
-        title: "Integrated Advisory Practice",
-        description: "End-to-end advisory judgment across CRM, compliance, planning, and reviews.",
+        title: "Master Practice: Composite Advisory Mastery (Days 29–30)",
+        description: "End-to-end operational execution, audit trail logging, and master certification across all MFD practice workflows.",
         order: 5
       }
     })
   ]);
 
   const entries = await Promise.all([
+    // Week 1 SOPs (M1)
     prisma.sopEntry.create({
-      data: sop(categories[0].id, "M1", "Master Identity Verification", "master-identity-verification", [
-        "Open IT portal record and confirm PAN-linked name first.",
-        "Compare IT portal name with the master identity document.",
-        "Fetch KRA KYC record and compare name, DOB, and PAN.",
-        "If names diverge, trigger proof protocol before onboarding."
-      ])
+      data: sop(categories[0].id, "M1", "Day 1–2: NISM V-A Certification & EUIN Tagging", "day-1-2-nism-euin-registration", [
+        "Verify NISM Series V-A certification validity and registration on the AMFI portal.",
+        "Obtain valid AMFI Registration Number (ARN) and Employee Unique Identification Number (EUIN).",
+        "Tag EUIN on every transaction slip and digital order form to prevent mis-selling penalties.",
+        "Maintain EUIN renewal tracker 60 days prior to 3-year expiration."
+      ], "Days 1–2 • AMFI & Regulatory Rules")
     }),
     prisma.sopEntry.create({
-      data: sop(categories[0].id, "M1", "KRA Fetch Process", "kra-fetch-process", [
-        "Search using PAN in the KRA interface.",
-        "Record KYC status, IPV status, and last update date.",
-        "Flag pending or expired records for remediation.",
-        "Attach KRA summary to the internal onboarding notes."
-      ])
+      data: sop(categories[0].id, "M1", "Day 3–4: PAN Validation & KRA/C-KYC Verification", "day-3-4-pan-kra-ckyc-verification", [
+        "Fetch Income Tax portal record to confirm PAN status and exact legal name match.",
+        "Query CAMS KRA, NDML KRA, and CVL KRA interfaces using client PAN.",
+        "Confirm C-KYC status (Verified, Validated, Pending, or Expired) and IPV (In-Person Verification) timestamp.",
+        "If KRA record is invalid or missing, initiate digital C-KYC onboarding with Aadhaar e-KYC."
+      ], "Days 3–4 • KRA & Identity Proof")
     }),
     prisma.sopEntry.create({
-      data: sop(categories[1].id, "M2", "New Client Checklist", "new-client-checklist", [
-        "Confirm identity, PAN, phone, email, and bank account readiness.",
-        "Verify risk profile and investment objective.",
-        "Create client record only after mandatory KYC checks pass.",
-        "Schedule first review before concluding onboarding."
-      ])
+      data: sop(categories[0].id, "M1", "Day 5–7: FATCA/CRS & Identity Proof Protocol", "day-5-7-fatca-disparity-protocol", [
+        "Obtain FATCA/CRS self-declaration for all individual and non-individual investors.",
+        "Screen client against Politically Exposed Person (PEP) list and high-risk jurisdictions.",
+        "If name on PAN diverges from Bank Statement or Aadhaar, execute Proof Protocol (Marriage cert, Gazette notification, or bank attestation).",
+        "Upload verified compliance dossier into CRM prior to initiating investment plans."
+      ], "Days 5–7 • Compliance & Proof Protocol")
+    }),
+
+    // Week 2 SOPs (M2)
+    prisma.sopEntry.create({
+      data: sop(categories[1].id, "M2", "Day 8–10: Account Setup, Penny-Drop & Mandate Registration", "day-8-10-account-setup-mandates", [
+        "Classify investor type: Individual, Joint (Anyone or Survivor), HUF, Minor, or NRI.",
+        "Execute automated Penny-Drop verification to confirm bank account title matches PAN record.",
+        "Register e-NACH / UPI AutoPay mandate with client's primary bank for seamless SIP execution.",
+        "Verify mandate approval status (Active) on BSE StAR / NSE NMF II before placing recurring SIP orders."
+      ], "Days 8–10 • Account & Bank Setup")
     }),
     prisma.sopEntry.create({
-      data: sop(categories[2].id, "M3", "SIP Setup & Modification", "sip-setup-modification", [
-        "Confirm mandate availability and investment amount.",
-        "Match scheme choice to documented goal and risk profile.",
-        "Record start date, frequency, and follow-up date.",
-        "Confirm execution status in the client timeline."
-      ])
+      data: sop(categories[1].id, "M2", "Day 11–12: Investor Risk Profiling & Asset Allocation", "day-11-12-risk-profiling-allocation", [
+        "Administer 10-question SEBI-compliant Risk Profiling questionnaire in CRM.",
+        "Categorize investor risk capacity: Conservative, Moderate, Growth, or Aggressive.",
+        "Map investment goals (Retirement, Tax Saving 80C, Children's Education) to target asset allocation.",
+        "Document asset allocation rationale and store signed risk profile consent in CRM."
+      ], "Days 11–12 • Risk Profiling & Suitability")
     }),
     prisma.sopEntry.create({
-      data: sop(categories[3].id, "M4", "Review Meeting Checklist", "review-meeting-checklist", [
-        "Update AUM, XIRR, and goal progress before the meeting.",
-        "Identify allocation drift and fund underperformance.",
-        "Record rebalancing actions and client consent.",
-        "Set the next review date before closing the review."
-      ])
+      data: sop(categories[1].id, "M2", "Day 13–14: Nomination Setup & First Review Cadence", "day-13-14-nomination-first-review", [
+        "Enforce mandatory nomination (up to 3 nominees with percentage allocation) or formal opt-out declaration.",
+        "For minor investors, capture guardian PAN, relationship proof, and minor DOB certificate.",
+        "Create initial active Client record in CRM with verified KYC and linked investment mandates.",
+        "Schedule first 90-day onboarding review in CRM calendar before concluding setup."
+      ], "Days 13–14 • Nomination & Review Setup")
+    }),
+
+    // Week 3 SOPs (M3)
+    prisma.sopEntry.create({
+      data: sop(categories[2].id, "M3", "Day 15–17: BSE StAR MF & NSE NMF II Order Routing", "day-15-17-bse-nse-order-routing", [
+        "Login to MFD execution platform (BSE StAR MF / NSE NMF II / MFU).",
+        "Select transaction type: Lump Sum Purchase, SIP Registration, Switch, STP, or SWP.",
+        "Verify EUIN tagging, scheme code, folio number, and payment mode (Net Banking / UPI / Mandate).",
+        "Send digital payment link / OTP authorization to client and track confirmation before cut-off time (3:00 PM)."
+      ], "Days 15–17 • Execution Platform Ops")
     }),
     prisma.sopEntry.create({
-      data: sop(categories[4].id, "M5", "Full Advisory Workflow", "full-advisory-workflow", [
-        "Qualify the prospect and record source, stage, notes, and next action.",
-        "Complete KYC and onboarding controls before activating a client.",
-        "Create a suitable plan linked to the documented goal and risk context.",
-        "Review portfolio outcomes and update the next operating action."
-      ])
+      data: sop(categories[2].id, "M3", "Day 18–19: CAMS & KFintech RTA Operations & NACH Rejections", "day-18-19-cams-kfintech-rta-nach", [
+        "Download daily transaction feeds (WBR2 / WBR9) from CAMS and KFintech portals.",
+        "Reconcile SIP mandate debit failures (insufficient funds, account closed) within 24 hours.",
+        "Process folio consolidation requests to merge duplicate folios under single PAN.",
+        "Handle email/mobile update requests via RTA change forms with OTM validation."
+      ], "Days 18–19 • RTA & Mandate Reconciliation")
+    }),
+    prisma.sopEntry.create({
+      data: sop(categories[2].id, "M3", "Day 20–21: ELSS Tax Cut-Offs & Transaction Reconciliation", "day-20-21-elss-transaction-recon", [
+        "Manage March 31 tax-saving ELSS deadlines with strict 2:30 PM payment cut-off protocols.",
+        "Verify NAV allotment rules: Liquid/Overnight (T+1 realization) vs Equity/Debt (T+1/T+2 realization).",
+        "Cross-verify client bank debit entries against AMC reverse feed confirmations.",
+        "Update investment plan status in CRM from 'SENT' to 'ACCEPTED' or 'ACTIVE'."
+      ], "Days 20–21 • ELSS & NAV Allotment Ops")
+    }),
+
+    // Week 4 SOPs (M4)
+    prisma.sopEntry.create({
+      data: sop(categories[3].id, "M4", "Day 22–24: Portfolio XIRR & Allocation Drift Analysis", "day-22-24-xirr-drift-analysis", [
+        "Compute portfolio-level and scheme-level XIRR returns using consolidated CAS feeds.",
+        "Compare current portfolio asset allocation against original documented target profile.",
+        "Identify allocation drift exceeding +/- 5% threshold due to market movements.",
+        "Draft rebalancing proposal (Equity to Debt switch or fresh SIP redirection) in CRM."
+      ], "Days 22–24 • XIRR & Drift Analysis")
+    }),
+    prisma.sopEntry.create({
+      data: sop(categories[3].id, "M4", "Day 25–27: Annual Review Execution & Client Consent Capture", "day-25-27-annual-review-consent", [
+        "Prepare comprehensive Portfolio Review deck showing AUM growth, XIRR, and goal progress.",
+        "Conduct review meeting with client; document advisory recommendations and rebalancing decisions.",
+        "Capture written/digital client consent prior to executing any portfolio switches or redemptions.",
+        "Sync updated review AUM directly into the master CRM client record."
+      ], "Days 25–27 • Review & Consent Capture")
+    }),
+    prisma.sopEntry.create({
+      data: sop(categories[3].id, "M4", "Day 28: MFD Practice Auditability & Compliance Hygiene", "day-28-mfd-audit-compliance-hygiene", [
+        "Conduct monthly audit log review to verify all client interactions have timestamped notes.",
+        "Inspect upcoming portfolio review schedule for the next 30 days to ensure zero missed reviews.",
+        "Verify PAN and phone number masking compliance across all practice report exports.",
+        "Review team certification status in Admin panel to ensure all active advisors hold valid M1–M5 credentials."
+      ], "Days 28 • Practice Audit Hygiene")
+    }),
+
+    // Master Practice SOP (M5)
+    prisma.sopEntry.create({
+      data: sop(categories[4].id, "M5", "Day 29–30: End-to-End MFD Operational Mastery", "day-29-30-end-to-end-mfd-excellence", [
+        "Execute full lifecycle workflow: Prospect Qualification -> KYC Verification -> Mandate Setup -> Plan Proposal -> Order Execution -> Review Cadence.",
+        "Demonstrate complete mastery over BSE StAR MF, CAMS/KFintech feeds, and CRM audit compliance.",
+        "Achieve certification pass score ($\theta \\ge 0.50$) on Module M5 Master Advisory Test.",
+        "Maintain operational excellence guidelines across all client and compliance touchpoints."
+      ], "Days 29–30 • Master Advisory Practice")
     })
   ]);
 
   return new Map(entries.map((entry) => [entry.module || "M1", entry.id] as [ModuleCode, string]));
 }
 
-function sop(categoryId: string, module: ModuleCode, title: string, slug: string, steps: string[]) {
+function sop(categoryId: string, module: ModuleCode, title: string, slug: string, steps: string[], dayTag?: string) {
   return {
     categoryId,
     module,
     title,
     slug,
-    what: `${title} gives advisors a repeatable control point for compliant client servicing.`,
-    when: "Use this whenever the relevant client or operational event occurs.",
+    what: `${title} provides an operational checklist for MFD freshers to ensure 100% compliance and execution accuracy.`,
+    when: dayTag ? `Execute during ${dayTag}.` : "Execute whenever the relevant MFD operational trigger occurs.",
     steps,
-    outcomes: ["Clean audit trail", "Reduced follow-up misses", "Advisor-ready client context"],
-    commonErrors: ["Skipping source-of-truth checks", "Leaving follow-up dates blank", "Recording only informal notes"],
-    references: ["Internal SOP v1.2", "PRD Knowledge Portal structure"]
+    outcomes: ["Clean regulatory audit trail", "Zero transaction rejection rate", "High client trust & retention"],
+    commonErrors: ["Missing EUIN tagging on orders", "Leaving follow-up dates unassigned", "Proceeding with unverified bank accounts"],
+    references: ["AMFI MFD Operational Manual", "SEBI Mutual Fund Regulations 1996", "PRD 30-Day Training System"]
   };
 }
 

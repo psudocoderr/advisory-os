@@ -1,9 +1,18 @@
-import { Clock, PlusCircle } from "lucide-react";
+import { Clock, PlusCircle, BookOpen, Award, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { requireSession, scopedUserFilter } from "@/lib/auth";
 import { compactInr, dateLabel, titleCase } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatCard, StatusBadge } from "@/components/ui";
+import { ModuleCode } from "@prisma/client";
+
+const trainingModules: { code: ModuleCode; title: string; dayRange: string }[] = [
+  { code: "M1", title: "KYC & Regulatory Rules", dayRange: "Days 1–7" },
+  { code: "M2", title: "Onboarding & Mandates", dayRange: "Days 8–14" },
+  { code: "M3", title: "Platform Ops & Orders", dayRange: "Days 15–21" },
+  { code: "M4", title: "Portfolio XIRR & Drift", dayRange: "Days 22–28" },
+  { code: "M5", title: "Master MFD Execution", dayRange: "Days 29–30" }
+];
 
 export default async function DashboardPage() {
   const session = await requireSession();
@@ -53,13 +62,15 @@ export default async function DashboardPage() {
     count: prospects.find((item) => item.stage === stage)?._count ?? 0
   }));
 
+  const certifiedModulesCount = certs.length;
+
   return (
     <>
       <PageHeader
         title={`Good ${greeting()}, ${session.user.name.split(" ")[0]}`}
-        description={session.user.role === "ADMIN" ? "Team-wide operating snapshot." : "Your client work, follow-ups, and certification status."}
+        description={session.user.role === "ADMIN" ? "Team-wide operating snapshot & fresher readiness tracker." : "Your client work, follow-ups, and 30-day training progress."}
         action={
-          <Link href="/prospects" className="inline-flex items-center gap-2 rounded bg-navy px-3 py-2 text-sm font-semibold text-white">
+          <Link href="/prospects" className="inline-flex items-center gap-2 rounded bg-navy px-3.5 py-2 text-sm font-semibold text-white hover:bg-teal transition-colors">
             <PlusCircle size={16} />
             Add activity
           </Link>
@@ -74,6 +85,69 @@ export default async function DashboardPage() {
         <StatCard label="Reviews" value={reviews} detail="Portfolio reviews" />
       </div>
 
+      {/* 30-Day Operational Excellence Tracker */}
+      <Card className="mt-5 p-4 border-l-4 border-l-teal">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded bg-mint text-teal font-bold">
+              <BookOpen size={18} />
+            </div>
+            <div>
+              <h2 className="font-bold text-ink text-sm">30-Day Fresher Operational Readiness Track</h2>
+              <p className="text-xs text-muted">Progress across the 4-week MFD operational excellence curriculum</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-muted">
+              {certifiedModulesCount} of 5 Certified
+            </span>
+            <Link
+              href="/knowledge"
+              className="inline-flex items-center gap-1 text-xs font-bold text-teal hover:underline"
+            >
+              View Table of Contents →
+            </Link>
+          </div>
+        </div>
+
+        <div className="mt-3.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {trainingModules.map((module) => {
+            const isCertified = certs.some((c) => c.module === module.code);
+            return (
+              <Link
+                key={module.code}
+                href={`/certify/${module.code}`}
+                className={`flex flex-col justify-between rounded-lg border p-3 transition-all ${
+                  isCertified
+                    ? "border-teal/30 bg-mint/20 hover:border-teal"
+                    : "border-line bg-wash hover:border-navy"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="mono text-[10px] font-bold text-navy uppercase bg-panel px-1.5 py-0.5 rounded border border-line">
+                      {module.code}
+                    </span>
+                    {isCertified ? (
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-teal">
+                        <CheckCircle2 size={12} /> Certified
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-medium text-muted">Pending</span>
+                    )}
+                  </div>
+                  <div className="mt-2 text-xs font-bold text-ink leading-snug">{module.title}</div>
+                </div>
+                <div className="mt-2 text-[10px] text-muted font-medium border-t border-line/50 pt-1.5">
+                  {module.dayRange}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* CRM Pipeline */}
       <Card className="mt-5 p-4">
         <div className="mb-3 text-xs font-bold uppercase tracking-wide text-muted">Pipeline</div>
         <div className="grid gap-3 md:grid-cols-5">
@@ -143,7 +217,7 @@ export default async function DashboardPage() {
             </div>
           </Card>
           <Card>
-            <div className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted">Certification</div>
+            <div className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted">Active Certifications</div>
             <div className="divide-y divide-line">
               {certs.length ? (
                 certs.map((cert) => (
