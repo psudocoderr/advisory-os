@@ -9,12 +9,12 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "db:generate": "node scripts/with-env.cjs prisma generate",
-    "db:migrate": "node scripts/with-env.cjs prisma migrate dev",
-    "db:push": "node scripts/with-env.cjs prisma db push",
-    "db:seed": "node scripts/with-env.cjs tsx prisma/seed.ts",
-    "db:studio": "node scripts/with-env.cjs prisma studio",
-    "db:validate": "node scripts/with-env.cjs prisma validate"
+    "db:generate": "node scripts/with-env.mjs prisma generate",
+    "db:migrate": "node scripts/with-env.mjs prisma migrate dev",
+    "db:push": "node scripts/with-env.mjs prisma db push",
+    "db:seed": "node scripts/with-env.mjs tsx prisma/seed.ts",
+    "db:studio": "node scripts/with-env.mjs prisma studio",
+    "db:validate": "node scripts/with-env.mjs prisma validate"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
