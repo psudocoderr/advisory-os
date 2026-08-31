@@ -51,3 +51,6 @@ Desktop.ini
 tmp/
 temp/
 .turbo/
+
+# Internal working docs (confidential, not shipped product docs)
+docs/
