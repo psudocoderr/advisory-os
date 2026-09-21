@@ -27,6 +27,7 @@
  * 8-hour JWTs and isActive/role are only read at login, so a password change
  * alone does not end sessions already issued. See docs/flags.md S1/S2.
  */
+import readline from "node:readline";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 
@@ -35,17 +36,59 @@ const prisma = new PrismaClient();
 /** Published in this repository. Never acceptable on a deployed instance. */
 const PUBLISHED_DEFAULTS = ["ChangeMeAdmin123!", "ChangeMeAdvisor123!"];
 
-function required(variable: string): string {
-  const value = process.env[variable];
-  if (!value) {
+/**
+ * Asks a question on the terminal. With `hidden`, keystrokes are not echoed.
+ *
+ * Prompting matters here rather than being a convenience: an admin password
+ * passed as `ADMIN_PASSWORD=... npm run ...` is written to shell history in
+ * plaintext, and one left in .env.local persists on disk long after it is
+ * needed. Neither is acceptable for an account that can read every client
+ * record. Typed input goes to neither place.
+ */
+function ask(prompt: string, { hidden = false } = {}): Promise<string> {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+
+    if (hidden) {
+      // readline echoes each keystroke through _writeToOutput. Swallow
+      // everything except the prompt itself.
+      const asAny = rl as unknown as { _writeToOutput: (s: string) => void };
+      asAny._writeToOutput = (str: string) => {
+        if (str.includes(prompt)) process.stdout.write(str);
+      };
+    }
+
+    rl.question(prompt, (answer) => {
+      rl.close();
+      if (hidden) process.stdout.write("\n");
+      resolve(answer.trim());
+    });
+  });
+}
+
+/**
+ * Environment variable if present, otherwise a prompt.
+ *
+ * Without a TTY -- CI, a pipe, a non-interactive shell -- there is nobody to
+ * prompt, so it fails loudly rather than hanging forever waiting on stdin.
+ */
+async function obtain(variable: string, prompt: string, { hidden = false } = {}): Promise<string> {
+  const fromEnv = process.env[variable];
+  if (fromEnv) return fromEnv;
+
+  if (!process.stdin.isTTY) {
     throw new Error(
-      `${variable} is not set.\n\n` +
-        `  Usage:\n` +
-        `    ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='...' ADMIN_NAME='Your Name' \\\n` +
-        `      npm run bootstrap:admin\n`
+      `${variable} is not set, and there is no terminal to prompt on.\n\n` +
+        `  Set it in the environment for non-interactive use:\n` +
+        `    ${variable}='...' npm run bootstrap:admin\n\n` +
+        `  Interactively, just run 'npm run bootstrap:admin' from a terminal and\n` +
+        `  it will ask. That keeps the password out of your shell history.\n`
     );
   }
-  return value;
+
+  const answer = await ask(prompt, { hidden });
+  if (!answer) throw new Error(`No value given for ${variable}. Nothing was changed.`);
+  return answer;
 }
 
 function assertPasswordUsable(password: string): void {
@@ -70,10 +113,25 @@ function assertPasswordUsable(password: string): void {
 
 async function main() {
   // All validation before any write, and before any database round-trip.
-  const email = required("ADMIN_EMAIL").toLowerCase().trim();
-  const password = required("ADMIN_PASSWORD");
-  const name = process.env.ADMIN_NAME || email.split("@")[0];
+  const email = (await obtain("ADMIN_EMAIL", "Admin email: ")).toLowerCase().trim();
+
+  const password = await obtain("ADMIN_PASSWORD", "Password (not shown): ", { hidden: true });
   assertPasswordUsable(password);
+
+  // Confirm only when it was typed. A typo here locks you out of the account
+  // this script exists to recover, and there is no second recovery path.
+  if (!process.env.ADMIN_PASSWORD) {
+    const again = await ask("Confirm password: ", { hidden: true });
+    if (again !== password) throw new Error("Passwords did not match. Nothing was changed.");
+  }
+
+  // Must check for a terminal before prompting. An earlier version called
+  // ask() unconditionally here, so a fully-configured non-interactive run with
+  // ADMIN_NAME unset waited on stdin that was never going to arrive.
+  const fallbackName = email.split("@")[0];
+  const name =
+    process.env.ADMIN_NAME ||
+    (process.stdin.isTTY ? (await ask(`Display name [${fallbackName}]: `)) || fallbackName : fallbackName);
 
   const target = process.env.DIRECT_URL || process.env.DATABASE_URL;
   const host = target ? new URL(target).hostname : "unknown";
