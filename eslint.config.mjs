@@ -9,7 +9,7 @@ const compat = new FlatCompat({ baseDirectory: __dirname });
 
 const eslintConfig = [
   {
-    ignores: [".next/**", "node_modules/**", "tsconfig.tsbuildinfo"]
+    ignores: [".next/**", "node_modules/**", "coverage/**", "tsconfig.tsbuildinfo"]
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
@@ -22,7 +22,9 @@ const eslintConfig = [
         }
       ]
     }
-  }
+  },
+  // Must stay last: turns off the stylistic rules Prettier owns.
+  ...compat.extends("prettier")
 ];
 
 export default eslintConfig;

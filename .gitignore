@@ -26,7 +26,10 @@ prisma/generated/
 *.db
 *.db-journal
 *.sqlite
+# Keeps stray dumps out of the repo. Migrations are the deliberate exception:
+# they ARE the schema's source of truth and must be committed and reviewed.
 *.sql
+!prisma/migrations/**/*.sql
 *.dump
 backups/
 
@@ -51,6 +54,12 @@ Desktop.ini
 tmp/
 temp/
 .turbo/
+tsconfig.tsbuildinfo
 
-# Internal working docs (confidential, not shipped product docs)
-docs/
+# Internal working docs (confidential, not shipped product docs).
+# docs/engineering/ and docs/legal/ are the committed counterparts: engineering
+# reference and legal source text that must be reviewable in pull requests.
+# Everything else here (PRD, memos, the parked WealthOS PDFs) stays local.
+docs/*
+!docs/engineering/
+!docs/legal/

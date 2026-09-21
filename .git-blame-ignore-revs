@@ -1,0 +1,7 @@
+# Revisions to skip in `git blame` — bulk reformats with no behavioural change.
+#
+# Enable locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Add the SHA of the initial `prettier --write .` commit below once it exists.
+# One SHA per line, with a comment naming what it was.

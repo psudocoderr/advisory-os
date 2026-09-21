@@ -9,12 +9,23 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:generate": "node scripts/with-env.mjs prisma generate",
     "db:migrate": "node scripts/with-env.mjs prisma migrate dev",
-    "db:push": "node scripts/with-env.mjs prisma db push",
+    "db:deploy": "node scripts/with-env.mjs prisma migrate deploy",
+    "db:status": "node scripts/with-env.mjs prisma migrate status",
+    "db:drift": "node scripts/with-env.mjs node scripts/check-drift.mjs",
+    "db:push": "node scripts/with-env.mjs node scripts/guard-push.mjs",
     "db:seed": "node scripts/with-env.mjs tsx prisma/seed.ts",
     "db:studio": "node scripts/with-env.mjs prisma studio",
     "db:validate": "node scripts/with-env.mjs prisma validate"
+  },
+  "engines": {
+    "node": ">=22.0.0 <23",
+    "npm": ">=10"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
@@ -34,14 +45,18 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^2.1.9",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.17.0",
     "eslint-config-next": "15.1.11",
+    "eslint-config-prettier": "^9.1.0",
     "postcss": "^8.4.49",
+    "prettier": "^3.4.2",
     "prisma": "^5.22.0",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
