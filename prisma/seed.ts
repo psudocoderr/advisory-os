@@ -15,6 +15,34 @@ const daysFromNow = (days: number) => new Date(today.getTime() + days * 24 * 60 
 const SEED_VOLUMES = { users: 2, clients: 3, prospects: 3 };
 
 /**
+ * Seed passwords must be supplied explicitly.
+ *
+ * These were previously `process.env.X || "ChangeMeAdmin123!"`. A default
+ * password is not a sensible default: with the variable unset, the seed
+ * silently created an account whose password is published in this repository,
+ * in .env.example and in this file's own history. Known credentials on a
+ * throwaway local database are fine and intentional -- that is what
+ * .env.example documents -- but the seed should never invent one.
+ *
+ * Refusing costs one line in .env.local and removes a whole class of accident.
+ */
+function requireSeedPassword(variable: string): string {
+  const value = process.env[variable];
+
+  if (!value) {
+    throw new Error(
+      `The database seed refuses to run: ${variable} is not set.\n\n` +
+        `  Set it in .env.local. It previously defaulted to a password published in\n` +
+        `  this repository, which meant an unset variable silently created an account\n` +
+        `  anyone could log in to.\n\n` +
+        `  See docs/engineering/runbook.md.`
+    );
+  }
+
+  return value;
+}
+
+/**
  * Second, independent check on top of the hostname classification in
  * scripts/db-target.mjs.
  *
@@ -56,18 +84,25 @@ async function assertDatabaseLooksDisposable() {
 }
 
 async function main() {
-  // clear() deletes every row in every table. Two independent guards stand in
-  // front of it: the host must look disposable, and so must the contents.
-  // See docs/engineering/runbook.md and adr/0003.
+  // Order matters. Everything that can fail is checked BEFORE clear() deletes
+  // any data, cheapest first, so a misconfigured run aborts intact rather than
+  // wiping the database and then discovering it cannot finish.
+
+  // 1. Pure, no I/O. Fails instantly on a missing password.
+  const adminPassword = requireSeedPassword("SEED_ADMIN_PASSWORD");
+  const advisorPassword = requireSeedPassword("SEED_ADVISOR_PASSWORD");
+
+  // 2. Pure. Is this host disposable?
   assertDestructiveAllowed(process.env.DIRECT_URL || process.env.DATABASE_URL, {
     operation: "The database seed"
   });
+
+  // 3. One round-trip. Are the contents disposable? Catches a tunnel, which
+  //    step 2 cannot see through. See docs/engineering/runbook.md and adr/0003.
   await assertDatabaseLooksDisposable();
 
+  // Only now is anything destroyed.
   await clear();
-
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD || "ChangeMeAdmin123!";
-  const advisorPassword = process.env.SEED_ADVISOR_PASSWORD || "ChangeMeAdvisor123!";
 
   const admin = await prisma.user.create({
     data: {
