@@ -152,6 +152,10 @@ matches `schema.prisma`.
 
 ## Documentation
 
+- [`docs/engineering/codebase-guide.md`](docs/engineering/codebase-guide.md) —
+  how the system fits together: the request path, every module in `src/lib`,
+  the certification flow end to end, and where to make common changes. Read
+  this first if you are picking the project up.
 - [`docs/engineering/runbook.md`](docs/engineering/runbook.md) — environment
   matrix, migration procedures, admin recovery, secret rotation, incident
   response and its statutory clocks
