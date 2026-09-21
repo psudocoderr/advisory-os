@@ -20,6 +20,7 @@
     "db:drift": "node scripts/with-env.mjs node scripts/check-drift.mjs",
     "db:push": "node scripts/with-env.mjs node scripts/guard-push.mjs",
     "db:seed": "node scripts/with-env.mjs tsx prisma/seed.ts",
+    "bootstrap:admin": "node scripts/with-env.mjs tsx scripts/bootstrap-admin.ts",
     "db:studio": "node scripts/with-env.mjs prisma studio",
     "db:validate": "node scripts/with-env.mjs prisma validate"
   },

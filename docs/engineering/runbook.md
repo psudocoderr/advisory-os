@@ -183,6 +183,46 @@ at is the failure mode, which is why overdue counts surface on the dashboard.
 
 ---
 
+## 4a. Admin account recovery
+
+The application has **no password reset**. `passwordHash` is written in exactly
+two places -- `createUser()` in `src/lib/actions.ts` and `prisma/seed.ts` --
+both at creation time. There is no email provider and no reset flow, so a
+deployed instance with an unknown admin password has no recovery path through
+the UI.
+
+`scripts/bootstrap-admin.ts` is that path. It creates or resets **one** account
+and touches nothing else.
+
+```bash
+ADMIN_EMAIL=you@example.com \
+ADMIN_PASSWORD='<a real password>' \
+ADMIN_NAME='Your Name' \
+npm run bootstrap:admin
+```
+
+It is the deliberate opposite of the seed:
+
+| | `prisma/seed.ts` | `scripts/bootstrap-admin.ts` |
+|---|---|---|
+| Scope | deletes every row, inserts fixtures | one user row plus an audit entry |
+| Deployed databases | refuses | runs against them on purpose |
+| Use when | setting up local or CI | recovering or rotating a deployed admin |
+
+**Never run the seed to fix a login.** It calls `clear()` first. On a database
+with real records that is unrecoverable without a backup restore.
+
+**Setting `SEED_ADMIN_PASSWORD` in Vercel does nothing.** The build is
+`prisma generate && next build`; it never seeds. Those variables are read only
+at the moment the seed runs, from whichever machine runs it.
+
+**After any password reset, rotate `NEXTAUTH_SECRET` too.** Sessions are
+8-hour JWTs and `isActive`/`role` are read only at login, so a password change
+does not end sessions already issued. Rotating the signing secret invalidates
+every issued token at once. See `docs/flags.md` S1/S2.
+
+---
+
 ## 5. Routine operations
 
 ```bash
