@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
-import { certificationLevel, estimateEap, IRT, selectNextQuestion, shouldStop } from "@/lib/irt";
+import { estimateEap, selectNextQuestion, shouldStop } from "@/lib/irt";
+import { finalizeSession } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
 
 type Option = { key: string; text: string };
@@ -66,64 +67,16 @@ export async function POST(request: Request) {
   });
 
   if (shouldStop(answeredCount, estimate.se)) {
-    const passed = estimate.theta >= IRT.passTheta;
-    const level = certificationLevel(estimate.theta);
-    await prisma.testSession.update({
-      where: { id: testSession.id },
-      data: {
-        abilityEstimate: estimate.theta,
-        standardError: estimate.se,
-        certified: passed,
-        status: passed ? "PASSED" : "FAILED",
-        completedAt: new Date()
-      }
+    const result = await finalizeSession({
+      sessionId: testSession.id,
+      userId: auth.user.id,
+      module: testSession.module,
+      theta: estimate.theta,
+      se: estimate.se,
+      answered: answeredCount,
+      reason: "STOP_RULE"
     });
-    await prisma.auditLog.create({
-      data: {
-        actorId: auth.user.id,
-        action: passed ? "PASS" : "FAIL",
-        entity: "TestSession",
-        entityId: testSession.id,
-        summary: `${passed ? "Passed" : "Failed"} ${testSession.module} certification at theta ${estimate.theta.toFixed(2)}`
-      }
-    });
-
-    if (passed) {
-      const expiresAt = new Date();
-      expiresAt.setFullYear(expiresAt.getFullYear() + 1);
-      const existing = await prisma.certification.findFirst({
-        where: { userId: auth.user.id, module: testSession.module, status: "ACTIVE" }
-      });
-      if (existing) {
-        await prisma.certification.update({
-          where: { id: existing.id },
-          data: { sessionId: testSession.id, abilityScore: estimate.theta, level, issuedAt: new Date(), expiresAt }
-        });
-      } else {
-        await prisma.certification.create({
-          data: {
-            userId: auth.user.id,
-            module: testSession.module,
-            sessionId: testSession.id,
-            abilityScore: estimate.theta,
-            level,
-            expiresAt
-          }
-        });
-      }
-    }
-
-    const remediation = passed ? [] : await weakestSops(testSession.id);
-    return NextResponse.json({
-      complete: true,
-      result: {
-        passed,
-        theta: estimate.theta,
-        se: estimate.se,
-        level,
-        remediation
-      }
-    });
+    return NextResponse.json({ complete: true, result });
   }
 
   await prisma.testSession.update({
@@ -133,8 +86,22 @@ export async function POST(request: Request) {
 
   const usedIds = responseHistory.map((response) => response.questionId);
   const next = selectNextQuestion(estimate.theta, bank, usedIds);
+
+  // Running out of questions ends the test. It used to return HTTP 500 and
+  // leave the session IN_PROGRESS, which permanently bricked the module: the
+  // start route resumes an in-progress session, and the resumed page 404s
+  // because it cannot find a next question either.
   if (!next) {
-    return NextResponse.json({ error: "No remaining questions" }, { status: 500 });
+    const result = await finalizeSession({
+      sessionId: testSession.id,
+      userId: auth.user.id,
+      module: testSession.module,
+      theta: estimate.theta,
+      se: estimate.se,
+      answered: answeredCount,
+      reason: "BANK_EXHAUSTED"
+    });
+    return NextResponse.json({ complete: true, result });
   }
 
   return NextResponse.json({
@@ -155,19 +122,4 @@ function sanitizeQuestion(question: { id: string; content: string; options: unkn
     content: question.content,
     options: options.map(({ key, text }) => ({ key, text }))
   };
-}
-
-async function weakestSops(sessionId: string) {
-  const incorrect = await prisma.responseLog.findMany({
-    where: { sessionId, isCorrect: false },
-    include: { question: { include: { linkedSop: true } } }
-  });
-  const counts = new Map<string, { title: string; slug: string; count: number }>();
-  for (const row of incorrect) {
-    const sop = row.question.linkedSop;
-    const current = counts.get(sop.id) || { title: sop.title, slug: sop.slug, count: 0 };
-    current.count += 1;
-    counts.set(sop.id, current);
-  }
-  return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 3);
 }

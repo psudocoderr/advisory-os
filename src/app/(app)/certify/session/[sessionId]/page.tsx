@@ -62,7 +62,31 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
     bank,
     session.responses.map((response) => response.questionId)
   );
-  if (!next) notFound();
+  // An exhausted bank is a finished test, not a missing page. Returning 404
+  // here is what made the old exhaustion bug unrecoverable: the start route
+  // resumes an IN_PROGRESS session, and this page then refused to render it.
+  // Hand it to the client, which closes it out and shows the result.
+  if (!next) {
+    return (
+      <>
+        <PageHeader
+          title={`${session.module} Adaptive Test`}
+          description="Every available question in this module has been answered."
+        />
+        <TestSessionClient
+          sessionId={session.id}
+          module={session.module}
+          initialQuestion={null}
+          initialProgress={{
+            answered: session.responses.length,
+            theta: session.abilityEstimate,
+            se: session.standardError
+          }}
+          autoFinish="BANK_EXHAUSTED"
+        />
+      </>
+    );
+  }
 
   return (
     <>

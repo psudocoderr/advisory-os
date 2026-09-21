@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Card, StatusBadge } from "@/components/ui";
 
 type Question = {
@@ -16,24 +16,42 @@ type Progress = {
   se: number;
 };
 
+type FinishReason = "STOP_RULE" | "BANK_EXHAUSTED" | "TIMED_OUT";
+
 type Result = {
   passed: boolean;
   theta: number;
   se: number;
   level: string;
+  reason: FinishReason;
+  answered: number;
   remediation: { title: string; slug: string; count: number }[];
+};
+
+const REASON_NOTE: Record<FinishReason, string> = {
+  STOP_RULE: "The estimate reached the required confidence.",
+  BANK_EXHAUSTED: "Every available question in this module was answered.",
+  TIMED_OUT: "The time limit was reached."
 };
 
 export function TestSessionClient({
   sessionId,
   module,
   initialQuestion,
-  initialProgress
+  initialProgress,
+  autoFinish
 }: {
   sessionId: string;
   module: string;
-  initialQuestion: Question;
+  initialQuestion: Question | null;
   initialProgress: Progress;
+  /**
+   * Set when the session cannot continue and must be closed on arrival --
+   * currently only a bank that has run out. This is what recovers sessions
+   * left IN_PROGRESS by the old exhaustion bug, which previously rendered a
+   * 404 and had no route back to a finished state.
+   */
+  autoFinish?: FinishReason;
 }) {
   const [question, setQuestion] = useState(initialQuestion);
   const [progress, setProgress] = useState(initialProgress);
@@ -42,8 +60,37 @@ export function TestSessionClient({
   const [result, setResult] = useState<Result | null>(null);
   const [startedAt, setStartedAt] = useState(Date.now());
   const [pending, startTransition] = useTransition();
+  const finishRequested = useRef(false);
+
+  const finish = useCallback(
+    async (reason: FinishReason) => {
+      // The client decides when to finish. The server recomputes the score
+      // from stored responses and decides everything else.
+      if (finishRequested.current) return;
+      finishRequested.current = true;
+
+      const response = await fetch("/api/certify/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, reason })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        finishRequested.current = false;
+        setError(payload.error || "Unable to close this test.");
+        return;
+      }
+      setResult(payload.result);
+    },
+    [sessionId]
+  );
+
+  useEffect(() => {
+    if (autoFinish) void finish(autoFinish);
+  }, [autoFinish, finish]);
 
   function submit() {
+    if (!question) return;
     if (!selected) {
       setError("Choose an option before submitting.");
       return;
@@ -87,6 +134,9 @@ export function TestSessionClient({
           <StatusBadge tone="amber">SE {result.se.toFixed(2)}</StatusBadge>
         </div>
         <h2 className="mt-4 text-xl font-semibold text-ink">{result.level}</h2>
+        <p className="mt-1 text-sm text-muted">
+          Test ended after {result.answered} question{result.answered === 1 ? "" : "s"}. {REASON_NOTE[result.reason]}
+        </p>
         <p className="mt-2 text-sm leading-6 text-muted">
           {result.passed
             ? `You passed ${module}. The credential is now visible on the certification dashboard.`
@@ -108,6 +158,17 @@ export function TestSessionClient({
         <Link href="/certify" className="mt-5 inline-flex rounded bg-navy px-3 py-2 text-sm font-semibold text-white">
           Back to certification
         </Link>
+      </Card>
+    );
+  }
+
+  if (!question) {
+    return (
+      <Card className="p-5">
+        <p className="text-sm text-muted">Closing this test...</p>
+        {error ? (
+          <div className="mt-4 rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{error}</div>
+        ) : null}
       </Card>
     );
   }
@@ -145,13 +206,18 @@ export function TestSessionClient({
       {error ? (
         <div className="mt-4 rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{error}</div>
       ) : null}
-      <button
-        onClick={submit}
-        disabled={pending}
-        className="mt-5 rounded bg-navy px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-      >
-        {pending ? "Submitting..." : "Submit answer"}
-      </button>
+      <div className="mt-6 flex items-center justify-between gap-4 border-t border-line pt-4">
+        <p className="text-xs text-muted">
+          {selected ? `Option ${selected} selected` : "Select an option to continue"}
+        </p>
+        <button
+          onClick={submit}
+          disabled={pending || !selected}
+          className="rounded bg-navy px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {pending ? "Submitting..." : "Submit answer"}
+        </button>
+      </div>
     </Card>
   );
 }
