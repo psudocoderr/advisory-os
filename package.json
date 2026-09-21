@@ -22,6 +22,9 @@
     "db:seed": "node scripts/with-env.mjs tsx prisma/seed.ts",
     "db:snapshot": "node scripts/with-env.mjs tsx scripts/snapshot.ts",
     "db:reseed": "npm run db:snapshot && npm run db:seed",
+    "questions:check": "node scripts/with-env.mjs tsx scripts/questions.ts check",
+    "questions:template": "node scripts/with-env.mjs tsx scripts/questions.ts template",
+    "questions:import": "node scripts/with-env.mjs tsx scripts/questions.ts import",
     "bootstrap:admin": "node scripts/with-env.mjs tsx scripts/bootstrap-admin.ts",
     "db:studio": "node scripts/with-env.mjs prisma studio",
     "db:validate": "node scripts/with-env.mjs prisma validate"

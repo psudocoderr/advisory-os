@@ -677,25 +677,48 @@ async function seedQuestions(adminId: string, sopMap: Map<ModuleCode, string>) {
     ]
   };
 
+  /**
+   * Builds the four options for one question.
+   *
+   * The previous version put the correct answer at "A" every time and used the
+   * same three filler strings as distractors for all 60 questions. That made
+   * the certification passable by choosing A repeatedly and reduced every IRT
+   * difficulty parameter to noise -- see docs/flags.md.
+   *
+   * Distractors are now other questions' correct answers from the same module:
+   * varied, plausible, and specific to the subject. The correct answer rotates
+   * across A, B, C and D. Deterministic, so the seed stays reproducible.
+   */
+  function buildOptions(module: ModuleCode, index: number, total: number) {
+    const correctKey = "ABCD"[index % 4];
+    const distractors = [1, 2, 3].map((offset) => correctAnswer(module, (index + offset * 3 + 1) % total));
+
+    let taken = 0;
+    const options = ["A", "B", "C", "D"].map((key) => ({
+      key,
+      text: key === correctKey ? correctAnswer(module, index) : distractors[taken++]
+    }));
+
+    return { options, correctKey };
+  }
+
   const rows = (["M1", "M2", "M3", "M4", "M5"] as ModuleCode[]).flatMap((module) =>
-    stems[module].map((content, index) => ({
-      module,
-      content,
-      options: [
-        { key: "A", text: correctAnswer(module, index) },
-        { key: "B", text: "Record it informally and decide later" },
-        { key: "C", text: "Skip the step when the client is familiar" },
-        { key: "D", text: "Wait until month-end reporting" }
-      ],
-      correctKey: "A",
-      explanation: "The correct choice preserves a clear, reviewable operating trail.",
-      difficulty: -1.2 + (index % 6) * 0.45,
-      discrimination: 0.9 + (index % 4) * 0.25,
-      guessing: 0.2,
-      linkedSopId: sopMap.get(module)!,
-      createdById: adminId,
-      isActive: true
-    }))
+    stems[module].map((content, index) => {
+      const { options, correctKey } = buildOptions(module, index, stems[module].length);
+      return {
+        module,
+        content,
+        options,
+        correctKey,
+        explanation: "The correct choice preserves a clear, reviewable operating trail.",
+        difficulty: -1.8 + (index % 9) * 0.45,
+        discrimination: 0.9 + (index % 4) * 0.25,
+        guessing: 0.25,
+        linkedSopId: sopMap.get(module)!,
+        createdById: adminId,
+        isActive: true
+      };
+    })
   );
 
   await prisma.questionItem.createMany({ data: rows });

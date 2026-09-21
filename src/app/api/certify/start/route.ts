@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { estimateEap, isExpired, IRT } from "@/lib/irt";
 import { finalizeSession } from "@/lib/certify-session";
+import { MINIMUM_BANK_SIZE } from "@/lib/question-bank";
 
 const schema = z.object({
   module: z.enum(["M1", "M2", "M3", "M4", "M5"])
@@ -73,8 +74,15 @@ export async function POST(request: Request) {
   }
 
   const questionCount = await prisma.questionItem.count({ where: { module: parsed.data.module, isActive: true } });
-  if (questionCount < IRT.minQuestions) {
-    return NextResponse.json({ error: "Insufficient active question bank" }, { status: 422 });
+  if (questionCount < MINIMUM_BANK_SIZE) {
+    return NextResponse.json(
+      {
+        error:
+          `${parsed.data.module} has ${questionCount} active question${questionCount === 1 ? "" : "s"}; ` +
+          `at least ${MINIMUM_BANK_SIZE} are needed to certify. Import more with 'npm run questions:import'.`
+      },
+      { status: 422 }
+    );
   }
 
   const previousAttempts = await prisma.testSession.count({
