@@ -91,6 +91,26 @@ a separate, later release:
 
 Never drop a column in the same release that stops writing to it.
 
+### Snapshot before reseeding
+
+`npm run db:seed` deletes every row. Anything created while testing — CRM
+records, certification attempts, the audit trail — goes with it.
+
+```bash
+npm run db:reseed      # snapshot, then seed
+npm run db:snapshot    # snapshot alone
+```
+
+Writes two files to `backups/` (gitignored, so they stay on the machine):
+a JSON file with the rows and a Markdown summary with row counts,
+certification attempts and credentials held.
+
+**Row contents are captured only for ephemeral databases.** Against a deployed
+target it writes counts and test outcomes alone — a full dump would put client
+PAN, phone numbers and AUM into a plaintext file on a laptop, and that is the
+kind of copy that outlives the reason it was made. For a deployed restore
+point, use a database backup.
+
 ### Migration checklist
 
 - [ ] `npm run db:migrate` locally against the Docker Compose database
