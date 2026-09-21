@@ -77,7 +77,19 @@ export function validateQuestion(q: QuestionDraft, where: string): Issue[] {
  * Checks the bank as a whole. These are the checks that catch a bank which is
  * individually valid and collectively useless.
  */
-export function validateBank(questions: QuestionDraft[], label = "bank"): Issue[] {
+export function validateBank(
+  questions: QuestionDraft[],
+  label = "bank",
+  /**
+   * Whether to check how many questions each module has.
+   *
+   * Off when validating an import file on its own: a file is a partial
+   * contribution and may legitimately carry three questions for one module.
+   * Size is only meaningful against the bank the file will become part of.
+   */
+  options: { checkSize?: boolean } = {}
+): Issue[] {
+  const { checkSize = true } = options;
   const issues: Issue[] = [];
   const add = (severity: Issue["severity"], message: string) => issues.push({ severity, where: label, message });
 
@@ -145,15 +157,19 @@ export function validateBank(questions: QuestionDraft[], label = "bank"): Issue[
       );
     }
 
-    if (list.length < MINIMUM_BANK_SIZE) {
-      add("error", `${code}: ${list.length} questions is below the ${MINIMUM_BANK_SIZE} needed to certify at all.`);
-    } else if (list.length < TARGET_BANK_SIZE) {
-      add("warning", `${code}: ${list.length} of ${TARGET_BANK_SIZE} target questions.`);
+    if (checkSize) {
+      if (list.length < MINIMUM_BANK_SIZE) {
+        add("error", `${code}: ${list.length} questions is below the ${MINIMUM_BANK_SIZE} needed to certify at all.`);
+      } else if (list.length < TARGET_BANK_SIZE) {
+        add("warning", `${code}: ${list.length} of ${TARGET_BANK_SIZE} target questions.`);
+      }
     }
   }
 
-  for (const code of MODULES) {
-    if (!byModule.has(code)) add("warning", `${code}: no questions supplied.`);
+  if (checkSize) {
+    for (const code of MODULES) {
+      if (!byModule.has(code)) add("warning", `${code}: no questions supplied.`);
+    }
   }
 
   return issues;

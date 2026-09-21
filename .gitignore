@@ -49,6 +49,10 @@ Desktop.ini
 *.swp
 *.swo
 
+# Authoring scratch: generated template and filled-in question files
+questions-template.csv
+questions-*.csv
+
 # Misc
 .cache/
 tmp/

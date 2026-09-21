@@ -127,3 +127,30 @@ describe("validateBank", () => {
     expect(issues.map((i) => i.message).join()).toMatch(/difficulty spans/);
   });
 });
+
+describe("validateBank size checks", () => {
+  it("skips size checks when validating a partial import file", () => {
+    // A file may legitimately carry three questions for one module.
+    const issues = validateBank(bank(3), "this file", { checkSize: false });
+    expect(errors(issues)).toHaveLength(0);
+    expect(issues.map((i) => i.message).join()).not.toMatch(/below the|target questions|no questions supplied/);
+  });
+
+  it("still applies size checks by default", () => {
+    expect(errors(validateBank(bank(3)))).not.toHaveLength(0);
+  });
+
+  it("still catches real defects in a small file", () => {
+    // Size is skipped; correctness is not.
+    const issues = validateBank(
+      bank(3, () => ({ content: "identical stem repeated" })),
+      "f",
+      { checkSize: false }
+    );
+    expect(
+      errors(issues)
+        .map((e) => e.message)
+        .join()
+    ).toMatch(/appears 3 times/);
+  });
+});

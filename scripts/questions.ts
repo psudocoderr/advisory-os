@@ -10,6 +10,13 @@
  *   npm run questions:template           write a CSV template to author into
  *   npm run questions:import <file>      validate a CSV (dry run)
  *   npm run questions:import <file> --apply    validate and load it
+ *   npm run questions:import <file> --replace --apply
+ *       retire the existing questions in every module the file covers, then
+ *       load it. Needed to get out from under a bank that is already broken:
+ *       otherwise good questions cannot be imported, because validation is
+ *       against the merged result and the existing rows keep failing it.
+ *       Retiring sets isActive false rather than deleting, so past attempts
+ *       keep their questions.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
@@ -114,35 +121,114 @@ async function check() {
 }
 
 function template() {
-  const example = [
-    "M1",
-    "day-1-kyc-identity-baseline",
-    "Which record is treated as the first source of truth for PAN-linked identity?",
-    "The IT portal PAN-linked name",
-    "The name on the latest bank statement",
-    "The name the client gives verbally",
-    "The name printed on the SIP mandate",
-    "A",
-    "The PAN-linked name on the income tax portal is authoritative; every other record is reconciled to it.",
-    "-0.5",
-    "1.1",
-    "0.25"
+  /**
+   * Five worked examples rather than one. They demonstrate the things the
+   * validator enforces, which are easier to copy than to read about: the
+   * correct answer moves across A, B, C and D; every distractor is specific to
+   * its question; difficulty is spread rather than clustered.
+   */
+  const examples: string[][] = [
+    [
+      "M1",
+      "day-3-4-pan-kra-ckyc-verification",
+      "The KRA record shows a different surname from the PAN-linked name. What is the correct next step?",
+      "Proceed with onboarding and note the difference",
+      "Raise the proof protocol and resolve before onboarding",
+      "Use the KRA name for all future records",
+      "Ask the client to confirm verbally and continue",
+      "B",
+      "A name divergence must be reconciled against the PAN-linked record before onboarding; verbal confirmation is not evidence.",
+      "-0.4",
+      "1.2",
+      "0.25"
+    ],
+    [
+      "M1",
+      "day-1-2-nism-euin-registration",
+      "Which identifier must be tagged on a transaction to attribute advice to the individual who gave it?",
+      "The ARN of the distributor firm",
+      "The folio number",
+      "The EUIN of the individual",
+      "The PAN of the investor",
+      "C",
+      "ARN identifies the distributor; EUIN identifies the individual employee whose advice the transaction reflects.",
+      "-1.2",
+      "1.0",
+      "0.25"
+    ],
+    [
+      "M2",
+      "day-8-10-account-setup-mandates",
+      "A penny-drop verification fails but the client insists the account is correct. What should happen?",
+      "Do not proceed until the bank account is verified",
+      "Accept a cancelled cheque as sufficient proof",
+      "Proceed and retry the mandate next month",
+      "Register the mandate and verify afterwards",
+      "A",
+      "Penny-drop failure is unresolved until verified; a mandate on an unverified account causes rejections and misdirected funds.",
+      "0.2",
+      "1.3",
+      "0.25"
+    ],
+    [
+      "M3",
+      "day-20-21-elss-transaction-recon",
+      "An ELSS purchase is submitted at 14:45 on a business day. Which NAV applies?",
+      "The previous business day's NAV",
+      "The NAV of the next business day",
+      "Whichever NAV is lower on the day",
+      "The same business day's NAV, subject to funds realisation",
+      "D",
+      "Cut-off timing governs which NAV applies, and for purchases it is also conditional on realisation of funds.",
+      "0.8",
+      "1.4",
+      "0.25"
+    ],
+    [
+      "M4",
+      "day-22-24-xirr-drift-analysis",
+      "A portfolio's equity allocation has drifted from 60% to 72%. What does this indicate?",
+      "The client's risk profile has changed",
+      "The portfolio needs rebalancing toward the agreed allocation",
+      "Equity funds should be switched to debt immediately",
+      "The original allocation was set incorrectly",
+      "B",
+      "Drift is a mechanical consequence of relative performance, not a change in the client's stated risk profile; the response is rebalancing against the agreed allocation.",
+      "-0.1",
+      "1.1",
+      "0.25"
+    ]
   ];
-  const csv = [COLUMNS.join(","), example.map((c) => (c.includes(",") ? `"${c}"` : c)).join(",")].join("\n") + "\n";
+
+  const escape = (cell: string) => (/[",\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell);
+  const csv = [COLUMNS.join(","), ...examples.map((row) => row.map(escape).join(","))].join("\n") + "\n";
   writeFileSync("questions-template.csv", csv);
-  console.log("  wrote questions-template.csv");
-  console.log(`\n  Open it in Excel or Sheets, add one row per question, then:`);
-  console.log(`    npm run questions:import questions-template.csv`);
-  console.log(`\n  Guidance:`);
-  console.log(`    - correct_key must vary. Roughly a quarter each of A, B, C, D.`);
-  console.log(`      A bank where one key dominates is passable without reading the questions.`);
-  console.log(`    - Distractors must be specific to the question. Reused filler is recognisable.`);
-  console.log(`    - difficulty -2 (easy) to +2 (hard); spread them out so the adaptive test has range.`);
-  console.log(`    - discrimination around 1.0; guessing 0.25 for a four-option item.`);
-  console.log(`    - sop_slug must match an existing SOP. Run 'npm run questions:check' to see the bank.`);
+
+  console.log("  wrote questions-template.csv (5 worked examples)\n");
+  console.log("  Open it in Excel or Sheets, replace the examples, one row per question:");
+  console.log("    npm run questions:import questions-template.csv          validate only");
+  console.log("    npm run questions:import questions-template.csv --apply  load it\n");
+  console.log("  What the validator will hold you to:");
+  console.log("    correct_key     must vary, roughly a quarter each of A, B, C, D.");
+  console.log("                    Fails above 60% on one key: a bank where one letter");
+  console.log("                    dominates is passable without reading the questions.");
+  console.log("    distractors     specific to the question. Fails if one wrong answer is");
+  console.log("                    reused across more than half a module -- repeated filler");
+  console.log("                    is recognisable without knowing the subject.");
+  console.log("    difficulty      -2 easy to +2 hard, spread out. The adaptive test picks");
+  console.log("                    the most informative next item; with no spread there is");
+  console.log("                    nothing to choose between.");
+  console.log("    discrimination  around 1.0. Higher means the item separates ability more");
+  console.log("                    sharply. Leave at 1.0 unless you have response data.");
+  console.log("    guessing        0.25 for a four-option item -- the chance of a blind hit.");
+  console.log("    sop_slug        must match an existing SOP. See the list below.");
+  console.log("    explanation     shown when reviewing a wrong answer. Say why the correct");
+  console.log("                    option is correct, not just what it is.\n");
+  console.log(`  Target: ${TARGET_BANK_SIZE} questions per module, across M1 to M5.`);
+  console.log("  Run 'npm run questions:check' at any time to see where the bank stands.");
 }
 
-async function importFile(path: string, apply: boolean) {
+async function importFile(path: string, apply: boolean, replace: boolean) {
   const rows = parseCsv(readFileSync(path, "utf8"));
   if (!rows.length) throw new Error("file is empty");
 
@@ -170,16 +256,38 @@ async function importFile(path: string, apply: boolean) {
 
   console.log(`  ${drafts.length} rows read from ${path}\n`);
 
-  const issues: Issue[] = drafts.flatMap((d, i) => validateQuestion(d, `row ${i + 2}`));
+  // File first. These are problems with what was written, and always block.
+  const fileIssues: Issue[] = drafts.flatMap((d, i) => validateQuestion(d, `row ${i + 2}`));
+  fileIssues.push(...validateBank(drafts, "this file", { checkSize: false }));
 
-  // Validate the merged bank, not just the file: a file that looks balanced on
-  // its own can still tip the module it joins.
+  console.log("  Checking the file:");
+  const fileResult = report(fileIssues);
+  if (fileResult.errors) {
+    console.log(`\n  ${fileResult.errors} error(s) in the file. Nothing imported.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Then the merged result: a file that is balanced on its own can still tip
+  // the module it joins.
   const existing = await loadFromDatabase();
-  issues.push(...validateBank([...existing, ...drafts], "resulting bank"));
+  const modulesCovered = new Set(drafts.map((d) => d.module));
+  const retained = replace ? existing.filter((q) => !modulesCovered.has(q.module)) : existing;
+  const merged = [...retained, ...drafts];
 
-  const { errors } = report(issues);
-  if (errors) {
-    console.log(`\n  ${errors} error(s). Nothing imported.`);
+  console.log(`\n  Checking the resulting bank${replace ? " (existing questions in these modules retired)" : ""}:`);
+  const mergedResult = report(validateBank(merged, "resulting bank"));
+
+  if (mergedResult.errors) {
+    if (!replace) {
+      console.log(
+        `\n  ${mergedResult.errors} error(s), but the file itself is clean -- these come from` +
+          `\n  questions already in the database. Re-run with --replace to retire the existing` +
+          `\n  questions in ${[...modulesCovered].sort().join(", ")} and import this file in their place.`
+      );
+    } else {
+      console.log(`\n  ${mergedResult.errors} error(s) remain even after retiring the existing questions.`);
+    }
     process.exitCode = 1;
     return;
   }
@@ -201,6 +309,16 @@ async function importFile(path: string, apply: boolean) {
   const author = await prisma.user.findFirst({ where: { role: "ADMIN" }, select: { id: true } });
   if (!author) throw new Error("no ADMIN user to attribute these questions to");
 
+  if (replace) {
+    // Deactivate rather than delete: ResponseLog references these rows, and
+    // past attempts should keep the questions they were actually asked.
+    const retired = await prisma.questionItem.updateMany({
+      where: { module: { in: [...modulesCovered] as never[] }, isActive: true },
+      data: { isActive: false }
+    });
+    console.log(`  retired ${retired.count} existing question(s) in ${[...modulesCovered].sort().join(", ")}`);
+  }
+
   await prisma.questionItem.createMany({
     data: drafts.map((d) => ({
       module: d.module as never,
@@ -221,7 +339,7 @@ async function importFile(path: string, apply: boolean) {
       actorId: author.id,
       action: "CREATE",
       entity: "QuestionItem",
-      summary: `Imported ${drafts.length} questions from ${path}`
+      summary: `Imported ${drafts.length} questions from ${path}${replace ? `, retiring existing questions in ${[...modulesCovered].sort().join(", ")}` : ""}`
     }
   });
   console.log(`\n  imported ${drafts.length} questions`);
@@ -234,7 +352,7 @@ async function main() {
   if (command === "import") {
     const file = rest.find((a) => !a.startsWith("--"));
     if (!file) throw new Error("usage: questions import <file.csv> [--apply]");
-    return importFile(file, rest.includes("--apply"));
+    return importFile(file, rest.includes("--apply"), rest.includes("--replace"));
   }
   throw new Error("usage: questions <check|template|import>");
 }
