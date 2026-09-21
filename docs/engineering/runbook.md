@@ -223,6 +223,46 @@ every issued token at once. See `docs/flags.md` S1/S2.
 
 ---
 
+## 4b. Rotating NEXTAUTH_SECRET
+
+`NEXTAUTH_SECRET` signs the session JWTs. Changing it invalidates **every**
+issued token at once, so everyone is logged out immediately.
+
+That is the only way to end sessions on demand. Sessions are stateless JWTs
+with an 8-hour lifetime, and `isActive`/`role` are read only at login
+(`src/lib/auth.ts`), so deactivating a user, changing a password or demoting
+someone does **not** end a session already in progress. Rotating the secret
+does.
+
+Rotate when: a credential was exposed, someone leaves, a role is revoked and
+the change must take effect now, or the secret itself may have leaked.
+
+```bash
+# 1. Generate a new secret
+openssl rand -base64 32
+```
+
+Then set it in Vercel, either in the dashboard under
+Settings -> Environment Variables -> NEXTAUTH_SECRET -> Edit, or by CLI:
+
+```bash
+# 2. Replace the production value
+vercel env rm NEXTAUTH_SECRET production -y
+echo "<the new secret>" | vercel env add NEXTAUTH_SECRET production
+
+# 3. Redeploy. Environment changes do not apply to a running deployment.
+vercel --prod
+```
+
+**Step 3 is not optional.** An environment variable change has no effect until
+the next deployment, so a rotation that stops at step 2 has changed nothing.
+
+Afterwards: everyone signs in again, including you. Use a different secret
+locally in `.env.local` — there is no reason for local and production to share
+a signing key.
+
+---
+
 ## 5. Routine operations
 
 ```bash
