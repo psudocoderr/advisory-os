@@ -9,6 +9,14 @@
  * Also used by CI to prove that prisma/migrations/ still reproduces
  * prisma/schema.prisma.
  *
+ * Known limitation: this always compares against the CURRENT schema.prisma.
+ * If a migration has been written but not yet applied, that shows up here as
+ * "drift" even though nothing is actually wrong. To answer "does the database
+ * match migration X", diff against the schema as of X instead:
+ *
+ *   prisma migrate diff --from-url "$DIRECT_URL" \
+ *     --to-schema-datamodel <schema-as-of-X>.prisma --exit-code
+ *
  * Invoked via scripts/with-env.mjs, which has already loaded .env/.env.local.
  */
 import { spawnSync } from "node:child_process";
