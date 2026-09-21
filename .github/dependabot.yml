@@ -4,17 +4,58 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    # Low, deliberately. A queue of dependency PRs on a repo with thin test
+    # coverage is not safety -- it is how the one that matters gets waved
+    # through with the rest.
+    open-pull-requests-limit: 3
+
+    # Two PRs a week at most, instead of one per package.
     groups:
-      # Next and its ESLint config are version-locked to each other.
-      next:
-        patterns: ["next", "eslint-config-next"]
-      prisma:
-        patterns: ["prisma", "@prisma/*"]
-      types:
-        patterns: ["@types/*"]
+      production-deps:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+      dev-deps:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+
+    ignore:
+      # Framework, ORM and auth majors are planned upgrades with migration
+      # guides and a real test pass. They are not dependency bumps and should
+      # not arrive looking like one.
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint-config-next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "next-auth"
+        update-types: ["version-update:semver-major"]
+
+      # Prisma especially: the migration baselining in
+      # docs/engineering/adr/0002 depends on 5.x migrate diff/resolve
+      # behaviour, and prisma/migrations/0_init has not yet been verified
+      # against production. Do not change the tool mid-operation.
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
+
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitest/coverage-v8"
+        update-types: ["version-update:semver-major"]
+
+      # Must track the pinned runtime in engines.node, not the latest release.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    open-pull-requests-limit: 2
+    groups:
+      github-actions:
+        patterns: ["*"]

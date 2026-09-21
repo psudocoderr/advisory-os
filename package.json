@@ -28,7 +28,6 @@
     "npm": ">=10"
   },
   "dependencies": {
-    "@auth/prisma-adapter": "^2.7.4",
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^2.4.3",
     "clsx": "^2.1.1",
@@ -42,7 +41,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^20",
+    "@types/node": "^22.20.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^2.1.9",
