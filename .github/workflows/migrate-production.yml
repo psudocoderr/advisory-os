@@ -1,0 +1,48 @@
+name: Migrate production database
+
+# Migrations are deliberately NOT part of the Vercel deploy. They run here,
+# gated behind a GitHub environment with required reviewers, so that applying a
+# schema change to a database holding real client data is an explicit act.
+#
+# See docs/engineering/runbook.md for the expand/migrate/contract policy that
+# makes it safe for this to run alongside a code deploy.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "prisma/migrations/**"
+
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-migrations:
+    name: prisma migrate deploy
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+
+      - name: Show pending migrations
+        env:
+          # Session mode. The pgbouncer pooler cannot run migrations.
+          DATABASE_URL: ${{ secrets.PROD_DIRECT_URL }}
+          DIRECT_URL: ${{ secrets.PROD_DIRECT_URL }}
+        run: npx prisma migrate status || true
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DIRECT_URL }}
+          DIRECT_URL: ${{ secrets.PROD_DIRECT_URL }}
+        run: npx prisma migrate deploy

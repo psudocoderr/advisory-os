@@ -1,0 +1,13 @@
+# Policy text and the records that prove what was published, when.
+# These must never change without deliberate review.
+
+/docs/legal/            @psudocoderr
+/src/content/legal/     @psudocoderr
+/src/lib/legal/         @psudocoderr
+/LICENSE                @psudocoderr
+/NOTICE                 @psudocoderr
+
+# The guards that stop production being wiped or silently migrated.
+/scripts/db-target.mjs  @psudocoderr
+/prisma/migrations/     @psudocoderr
+/.github/workflows/     @psudocoderr

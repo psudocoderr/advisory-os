@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint, types, formatting
+    runs-on: ubuntu-latest
+    env:
+      # `prisma validate` resolves every env() in the datasource eagerly, so
+      # these must be present even though nothing here connects to a database.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # postinstall runs `prisma generate`, which needs no database.
+      - run: npm ci
+      - run: npx prisma validate
+      - run: npx prisma format --check
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+
+  test:
+    name: Unit tests
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run test -- --coverage
+
+  build:
+    name: Production build
+    needs: quality
+    runs-on: ubuntu-latest
+    env:
+      # Deliberately unreachable. The build must not depend on a live database;
+      # if it ever does, this job is where we find out.
+      DATABASE_URL: postgresql://build:build@localhost:5432/build
+      DIRECT_URL: postgresql://build:build@localhost:5432/build
+      NEXTAUTH_SECRET: ci-placeholder-not-a-real-secret
+      NEXTAUTH_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  migrations:
+    name: Migrations reproduce the schema
+    needs: quality
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: advisory_app
+          POSTGRES_PASSWORD: advisory_app_password
+          POSTGRES_DB: advisory_os
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U advisory_app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://advisory_app:advisory_app_password@localhost:5432/advisory_os?schema=public
+      DIRECT_URL: postgresql://advisory_app:advisory_app_password@localhost:5432/advisory_os?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+
+      # Every committed migration applies cleanly from an empty database.
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      # The migrations folder must still reproduce prisma/schema.prisma. Without
+      # this, a hand-edited schema silently diverges from what deploys.
+      - name: Check for schema drift
+        run: |
+          npx prisma migrate diff \
+            --from-url "$DATABASE_URL" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --exit-code
+
+      # The seed is the only fixture the app has; a schema change that breaks it
+      # breaks local development for everyone. Safe here: the guard in
+      # scripts/db-target.mjs classifies this service container as ephemeral.
+      - name: Seed against the ephemeral database
+        run: npx tsx prisma/seed.ts
