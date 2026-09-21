@@ -4,7 +4,11 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
+  // Pooled (pgbouncer, :6543 on Supabase) — used by the running application.
   url       = env("DATABASE_URL")
+  // Session mode (:5432) — required by migrate; the pooler cannot serve it.
+  // Every env() here must be set wherever any prisma command runs, including
+  // `prisma validate`, which resolves them eagerly.
   directUrl = env("DIRECT_URL")
 }
 
@@ -101,11 +105,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  assignedProspects Prospect[]       @relation("ProspectAssignment")
-  assignedClients   Client[]         @relation("ClientAssignment")
-  meetings          MeetingLog[]     @relation("MeetingOwner")
-  auditLogs         AuditLog[]       @relation("AuditActor")
-  questions         QuestionItem[]    @relation("QuestionAuthor")
+  assignedProspects Prospect[]      @relation("ProspectAssignment")
+  assignedClients   Client[]        @relation("ClientAssignment")
+  meetings          MeetingLog[]    @relation("MeetingOwner")
+  auditLogs         AuditLog[]      @relation("AuditActor")
+  questions         QuestionItem[]  @relation("QuestionAuthor")
   testSessions      TestSession[]
   certifications    Certification[]
 
@@ -128,17 +132,17 @@ model AuditLog {
 }
 
 model Prospect {
-  id               String        @id @default(cuid())
+  id               String         @id @default(cuid())
   name             String
   phone            String
   source           ProspectSource
   firstContactDate DateTime
-  stage            ProspectStage @default(LEAD)
+  stage            ProspectStage  @default(LEAD)
   notes            String
   followUpDate     DateTime?
   assignedToId     String
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   assignedTo User         @relation("ProspectAssignment", fields: [assignedToId], references: [id])
   meetings   MeetingLog[] @relation("ProspectMeetings")
@@ -245,20 +249,20 @@ model KnowledgeCategory {
 }
 
 model SopEntry {
-  id           String   @id @default(cuid())
+  id           String      @id @default(cuid())
   categoryId   String
   module       ModuleCode?
   title        String
-  slug         String   @unique
+  slug         String      @unique
   what         String
   when         String
   steps        Json
   outcomes     Json
   commonErrors Json
   references   Json
-  isPublished  Boolean  @default(true)
-  updatedAt    DateTime @updatedAt
-  createdAt    DateTime @default(now())
+  isPublished  Boolean     @default(true)
+  updatedAt    DateTime    @updatedAt
+  createdAt    DateTime    @default(now())
 
   category  KnowledgeCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   questions QuestionItem[]
@@ -276,7 +280,7 @@ model QuestionItem {
   explanation    String
   difficulty     Float      @default(0)
   discrimination Float      @default(1)
-  guessing        Float      @default(0.25)
+  guessing       Float      @default(0.25)
   linkedSopId    String
   createdById    String
   isActive       Boolean    @default(true)
