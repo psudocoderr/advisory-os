@@ -104,7 +104,10 @@ export default async function KnowledgePage() {
                           <h3 className="font-semibold text-ink group-hover:text-teal text-sm leading-snug">
                             {entry.title}
                           </h3>
-                          <ChevronRight size={16} className="text-muted shrink-0 group-hover:text-teal group-hover:translate-x-0.5 transition-transform" />
+                          <ChevronRight
+                            size={16}
+                            className="text-muted shrink-0 group-hover:text-teal group-hover:translate-x-0.5 transition-transform"
+                          />
                         </div>
                         <p className="mt-1.5 text-xs text-muted line-clamp-2 leading-relaxed">{entry.what}</p>
                       </div>

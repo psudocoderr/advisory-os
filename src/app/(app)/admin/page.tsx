@@ -9,33 +9,41 @@ export default async function AdminPage() {
   const now = new Date();
   const soon = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-  const [users, prospects, clients, plans, certs, expiring, attempts, audit, questionPerformance, sops] = await Promise.all([
-    prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
-    prisma.prospect.count(),
-    prisma.client.findMany({ select: { aum: true } }),
-    prisma.investmentPlan.count(),
-    prisma.certification.findMany({ where: { status: "ACTIVE" }, include: { user: true }, orderBy: { module: "asc" } }),
-    prisma.certification.findMany({
-      where: { status: "ACTIVE", expiresAt: { gte: now, lte: soon } },
-      include: { user: true },
-      orderBy: { expiresAt: "asc" }
-    }),
-    prisma.testSession.findMany({ include: { user: true }, orderBy: { startedAt: "desc" }, take: 8 }),
-    prisma.auditLog.findMany({ include: { actor: true }, orderBy: { createdAt: "desc" }, take: 10 }),
-    prisma.questionItem.findMany({
-      include: { responses: true, linkedSop: true },
-      orderBy: { updatedAt: "desc" },
-      take: 10
-    }),
-    prisma.sopEntry.findMany({ where: { isPublished: true }, orderBy: [{ module: "asc" }, { title: "asc" }] })
-  ]);
+  const [users, prospects, clients, plans, certs, expiring, attempts, audit, questionPerformance, sops] =
+    await Promise.all([
+      prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
+      prisma.prospect.count(),
+      prisma.client.findMany({ select: { aum: true } }),
+      prisma.investmentPlan.count(),
+      prisma.certification.findMany({
+        where: { status: "ACTIVE" },
+        include: { user: true },
+        orderBy: { module: "asc" }
+      }),
+      prisma.certification.findMany({
+        where: { status: "ACTIVE", expiresAt: { gte: now, lte: soon } },
+        include: { user: true },
+        orderBy: { expiresAt: "asc" }
+      }),
+      prisma.testSession.findMany({ include: { user: true }, orderBy: { startedAt: "desc" }, take: 8 }),
+      prisma.auditLog.findMany({ include: { actor: true }, orderBy: { createdAt: "desc" }, take: 10 }),
+      prisma.questionItem.findMany({
+        include: { responses: true, linkedSop: true },
+        orderBy: { updatedAt: "desc" },
+        take: 10
+      }),
+      prisma.sopEntry.findMany({ where: { isPublished: true }, orderBy: [{ module: "asc" }, { title: "asc" }] })
+    ]);
 
   const aum = clients.reduce((sum, client) => sum + Number(client.aum), 0);
   const modules = ["M1", "M2", "M3", "M4", "M5"] as const;
 
   return (
     <>
-      <PageHeader title="Admin" description="Team-level controls, certification visibility, audit activity, and item-bank performance." />
+      <PageHeader
+        title="Admin"
+        description="Team-level controls, certification visibility, audit activity, and item-bank performance."
+      />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Users" value={users.length} detail="Seeded team" />
         <StatCard label="Prospects" value={prospects} detail="All advisors" />
@@ -66,12 +74,20 @@ export default async function AdminPage() {
                 <tr key={user.id}>
                   <td className="px-4 py-3 font-semibold text-ink">{user.name}</td>
                   <td className="px-4 py-3">{titleCase(user.role)}</td>
-                  <td className="px-4 py-3"><StatusBadge tone={user.isActive ? "teal" : "rose"}>{user.isActive ? "Active" : "Inactive"}</StatusBadge></td>
+                  <td className="px-4 py-3">
+                    <StatusBadge tone={user.isActive ? "teal" : "rose"}>
+                      {user.isActive ? "Active" : "Inactive"}
+                    </StatusBadge>
+                  </td>
                   {modules.map((module) => {
                     const cert = certs.find((item) => item.userId === user.id && item.module === module);
                     return (
                       <td key={module} className="px-4 py-3">
-                        {cert ? <StatusBadge tone="teal">{cert.level}</StatusBadge> : <StatusBadge>Not taken</StatusBadge>}
+                        {cert ? (
+                          <StatusBadge tone="teal">{cert.level}</StatusBadge>
+                        ) : (
+                          <StatusBadge>Not taken</StatusBadge>
+                        )}
                       </td>
                     );
                   })}
@@ -100,7 +116,14 @@ export default async function AdminPage() {
                 <option value="ADVISOR">Advisor</option>
                 <option value="ADMIN">Admin</option>
               </select>
-              <input className="field" name="password" type="password" placeholder="Temporary password" minLength={8} required />
+              <input
+                className="field"
+                name="password"
+                type="password"
+                placeholder="Temporary password"
+                minLength={8}
+                required
+              />
             </div>
             <button className="rounded bg-navy px-4 py-2 text-sm font-semibold text-white">Create user</button>
           </form>
@@ -109,15 +132,21 @@ export default async function AdminPage() {
         <Card>
           <SectionTitle title="Expiry alerts" />
           <div className="divide-y divide-line">
-            {expiring.length ? expiring.map((cert) => (
-              <div key={cert.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <div>
-                  <div className="font-semibold text-ink">{cert.user.name}</div>
-                  <div className="text-sm text-muted">{cert.module} expires {dateLabel(cert.expiresAt)}</div>
+            {expiring.length ? (
+              expiring.map((cert) => (
+                <div key={cert.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div>
+                    <div className="font-semibold text-ink">{cert.user.name}</div>
+                    <div className="text-sm text-muted">
+                      {cert.module} expires {dateLabel(cert.expiresAt)}
+                    </div>
+                  </div>
+                  <StatusBadge tone="amber">{cert.level}</StatusBadge>
                 </div>
-                <StatusBadge tone="amber">{cert.level}</StatusBadge>
-              </div>
-            )) : <div className="px-4 py-6 text-sm text-muted">No certifications expiring in the next 30 days.</div>}
+              ))
+            ) : (
+              <div className="px-4 py-6 text-sm text-muted">No certifications expiring in the next 30 days.</div>
+            )}
           </div>
         </Card>
 
@@ -127,10 +156,17 @@ export default async function AdminPage() {
             {attempts.map((attempt) => (
               <div key={attempt.id} className="flex items-center justify-between gap-3 px-4 py-3">
                 <div>
-                  <div className="font-semibold text-ink">{attempt.user.name} • {attempt.module}</div>
-                  <div className="text-sm text-muted">Attempt {attempt.attemptNumber} • theta {attempt.abilityEstimate.toFixed(2)} • SE {attempt.standardError.toFixed(2)}</div>
+                  <div className="font-semibold text-ink">
+                    {attempt.user.name} • {attempt.module}
+                  </div>
+                  <div className="text-sm text-muted">
+                    Attempt {attempt.attemptNumber} • theta {attempt.abilityEstimate.toFixed(2)} • SE{" "}
+                    {attempt.standardError.toFixed(2)}
+                  </div>
                 </div>
-                <StatusBadge tone={attempt.status === "PASSED" ? "teal" : attempt.status === "FAILED" ? "rose" : "navy"}>
+                <StatusBadge
+                  tone={attempt.status === "PASSED" ? "teal" : attempt.status === "FAILED" ? "rose" : "navy"}
+                >
                   {titleCase(attempt.status)}
                 </StatusBadge>
               </div>
@@ -147,7 +183,9 @@ export default async function AdminPage() {
                   <div className="font-semibold text-ink">{item.summary}</div>
                   <StatusBadge tone="navy">{item.action}</StatusBadge>
                 </div>
-                <div className="mt-1 text-xs text-muted">{item.actor?.name || "System"} • {dateLabel(item.createdAt)} • {item.entity}</div>
+                <div className="mt-1 text-xs text-muted">
+                  {item.actor?.name || "System"} • {dateLabel(item.createdAt)} • {item.entity}
+                </div>
               </div>
             ))}
           </div>
@@ -161,18 +199,27 @@ export default async function AdminPage() {
             <div className="grid grid-cols-2 gap-3">
               <select className="field" name="module" defaultValue="M1">
                 {modules.map((module) => (
-                  <option key={module} value={module}>{module}</option>
+                  <option key={module} value={module}>
+                    {module}
+                  </option>
                 ))}
               </select>
               <select className="field" name="linkedSopId" required>
                 <option value="">Linked SOP</option>
                 {sops.map((sop) => (
-                  <option key={sop.id} value={sop.id}>{sop.module || "General"} - {sop.title}</option>
+                  <option key={sop.id} value={sop.id}>
+                    {sop.module || "General"} - {sop.title}
+                  </option>
                 ))}
               </select>
             </div>
             <textarea className="field min-h-24" name="content" placeholder="Question stem" required />
-            <textarea className="field min-h-20" name="explanation" placeholder="Explanation shown in admin review context" required />
+            <textarea
+              className="field min-h-20"
+              name="explanation"
+              placeholder="Explanation shown in admin review context"
+              required
+            />
           </div>
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -184,11 +231,21 @@ export default async function AdminPage() {
             <div className="grid gap-3 sm:grid-cols-4">
               <select className="field" name="correctKey" defaultValue="A">
                 {["A", "B", "C", "D"].map((key) => (
-                  <option key={key} value={key}>{key}</option>
+                  <option key={key} value={key}>
+                    {key}
+                  </option>
                 ))}
               </select>
               <input className="field" name="difficulty" type="number" step="0.1" min="-4" max="4" defaultValue="0" />
-              <input className="field" name="discrimination" type="number" step="0.1" min="0.25" max="3" defaultValue="1" />
+              <input
+                className="field"
+                name="discrimination"
+                type="number"
+                step="0.1"
+                min="0.25"
+                max="3"
+                defaultValue="1"
+              />
               <input className="field" name="guessing" type="number" step="0.01" min="0" max="0.5" defaultValue="0.2" />
             </div>
             <button className="rounded bg-navy px-4 py-2 text-sm font-semibold text-white">Add question</button>
@@ -212,8 +269,11 @@ export default async function AdminPage() {
           <tbody className="divide-y divide-line">
             {questionPerformance.map((question) => {
               const attemptsCount = question.responses.length;
-              const correct = attemptsCount ? Math.round((question.responses.filter((item) => item.isCorrect).length / attemptsCount) * 100) : 0;
-              const flag = attemptsCount === 0 ? "No data" : correct > 80 ? "Too easy" : correct < 20 ? "Review item" : "Healthy";
+              const correct = attemptsCount
+                ? Math.round((question.responses.filter((item) => item.isCorrect).length / attemptsCount) * 100)
+                : 0;
+              const flag =
+                attemptsCount === 0 ? "No data" : correct > 80 ? "Too easy" : correct < 20 ? "Review item" : "Healthy";
               return (
                 <tr key={question.id}>
                   <td className="max-w-lg px-4 py-3">{question.content}</td>
@@ -221,7 +281,11 @@ export default async function AdminPage() {
                   <td className="px-4 py-3">{question.linkedSop.title}</td>
                   <td className="mono px-4 py-3">{attemptsCount}</td>
                   <td className="mono px-4 py-3">{attemptsCount ? `${correct}%` : "—"}</td>
-                  <td className="px-4 py-3"><StatusBadge tone={flag === "Healthy" ? "teal" : flag === "No data" ? "slate" : "amber"}>{flag}</StatusBadge></td>
+                  <td className="px-4 py-3">
+                    <StatusBadge tone={flag === "Healthy" ? "teal" : flag === "No data" ? "slate" : "amber"}>
+                      {flag}
+                    </StatusBadge>
+                  </td>
                 </tr>
               );
             })}
@@ -233,5 +297,15 @@ export default async function AdminPage() {
 }
 
 function SectionTitle({ title, flush = false }: { title: string; flush?: boolean }) {
-  return <div className={flush ? "text-xs font-bold uppercase tracking-wide text-muted" : "border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted"}>{title}</div>;
+  return (
+    <div
+      className={
+        flush
+          ? "text-xs font-bold uppercase tracking-wide text-muted"
+          : "border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted"
+      }
+    >
+      {title}
+    </div>
+  );
 }

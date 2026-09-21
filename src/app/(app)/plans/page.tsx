@@ -42,14 +42,24 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <PageHeader title="Investment Plans" description="Track SIP, ELSS, lump sum, and mixed plans from draft through activation." />
+      <PageHeader
+        title="Investment Plans"
+        description="Track SIP, ELSS, lump sum, and mixed plans from draft through activation."
+      />
       <Card className="mb-5 p-4">
         <form className="grid gap-3 md:grid-cols-[1fr_220px_auto]" action="/plans">
-          <input className="field" name="q" placeholder="Search client, PAN, phone, or notes" defaultValue={query || ""} />
+          <input
+            className="field"
+            name="q"
+            placeholder="Search client, PAN, phone, or notes"
+            defaultValue={query || ""}
+          />
           <select className="field" name="status" defaultValue={status || ""}>
             <option value="">All statuses</option>
             {statuses.map((value) => (
-              <option key={value} value={value}>{titleCase(value)}</option>
+              <option key={value} value={value}>
+                {titleCase(value)}
+              </option>
             ))}
           </select>
           <button className="rounded bg-navy px-4 py-2 text-sm font-semibold text-white">Filter</button>
@@ -82,9 +92,12 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
                   </td>
                   <td className="mono px-4 py-3">{compactInr(plan.amount.toString())}</td>
                   <td className="px-4 py-3">{titleCase(plan.goal)}</td>
-                  <td className="px-4 py-3"><PlanBadge status={plan.status} /></td>
+                  <td className="px-4 py-3">
+                    <PlanBadge status={plan.status} />
+                  </td>
                   <td className="px-4 py-3 text-xs text-muted">
-                    Sent: {plan.sentDate ? dateLabel(plan.sentDate) : "None"}<br />
+                    Sent: {plan.sentDate ? dateLabel(plan.sentDate) : "None"}
+                    <br />
                     Accepted: {plan.acceptedDate ? dateLabel(plan.acceptedDate) : "None"}
                   </td>
                   <td className="px-4 py-3">
@@ -92,7 +105,9 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
                       <input type="hidden" name="id" value={plan.id} />
                       <select className="field min-w-32" name="status" defaultValue={plan.status}>
                         {statuses.map((value) => (
-                          <option key={value} value={value}>{titleCase(value)}</option>
+                          <option key={value} value={value}>
+                            {titleCase(value)}
+                          </option>
                         ))}
                       </select>
                       <button className="rounded border border-line px-2 text-xs font-bold">Update</button>
@@ -108,7 +123,11 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
           <form action={createPlan} className="space-y-3">
             <select className="field" name="clientId" required>
               <option value="">Select client</option>
-              {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
             </select>
             <div className="grid grid-cols-2 gap-3">
               <select className="field" name="planType" defaultValue="SIP">
@@ -148,6 +167,13 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
 }
 
 function PlanBadge({ status }: { status: string }) {
-  const tone = status === "ACTIVE" || status === "ACCEPTED" ? "teal" : status === "SENT" ? "amber" : status === "CLOSED" ? "slate" : "navy";
+  const tone =
+    status === "ACTIVE" || status === "ACCEPTED"
+      ? "teal"
+      : status === "SENT"
+        ? "amber"
+        : status === "CLOSED"
+          ? "slate"
+          : "navy";
   return <StatusBadge tone={tone}>{titleCase(status)}</StatusBadge>;
 }

@@ -6,11 +6,17 @@ import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import { StartTestButton } from "@/components/start-test-button";
 
 const details: Record<ModuleCode, { title: string; body: string }> = {
-  M1: { title: "KYC & Compliance", body: "Adaptive testing across identity verification, proof protocol, and KRA/PAN handling." },
+  M1: {
+    title: "KYC & Compliance",
+    body: "Adaptive testing across identity verification, proof protocol, and KRA/PAN handling."
+  },
   M2: { title: "Client Onboarding", body: "Readiness checks, onboarding controls, and first-review scheduling." },
   M3: { title: "Investment Operations", body: "SIP, ELSS, lump sum, and operational follow-up controls." },
   M4: { title: "Portfolio Reviews", body: "AUM, XIRR, allocation drift, action capture, and next-review discipline." },
-  M5: { title: "Full Advisory Certification", body: "Composite adaptive testing across CRM, compliance, planning, review, and operating controls." }
+  M5: {
+    title: "Full Advisory Certification",
+    body: "Composite adaptive testing across CRM, compliance, planning, review, and operating controls."
+  }
 };
 
 export default async function ModulePage({ params }: { params: Promise<{ moduleId: ModuleCode }> }) {
@@ -33,8 +39,8 @@ export default async function ModulePage({ params }: { params: Promise<{ moduleI
             <Metric label="Pass theta" value="0.50" />
           </div>
           <div className="mt-5 rounded border border-line bg-wash p-4 text-sm leading-6 text-muted">
-            The session starts at theta 0.0 and selects the next unused item with the most information at the current estimate.
-            Correct answers stay on the server; the client only receives the question stem and options.
+            The session starts at theta 0.0 and selects the next unused item with the most information at the current
+            estimate. Correct answers stay on the server; the client only receives the question stem and options.
           </div>
           <div className="mt-5">
             <StartTestButton moduleId={moduleId} disabled={questionCount < 10} />
@@ -47,7 +53,11 @@ export default async function ModulePage({ params }: { params: Promise<{ moduleI
           </div>
           <div className="space-y-2">
             {sopEntries.map((entry) => (
-              <a key={entry.id} href={`/knowledge/${entry.slug}`} className="block rounded border border-line px-3 py-2 text-sm font-semibold text-ink hover:border-teal">
+              <a
+                key={entry.id}
+                href={`/knowledge/${entry.slug}`}
+                className="block rounded border border-line px-3 py-2 text-sm font-semibold text-ink hover:border-teal"
+              >
                 {entry.title}
               </a>
             ))}

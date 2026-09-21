@@ -48,7 +48,11 @@ export default async function DashboardPage() {
       include: { client: true }
     }),
     prisma.certification.findMany({
-      where: { status: "ACTIVE", expiresAt: { gte: now }, ...(session.user.role === "ADMIN" ? {} : { userId: session.user.id }) },
+      where: {
+        status: "ACTIVE",
+        expiresAt: { gte: now },
+        ...(session.user.role === "ADMIN" ? {} : { userId: session.user.id })
+      },
       orderBy: { issuedAt: "desc" },
       take: 5,
       include: { user: true }
@@ -68,9 +72,16 @@ export default async function DashboardPage() {
     <>
       <PageHeader
         title={`Good ${greeting()}, ${session.user.name.split(" ")[0]}`}
-        description={session.user.role === "ADMIN" ? "Team-wide operating snapshot & fresher readiness tracker." : "Your client work, follow-ups, and 30-day training progress."}
+        description={
+          session.user.role === "ADMIN"
+            ? "Team-wide operating snapshot & fresher readiness tracker."
+            : "Your client work, follow-ups, and 30-day training progress."
+        }
         action={
-          <Link href="/prospects" className="inline-flex items-center gap-2 rounded bg-navy px-3.5 py-2 text-sm font-semibold text-white hover:bg-teal transition-colors">
+          <Link
+            href="/prospects"
+            className="inline-flex items-center gap-2 rounded bg-navy px-3.5 py-2 text-sm font-semibold text-white hover:bg-teal transition-colors"
+          >
             <PlusCircle size={16} />
             Add activity
           </Link>
@@ -98,9 +109,7 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-muted">
-              {certifiedModulesCount} of 5 Certified
-            </span>
+            <span className="text-xs font-semibold text-muted">{certifiedModulesCount} of 5 Certified</span>
             <Link
               href="/knowledge"
               className="inline-flex items-center gap-1 text-xs font-bold text-teal hover:underline"
@@ -118,9 +127,7 @@ export default async function DashboardPage() {
                 key={module.code}
                 href={`/certify/${module.code}`}
                 className={`flex flex-col justify-between rounded-lg border p-3 transition-all ${
-                  isCertified
-                    ? "border-teal/30 bg-mint/20 hover:border-teal"
-                    : "border-line bg-wash hover:border-navy"
+                  isCertified ? "border-teal/30 bg-mint/20 hover:border-teal" : "border-line bg-wash hover:border-navy"
                 }`}
               >
                 <div>
@@ -152,7 +159,11 @@ export default async function DashboardPage() {
         <div className="mb-3 text-xs font-bold uppercase tracking-wide text-muted">Pipeline</div>
         <div className="grid gap-3 md:grid-cols-5">
           {pipeline.map((item) => (
-            <Link key={item.stage} href={`/prospects?stage=${item.stage}`} className="rounded border border-line bg-wash p-3 hover:border-teal">
+            <Link
+              key={item.stage}
+              href={`/prospects?stage=${item.stage}`}
+              className="rounded border border-line bg-wash p-3 hover:border-teal"
+            >
               <div className="mono text-xl font-semibold text-ink">{item.count}</div>
               <div className="mt-1 text-xs font-bold text-muted">{titleCase(item.stage)}</div>
             </Link>
@@ -162,18 +173,24 @@ export default async function DashboardPage() {
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.7fr_1fr]">
         <Card>
-          <div className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted">Recent activity</div>
+          <div className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted">
+            Recent activity
+          </div>
           <div className="divide-y divide-line">
             {recent.map((item) => (
               <div key={item.id} className="flex items-start justify-between gap-4 px-4 py-3">
                 <div>
-                  <div className="font-semibold text-ink">{item.prospect?.name || item.client?.name || "General activity"}</div>
+                  <div className="font-semibold text-ink">
+                    {item.prospect?.name || item.client?.name || "General activity"}
+                  </div>
                   <div className="mt-1 text-sm text-muted">{item.summary}</div>
                   <div className="mt-1 text-xs text-muted">
                     {dateLabel(item.meetingDate)} {session.user.role === "ADMIN" ? `• ${item.owner.name}` : ""}
                   </div>
                 </div>
-                <StatusBadge tone={item.kind === "REVIEW" ? "amber" : item.kind === "CLIENT" ? "teal" : "navy"}>{titleCase(item.kind)}</StatusBadge>
+                <StatusBadge tone={item.kind === "REVIEW" ? "amber" : item.kind === "CLIENT" ? "teal" : "navy"}>
+                  {titleCase(item.kind)}
+                </StatusBadge>
               </div>
             ))}
           </div>
@@ -181,7 +198,9 @@ export default async function DashboardPage() {
 
         <div className="space-y-5">
           <Card>
-            <div className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted">Upcoming follow-ups</div>
+            <div className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted">
+              Upcoming follow-ups
+            </div>
             <div className="divide-y divide-line">
               {upcoming.length ? (
                 upcoming.map((item) => (
@@ -199,7 +218,9 @@ export default async function DashboardPage() {
             </div>
           </Card>
           <Card>
-            <div className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted">Upcoming reviews</div>
+            <div className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted">
+              Upcoming reviews
+            </div>
             <div className="divide-y divide-line">
               {reviewDue.length ? (
                 reviewDue.map((item) => (
@@ -217,7 +238,9 @@ export default async function DashboardPage() {
             </div>
           </Card>
           <Card>
-            <div className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted">Active Certifications</div>
+            <div className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted">
+              Active Certifications
+            </div>
             <div className="divide-y divide-line">
               {certs.length ? (
                 certs.map((cert) => (

@@ -44,10 +44,18 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageHeader title="Portfolio Reviews" description="Record AUM, returns, rebalancing actions, and next review dates." />
+      <PageHeader
+        title="Portfolio Reviews"
+        description="Record AUM, returns, rebalancing actions, and next review dates."
+      />
       <Card className="mb-5 p-4">
         <form className="grid gap-3 md:grid-cols-[1fr_220px_auto]" action="/reviews">
-          <input className="field" name="q" placeholder="Search client, PAN, phone, actions, or attachment note" defaultValue={query || ""} />
+          <input
+            className="field"
+            name="q"
+            placeholder="Search client, PAN, phone, actions, or attachment note"
+            defaultValue={query || ""}
+          />
           <select className="field" name="due" defaultValue={due || ""}>
             <option value="">All reviews</option>
             <option value="next30">Due next 30 days</option>
@@ -77,7 +85,11 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Prom
                   </td>
                   <td className="px-4 py-3">{dateLabel(review.reviewDate)}</td>
                   <td className="mono px-4 py-3">{compactInr(review.currentAum.toString())}</td>
-                  <td className="px-4 py-3"><StatusBadge tone={Number(review.returns) >= 10 ? "teal" : "amber"}>{review.returns.toString()}%</StatusBadge></td>
+                  <td className="px-4 py-3">
+                    <StatusBadge tone={Number(review.returns) >= 10 ? "teal" : "amber"}>
+                      {review.returns.toString()}%
+                    </StatusBadge>
+                  </td>
                   <td className="max-w-md px-4 py-3 text-muted">{review.actions}</td>
                   <td className="px-4 py-3">{dateLabel(review.nextReviewDate)}</td>
                 </tr>
@@ -90,13 +102,23 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Prom
           <form action={createReview} className="space-y-3">
             <select className="field" name="clientId" required>
               <option value="">Select client</option>
-              {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
             </select>
-            <label className="label">Review date<input className="field" name="reviewDate" type="date" required /></label>
+            <label className="label">
+              Review date
+              <input className="field" name="reviewDate" type="date" required />
+            </label>
             <input className="field" name="currentAum" type="number" min="1" placeholder="Current AUM" required />
             <input className="field" name="returns" type="number" step="0.01" placeholder="XIRR %" required />
             <textarea className="field min-h-24" name="actions" placeholder="Rebalancing actions" required />
-            <label className="label">Next review<input className="field" name="nextReviewDate" type="date" required /></label>
+            <label className="label">
+              Next review
+              <input className="field" name="nextReviewDate" type="date" required />
+            </label>
             <input className="field" name="attachmentNote" placeholder="Attachment note" />
             <SubmitButton>Add review</SubmitButton>
           </form>

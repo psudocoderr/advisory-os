@@ -34,7 +34,13 @@ export function StatCard({ label, value, detail }: { label: string; value: strin
   );
 }
 
-export function StatusBadge({ children, tone = "slate" }: { children: React.ReactNode; tone?: "teal" | "amber" | "rose" | "slate" | "navy" }) {
+export function StatusBadge({
+  children,
+  tone = "slate"
+}: {
+  children: React.ReactNode;
+  tone?: "teal" | "amber" | "rose" | "slate" | "navy";
+}) {
   const tones = {
     teal: "bg-mint text-teal border-teal/20",
     amber: "bg-gold text-amber border-amber/20",

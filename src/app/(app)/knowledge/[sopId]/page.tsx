@@ -37,7 +37,10 @@ export default async function SopPage({ params }: { params: Promise<{ sopId: str
         description={`${entry.category.title} • Updated ${entry.updatedAt.toLocaleDateString("en-IN")}`}
         action={
           <div className="flex items-center gap-2">
-            <Link href="/knowledge" className="inline-flex items-center gap-2 rounded border border-line bg-panel px-3 py-2 text-sm font-semibold text-ink hover:bg-wash">
+            <Link
+              href="/knowledge"
+              className="inline-flex items-center gap-2 rounded border border-line bg-panel px-3 py-2 text-sm font-semibold text-ink hover:bg-wash"
+            >
               <ArrowLeft size={16} />
               Table of Contents
             </Link>
@@ -87,7 +90,10 @@ export default async function SopPage({ params }: { params: Promise<{ sopId: str
 
               <ol className="space-y-3">
                 {steps.map((step, index) => (
-                  <li key={step} className="flex items-start gap-3 rounded-lg border border-line bg-panel p-3.5 hover:border-teal transition-colors">
+                  <li
+                    key={step}
+                    className="flex items-start gap-3 rounded-lg border border-line bg-panel p-3.5 hover:border-teal transition-colors"
+                  >
                     <span className="mono flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-navy text-xs font-bold text-white">
                       {index + 1}
                     </span>
@@ -111,7 +117,9 @@ export default async function SopPage({ params }: { params: Promise<{ sopId: str
                   <div className="truncate max-w-[180px] font-bold text-xs">{prevSop.title}</div>
                 </div>
               </Link>
-            ) : <div />}
+            ) : (
+              <div />
+            )}
 
             {nextSop ? (
               <Link

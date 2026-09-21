@@ -44,8 +44,13 @@ export function LoginForm() {
           Password
           <input className="field" name="password" type="password" defaultValue="ChangeMeAdmin123!" required />
         </label>
-        {error ? <div className="rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{error}</div> : null}
-        <button className="w-full rounded bg-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-ink" disabled={pending}>
+        {error ? (
+          <div className="rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{error}</div>
+        ) : null}
+        <button
+          className="w-full rounded bg-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-ink"
+          disabled={pending}
+        >
           {pending ? "Signing in..." : "Sign in"}
         </button>
       </div>

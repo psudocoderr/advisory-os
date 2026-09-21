@@ -8,7 +8,10 @@ import { Prisma, ProspectStage, KycStatus, PlanStatus } from "@prisma/client";
 import { requireAdmin, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-const optionalDate = z.string().optional().transform((value) => (value ? new Date(value) : undefined));
+const optionalDate = z
+  .string()
+  .optional()
+  .transform((value) => (value ? new Date(value) : undefined));
 
 const prospectSchema = z.object({
   name: z.string().min(2).max(120),
@@ -84,7 +87,10 @@ const questionSchema = z.object({
 
 const userSchema = z.object({
   name: z.string().min(2).max(120),
-  email: z.string().email().transform((value) => value.toLowerCase().trim()),
+  email: z
+    .string()
+    .email()
+    .transform((value) => value.toLowerCase().trim()),
   password: z.string().min(8).max(128),
   role: z.enum(["ADMIN", "ADVISOR"])
 });
@@ -339,7 +345,10 @@ export async function createUser(formData: FormData) {
 export async function updateUserActive(formData: FormData) {
   const session = await requireAdmin();
   const id = z.string().parse(formData.get("id"));
-  const isActive = z.enum(["true", "false"]).transform((value) => value === "true").parse(formData.get("isActive"));
+  const isActive = z
+    .enum(["true", "false"])
+    .transform((value) => value === "true")
+    .parse(formData.get("isActive"));
   if (id === session.user.id && !isActive) throw new Error("You cannot deactivate your own account");
 
   const user = await prisma.user.update({

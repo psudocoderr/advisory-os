@@ -33,7 +33,9 @@ export function StartTestButton({ moduleId, disabled }: { moduleId: ModuleCode; 
       >
         {pending ? "Starting..." : disabled ? "Insufficient question bank" : "Start adaptive test"}
       </button>
-      {error ? <div className="mt-3 rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{error}</div> : null}
+      {error ? (
+        <div className="mt-3 rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{error}</div>
+      ) : null}
     </div>
   );
 }

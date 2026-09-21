@@ -21,7 +21,9 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
 
   if (session.status !== "IN_PROGRESS") {
     const incorrect = session.responses.filter((response) => !response.isCorrect);
-    const remediation = [...new Map(incorrect.map((row) => [row.question.linkedSop.slug, row.question.linkedSop])).values()].slice(0, 3);
+    const remediation = [
+      ...new Map(incorrect.map((row) => [row.question.linkedSop.slug, row.question.linkedSop])).values()
+    ].slice(0, 3);
     return (
       <>
         <PageHeader title={`${session.module} Result`} description="Completed adaptive certification attempt." />
@@ -39,7 +41,11 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
           {!session.certified && remediation.length ? (
             <div className="mt-5 grid gap-2">
               {remediation.map((sop) => (
-                <a key={sop.id} href={`/knowledge/${sop.slug}`} className="rounded border border-line px-3 py-2 text-sm font-semibold text-ink hover:border-teal">
+                <a
+                  key={sop.id}
+                  href={`/knowledge/${sop.slug}`}
+                  className="rounded border border-line px-3 py-2 text-sm font-semibold text-ink hover:border-teal"
+                >
                   Review {sop.title}
                 </a>
               ))}
@@ -51,12 +57,19 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
   }
 
   const bank = await prisma.questionItem.findMany({ where: { module: session.module, isActive: true } });
-  const next = selectNextQuestion(session.abilityEstimate, bank, session.responses.map((response) => response.questionId));
+  const next = selectNextQuestion(
+    session.abilityEstimate,
+    bank,
+    session.responses.map((response) => response.questionId)
+  );
   if (!next) notFound();
 
   return (
     <>
-      <PageHeader title={`${session.module} Adaptive Test`} description="Answer each item from current SOP knowledge. Correct keys are validated on the server only." />
+      <PageHeader
+        title={`${session.module} Adaptive Test`}
+        description="Answer each item from current SOP knowledge. Correct keys are validated on the server only."
+      />
       <TestSessionClient
         sessionId={session.id}
         module={session.module}
@@ -65,7 +78,11 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
           content: next.content,
           options: (next.options as Option[]).map(({ key, text }) => ({ key, text }))
         }}
-        initialProgress={{ answered: session.responses.length, theta: session.abilityEstimate, se: session.standardError }}
+        initialProgress={{
+          answered: session.responses.length,
+          theta: session.abilityEstimate,
+          se: session.standardError
+        }}
       />
     </>
   );

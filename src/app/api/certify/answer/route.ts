@@ -11,7 +11,11 @@ const schema = z.object({
   sessionId: z.string(),
   questionId: z.string(),
   selectedKey: z.enum(["A", "B", "C", "D"]),
-  responseTimeMs: z.number().int().min(0).max(30 * 60 * 1000)
+  responseTimeMs: z
+    .number()
+    .int()
+    .min(0)
+    .max(30 * 60 * 1000)
 });
 
 export async function POST(request: Request) {

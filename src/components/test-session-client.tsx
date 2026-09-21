@@ -80,7 +80,9 @@ export function TestSessionClient({
     return (
       <Card className="p-5">
         <div className="flex flex-wrap items-center gap-3">
-          <StatusBadge tone={result.passed ? "teal" : "rose"}>{result.passed ? "Certified" : "Not certified"}</StatusBadge>
+          <StatusBadge tone={result.passed ? "teal" : "rose"}>
+            {result.passed ? "Certified" : "Not certified"}
+          </StatusBadge>
           <StatusBadge tone="navy">Theta {result.theta.toFixed(2)}</StatusBadge>
           <StatusBadge tone="amber">SE {result.se.toFixed(2)}</StatusBadge>
         </div>
@@ -93,7 +95,11 @@ export function TestSessionClient({
         {!result.passed && result.remediation.length ? (
           <div className="mt-4 grid gap-2">
             {result.remediation.map((item) => (
-              <Link key={item.slug} href={`/knowledge/${item.slug}`} className="rounded border border-line px-3 py-2 text-sm font-semibold text-ink hover:border-teal">
+              <Link
+                key={item.slug}
+                href={`/knowledge/${item.slug}`}
+                className="rounded border border-line px-3 py-2 text-sm font-semibold text-ink hover:border-teal"
+              >
                 {item.title}
               </Link>
             ))}
@@ -130,12 +136,20 @@ export function TestSessionClient({
               onChange={() => setSelected(option.key)}
               className="mt-1"
             />
-            <span><strong>{option.key}.</strong> {option.text}</span>
+            <span>
+              <strong>{option.key}.</strong> {option.text}
+            </span>
           </label>
         ))}
       </div>
-      {error ? <div className="mt-4 rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{error}</div> : null}
-      <button onClick={submit} disabled={pending} className="mt-5 rounded bg-navy px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+      {error ? (
+        <div className="mt-4 rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{error}</div>
+      ) : null}
+      <button
+        onClick={submit}
+        disabled={pending}
+        className="mt-5 rounded bg-navy px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+      >
         {pending ? "Submitting..." : "Submit answer"}
       </button>
     </Card>
