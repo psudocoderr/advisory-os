@@ -133,6 +133,16 @@ async function main() {
     process.env.ADMIN_NAME ||
     (process.stdin.isTTY ? (await ask(`Display name [${fallbackName}]: `)) || fallbackName : fallbackName);
 
+  // Defaults to ADMIN because that is what this script is for, but must be
+  // overridable. Hardcoding it meant running this on an ADVISOR account to
+  // fix its password silently promoted that person to ADMIN, handing them
+  // every client record including PAN. A password reset must never change
+  // privilege as a side effect.
+  const role = (process.env.ADMIN_ROLE || "ADMIN").toUpperCase();
+  if (role !== "ADMIN" && role !== "ADVISOR") {
+    throw new Error(`ADMIN_ROLE must be ADMIN or ADVISOR, not "${role}".`);
+  }
+
   const target = process.env.DIRECT_URL || process.env.DATABASE_URL;
   const host = target ? new URL(target).hostname : "unknown";
   console.log(`Target database: ${host}`);
@@ -142,9 +152,12 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, 12);
 
   if (existing) {
+    if (existing.role !== role) {
+      console.log(`  Note: role changes from ${existing.role} to ${role}.`);
+    }
     await prisma.user.update({
       where: { email },
-      data: { passwordHash, role: "ADMIN", isActive: true }
+      data: { passwordHash, role: role as never, isActive: true }
     });
     await prisma.auditLog.create({
       data: {
@@ -152,14 +165,14 @@ async function main() {
         action: "UPDATE",
         entity: "User",
         entityId: existing.id,
-        summary: `Password reset and ADMIN role confirmed for ${email} via bootstrap-admin`
+        summary: `Password reset and ${role} role set for ${email} via bootstrap-admin`
       }
     });
     console.log(`Reset the password for the existing account ${email}.`);
-    console.log(`Role set to ADMIN and the account re-activated.`);
+    console.log(`Role is ${role} and the account is active.`);
   } else {
     const created = await prisma.user.create({
-      data: { email, name, passwordHash, role: "ADMIN", isActive: true }
+      data: { email, name, passwordHash, role: role as never, isActive: true }
     });
     await prisma.auditLog.create({
       data: {
@@ -167,10 +180,10 @@ async function main() {
         action: "CREATE",
         entity: "User",
         entityId: created.id,
-        summary: `Admin account ${email} created via bootstrap-admin`
+        summary: `${role} account ${email} created via bootstrap-admin`
       }
     });
-    console.log(`Created a new ADMIN account for ${email}.`);
+    console.log(`Created a new ${role} account for ${email}.`);
   }
 
   const total = await prisma.user.count();
