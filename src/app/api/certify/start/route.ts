@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { IRT } from "@/lib/irt";
+import { estimateEap, isExpired, IRT } from "@/lib/irt";
+import { finalizeSession } from "@/lib/certify-session";
 
 const schema = z.object({
   module: z.enum(["M1", "M2", "M3", "M4", "M5"])
@@ -25,7 +26,33 @@ export async function POST(request: Request) {
     orderBy: { startedAt: "desc" }
   });
   if (activeAttempt) {
-    return NextResponse.json({ sessionId: activeAttempt.id, resumed: true });
+    // Do not resume a session whose time is already gone. Resuming one meant
+    // clicking Start handed back a session that had expired days earlier: the
+    // countdown showed 0:00 on arrival, the test closed itself before the
+    // first question, and integrity events were rejected because the session
+    // was no longer active. Close it out and start fresh instead.
+    if (isExpired(activeAttempt.startedAt)) {
+      const responses = await prisma.responseLog.findMany({
+        where: { sessionId: activeAttempt.id },
+        select: { questionId: true, isCorrect: true }
+      });
+      const bank = await prisma.questionItem.findMany({
+        where: { module: parsed.data.module, isActive: true }
+      });
+      const estimate = estimateEap(responses, bank);
+      await finalizeSession({
+        sessionId: activeAttempt.id,
+        userId: session.user.id,
+        module: activeAttempt.module,
+        theta: estimate.theta,
+        se: estimate.se,
+        answered: responses.length,
+        reason: "TIMED_OUT"
+      });
+      // Falls through to create a new attempt below.
+    } else {
+      return NextResponse.json({ sessionId: activeAttempt.id, resumed: true });
+    }
   }
 
   const latestFailure = await prisma.testSession.findFirst({

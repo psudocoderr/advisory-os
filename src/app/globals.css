@@ -71,3 +71,26 @@ button {
 .mono {
   font-family: "Courier New", Courier, monospace;
 }
+
+/*
+ * Exam surface.
+ *
+ * A fullscreened element gets no background from its former parent, so
+ * without this the card floats on black. In fullscreen the container becomes
+ * the page: it supplies the background, centres the card and gives it room to
+ * breathe on a large screen.
+ */
+.exam-surface:fullscreen {
+  /* Literal, because `wash` is a Tailwind colour token in tailwind.config.ts,
+     not a CSS custom property -- var(--wash) would silently fall back. Keep
+     this in step with theme.extend.colors.wash. */
+  background: #f5f7fb;
+  padding: 3rem 1.5rem;
+  overflow-y: auto;
+  display: block;
+}
+
+.exam-surface:fullscreen > * {
+  max-width: 56rem;
+  margin: 0 auto;
+}

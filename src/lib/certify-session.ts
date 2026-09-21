@@ -13,6 +13,11 @@ export type FinishReason = "STOP_RULE" | "BANK_EXHAUSTED" | "TIMED_OUT";
 
 export type SessionResult = {
   passed: boolean;
+  /**
+   * True when the session ended without enough questions to count as an
+   * attempt. No certification, no failure on record, and no retry cooldown.
+   */
+  abandoned: boolean;
   theta: number;
   se: number;
   level: string;
@@ -68,6 +73,17 @@ export async function finalizeSession(params: {
 }): Promise<SessionResult> {
   const { sessionId, userId, module, theta, se, answered, reason } = params;
 
+  /**
+   * Running out of time after one question is abandonment, not failure.
+   *
+   * Treating it as FAILED trips the 24-hour retry cooldown in the start
+   * route, which meant walking away from a test locked you out of the module
+   * for a day. ABANDONED already existed in TestSessionStatus and was unused;
+   * the cooldown query only matches FAILED, so this is excluded from it
+   * automatically.
+   */
+  const abandoned = reason === "TIMED_OUT" && answered < IRT.minQuestions;
+
   const current = await prisma.testSession.findUnique({ where: { id: sessionId } });
   if (!current) throw new Error("Session not found");
 
@@ -75,6 +91,7 @@ export async function finalizeSession(params: {
   if (current.status !== "IN_PROGRESS") {
     return {
       passed: current.certified,
+      abandoned: current.status === "ABANDONED",
       theta: current.abilityEstimate,
       se: current.standardError,
       level: certificationLevel(current.abilityEstimate),
@@ -84,8 +101,8 @@ export async function finalizeSession(params: {
     };
   }
 
-  const passed = theta >= IRT.passTheta;
-  const level = certificationLevel(theta);
+  const passed = !abandoned && theta >= IRT.passTheta;
+  const level = abandoned ? "Not attempted" : certificationLevel(theta);
 
   await prisma.testSession.update({
     where: { id: sessionId },
@@ -93,7 +110,7 @@ export async function finalizeSession(params: {
       abilityEstimate: theta,
       standardError: se,
       certified: passed,
-      status: passed ? "PASSED" : "FAILED",
+      status: abandoned ? "ABANDONED" : passed ? "PASSED" : "FAILED",
       completedAt: new Date()
     }
   });
@@ -121,22 +138,24 @@ export async function finalizeSession(params: {
   await prisma.auditLog.create({
     data: {
       actorId: userId,
-      action: passed ? "PASS" : "FAIL",
+      action: abandoned ? "ABANDON" : passed ? "PASS" : "FAIL",
       entity: "TestSession",
       entityId: sessionId,
-      summary:
-        `${passed ? "Passed" : "Failed"} ${module} certification at theta ${theta.toFixed(2)} ` +
-        `after ${answered} questions (${REASON_NOTE[reason]})`
+      summary: abandoned
+        ? `Abandoned ${module} certification after ${answered} question${answered === 1 ? "" : "s"} (${REASON_NOTE[reason]}); not counted as an attempt`
+        : `${passed ? "Passed" : "Failed"} ${module} certification at theta ${theta.toFixed(2)} ` +
+          `after ${answered} questions (${REASON_NOTE[reason]})`
     }
   });
 
   return {
     passed,
+    abandoned,
     theta,
     se,
     level,
     reason,
     answered,
-    remediation: passed ? [] : await weakestSops(sessionId)
+    remediation: passed || abandoned ? [] : await weakestSops(sessionId)
   };
 }

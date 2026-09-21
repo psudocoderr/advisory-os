@@ -97,12 +97,15 @@ export function TestSessionClient({
 
   const handleExpire = useCallback(() => void finish("TIMED_OUT"), [finish]);
 
+  const examRef = useRef<HTMLDivElement | null>(null);
+
   const exam = useExamShell({
     sessionId,
     startedAtMs,
     deadlineMs,
     active: !result && Boolean(question),
-    onExpire: handleExpire
+    onExpire: handleExpire,
+    targetRef: examRef
   });
 
   function submit() {
@@ -190,76 +193,80 @@ export function TestSessionClient({
   }
 
   return (
-    <Card className="p-5">
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <StatusBadge tone={exam.remainingMs <= 60_000 ? "rose" : "navy"}>
-          {formatRemaining(exam.remainingMs)} left
-        </StatusBadge>
-        <StatusBadge tone="navy">Answered {progress.answered}</StatusBadge>
-        <StatusBadge tone="teal">Theta {progress.theta.toFixed(2)}</StatusBadge>
-        <StatusBadge tone="amber">SE {progress.se === 99 ? "..." : progress.se.toFixed(2)}</StatusBadge>
-        {exam.strikes > 0 ? (
-          <StatusBadge tone="rose">
-            {exam.strikes} integrity event{exam.strikes === 1 ? "" : "s"}
+    <div ref={examRef} className="exam-surface">
+      <Card className="p-5">
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          <StatusBadge tone={exam.remainingMs <= 60_000 ? "rose" : "navy"}>
+            {formatRemaining(exam.remainingMs)} left
           </StatusBadge>
-        ) : null}
-      </div>
+          <StatusBadge tone="navy">Answered {progress.answered}</StatusBadge>
+          <StatusBadge tone="teal">Theta {progress.theta.toFixed(2)}</StatusBadge>
+          <StatusBadge tone="amber">SE {progress.se === 99 ? "..." : progress.se.toFixed(2)}</StatusBadge>
+          {exam.strikes > 0 ? (
+            <StatusBadge tone="rose">
+              {exam.strikes} integrity event{exam.strikes === 1 ? "" : "s"}
+            </StatusBadge>
+          ) : null}
+        </div>
 
-      {!exam.isFullscreen ? (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded border border-amber/30 bg-amber/10 px-3 py-2">
-          <p className="text-sm text-ink">
-            This test is meant to be taken in fullscreen. Leaving it is recorded on your attempt.
+        {!exam.isFullscreen ? (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded border border-amber/30 bg-amber/10 px-3 py-2">
+            <p className="text-sm text-ink">
+              This test is meant to be taken in fullscreen. Leaving it is recorded on your attempt.
+            </p>
+            <button
+              onClick={() => void exam.requestFullscreen()}
+              className="rounded bg-navy px-3 py-1.5 text-sm font-semibold text-white"
+            >
+              Enter fullscreen
+            </button>
+          </div>
+        ) : null}
+
+        {exam.warning ? (
+          <div className="mb-4 rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">
+            {exam.warning}
+          </div>
+        ) : null}
+        <h2 className="text-lg font-semibold leading-7 text-ink">{question.content}</h2>
+        <div className="mt-5 grid gap-3">
+          {question.options.map((option) => (
+            <label
+              key={option.key}
+              className={`flex items-start gap-3 rounded border p-3 text-sm ${
+                selected === option.key ? "border-teal bg-mint" : "border-line bg-wash"
+              }`}
+            >
+              <input
+                type="radio"
+                name="answer"
+                value={option.key}
+                checked={selected === option.key}
+                onChange={() => setSelected(option.key)}
+                className="mt-1"
+              />
+              <span>
+                <strong>{option.key}.</strong> {option.text}
+              </span>
+            </label>
+          ))}
+        </div>
+        {error ? (
+          <div className="mt-4 rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{error}</div>
+        ) : null}
+        <div className="mt-6 flex items-center justify-between gap-4 border-t border-line pt-4">
+          <p className="text-xs text-muted">
+            {selected ? `Option ${selected} selected` : "Select an option to continue"}
           </p>
           <button
-            onClick={() => void exam.requestFullscreen()}
-            className="rounded bg-navy px-3 py-1.5 text-sm font-semibold text-white"
+            onClick={submit}
+            disabled={pending || !selected}
+            className="rounded bg-navy px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Enter fullscreen
+            {pending ? "Submitting..." : "Submit answer"}
           </button>
         </div>
-      ) : null}
-
-      {exam.warning ? (
-        <div className="mb-4 rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{exam.warning}</div>
-      ) : null}
-      <h2 className="text-lg font-semibold leading-7 text-ink">{question.content}</h2>
-      <div className="mt-5 grid gap-3">
-        {question.options.map((option) => (
-          <label
-            key={option.key}
-            className={`flex items-start gap-3 rounded border p-3 text-sm ${
-              selected === option.key ? "border-teal bg-mint" : "border-line bg-wash"
-            }`}
-          >
-            <input
-              type="radio"
-              name="answer"
-              value={option.key}
-              checked={selected === option.key}
-              onChange={() => setSelected(option.key)}
-              className="mt-1"
-            />
-            <span>
-              <strong>{option.key}.</strong> {option.text}
-            </span>
-          </label>
-        ))}
-      </div>
-      {error ? (
-        <div className="mt-4 rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{error}</div>
-      ) : null}
-      <div className="mt-6 flex items-center justify-between gap-4 border-t border-line pt-4">
-        <p className="text-xs text-muted">
-          {selected ? `Option ${selected} selected` : "Select an option to continue"}
-        </p>
-        <button
-          onClick={submit}
-          disabled={pending || !selected}
-          className="rounded bg-navy px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {pending ? "Submitting..." : "Submit answer"}
-        </button>
-      </div>
-    </Card>
+      </Card>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
 type IntegrityKind =
   "FULLSCREEN_EXIT" | "FULLSCREEN_ENTER" | "TAB_HIDDEN" | "WINDOW_BLUR" | "COPY" | "PASTE" | "CONTEXT_MENU";
@@ -25,13 +25,21 @@ export function useExamShell({
   startedAtMs,
   deadlineMs,
   active,
-  onExpire
+  onExpire,
+  targetRef
 }: {
   sessionId: string;
   startedAtMs: number;
   deadlineMs: number;
   active: boolean;
   onExpire: () => void;
+  /**
+   * The element to make fullscreen. Deliberately not documentElement: that
+   * blows the whole application up to full size, sidebar and navigation
+   * included, which is the opposite of an exam surface. Fullscreening just the
+   * exam container removes the rest of the app from view.
+   */
+  targetRef: RefObject<HTMLElement | null>;
 }) {
   const [remainingMs, setRemainingMs] = useState(() => Math.max(0, deadlineMs - Date.now()));
   const [strikes, setStrikes] = useState(0);
@@ -58,14 +66,17 @@ export function useExamShell({
   );
 
   const requestFullscreen = useCallback(async () => {
+    const target = targetRef.current;
+    if (!target) return;
     try {
-      await document.documentElement.requestFullscreen();
+      // Must be called from a user gesture; browsers reject it otherwise.
+      await target.requestFullscreen();
     } catch {
       // Denied, or unsupported. The test continues; the absence of fullscreen
       // is itself visible in the event record.
       setWarning("Fullscreen was not granted. This is recorded on your attempt.");
     }
-  }, []);
+  }, [targetRef]);
 
   // Countdown. Derived from the server-issued deadline each tick rather than
   // decremented, so a backgrounded tab with throttled timers still shows the
@@ -89,7 +100,7 @@ export function useExamShell({
     if (!active) return;
 
     const onFullscreenChange = () => {
-      const now = Boolean(document.fullscreenElement);
+      const now = document.fullscreenElement === targetRef.current;
       setIsFullscreen(now);
       if (now) {
         void report("FULLSCREEN_ENTER");
@@ -115,6 +126,9 @@ export function useExamShell({
       void report("CONTEXT_MENU");
     };
 
+    // Sync on mount: a resumed page may already be fullscreen.
+    setIsFullscreen(document.fullscreenElement === targetRef.current);
+
     document.addEventListener("fullscreenchange", onFullscreenChange);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("blur", onBlur);
@@ -130,13 +144,18 @@ export function useExamShell({
       document.removeEventListener("paste", onPaste);
       document.removeEventListener("contextmenu", onContextMenu);
     };
-  }, [active, report]);
+  }, [active, report, targetRef]);
 
-  // Leave fullscreen once the test is over, so the result is not trapped.
+  // Leave fullscreen once the test is over, so the result is not trapped
+  // behind it. Only exits the element this hook put there -- it must not close
+  // a fullscreen view the page opened for some other reason.
   useEffect(() => {
     if (active) return;
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-  }, [active]);
+    const target = targetRef.current;
+    if (target && document.fullscreenElement === target) {
+      void document.exitFullscreen().catch(() => {});
+    }
+  }, [active, targetRef]);
 
   return { remainingMs, strikes, warning, isFullscreen, requestFullscreen, startedAtMs };
 }
