@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Card, StatusBadge } from "@/components/ui";
+import { formatRemaining, useExamShell } from "@/components/exam-shell";
 
 type Question = {
   id: string;
@@ -39,12 +40,17 @@ export function TestSessionClient({
   module,
   initialQuestion,
   initialProgress,
-  autoFinish
+  autoFinish,
+  startedAtMs,
+  deadlineMs
 }: {
   sessionId: string;
   module: string;
   initialQuestion: Question | null;
   initialProgress: Progress;
+  /** Server-issued. The browser never decides when time is up. */
+  startedAtMs: number;
+  deadlineMs: number;
   /**
    * Set when the session cannot continue and must be closed on arrival --
    * currently only a bank that has run out. This is what recovers sessions
@@ -88,6 +94,16 @@ export function TestSessionClient({
   useEffect(() => {
     if (autoFinish) void finish(autoFinish);
   }, [autoFinish, finish]);
+
+  const handleExpire = useCallback(() => void finish("TIMED_OUT"), [finish]);
+
+  const exam = useExamShell({
+    sessionId,
+    startedAtMs,
+    deadlineMs,
+    active: !result && Boolean(question),
+    onExpire: handleExpire
+  });
 
   function submit() {
     if (!question) return;
@@ -176,10 +192,36 @@ export function TestSessionClient({
   return (
     <Card className="p-5">
       <div className="mb-5 flex flex-wrap items-center gap-3">
+        <StatusBadge tone={exam.remainingMs <= 60_000 ? "rose" : "navy"}>
+          {formatRemaining(exam.remainingMs)} left
+        </StatusBadge>
         <StatusBadge tone="navy">Answered {progress.answered}</StatusBadge>
         <StatusBadge tone="teal">Theta {progress.theta.toFixed(2)}</StatusBadge>
         <StatusBadge tone="amber">SE {progress.se === 99 ? "..." : progress.se.toFixed(2)}</StatusBadge>
+        {exam.strikes > 0 ? (
+          <StatusBadge tone="rose">
+            {exam.strikes} integrity event{exam.strikes === 1 ? "" : "s"}
+          </StatusBadge>
+        ) : null}
       </div>
+
+      {!exam.isFullscreen ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded border border-amber/30 bg-amber/10 px-3 py-2">
+          <p className="text-sm text-ink">
+            This test is meant to be taken in fullscreen. Leaving it is recorded on your attempt.
+          </p>
+          <button
+            onClick={() => void exam.requestFullscreen()}
+            className="rounded bg-navy px-3 py-1.5 text-sm font-semibold text-white"
+          >
+            Enter fullscreen
+          </button>
+        </div>
+      ) : null}
+
+      {exam.warning ? (
+        <div className="mb-4 rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{exam.warning}</div>
+      ) : null}
       <h2 className="text-lg font-semibold leading-7 text-ink">{question.content}</h2>
       <div className="mt-5 grid gap-3">
         {question.options.map((option) => (

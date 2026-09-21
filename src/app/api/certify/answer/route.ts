@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
-import { estimateEap, selectNextQuestion, shouldStop } from "@/lib/irt";
+import { estimateEap, isExpired, selectNextQuestion, shouldStop } from "@/lib/irt";
 import { finalizeSession } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
 
@@ -39,6 +39,27 @@ export async function POST(request: Request) {
   }
   if (testSession.responses.some((response) => response.questionId === input.questionId)) {
     return NextResponse.json({ error: "Question already answered" }, { status: 409 });
+  }
+
+  // Time is enforced here, not in the browser. The countdown on screen is a
+  // display; a client clock can be wrong or deliberately changed. An answer
+  // arriving after the deadline does not count, and the session closes on the
+  // estimate reached before time ran out.
+  if (isExpired(testSession.startedAt)) {
+    const bankForScore = await prisma.questionItem.findMany({
+      where: { module: testSession.module, isActive: true }
+    });
+    const expiredEstimate = estimateEap(testSession.responses, bankForScore);
+    const result = await finalizeSession({
+      sessionId: testSession.id,
+      userId: auth.user.id,
+      module: testSession.module,
+      theta: expiredEstimate.theta,
+      se: expiredEstimate.se,
+      answered: testSession.responses.length,
+      reason: "TIMED_OUT"
+    });
+    return NextResponse.json({ complete: true, result });
   }
 
   const [question, bank] = await Promise.all([

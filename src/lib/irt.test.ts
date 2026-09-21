@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { IRT, certificationLevel, estimateEap, information, probability, selectNextQuestion, shouldStop } from "./irt";
+import {
+  IRT,
+  deadlineFor,
+  isExpired,
+  certificationLevel,
+  estimateEap,
+  information,
+  probability,
+  selectNextQuestion,
+  shouldStop
+} from "./irt";
 
 /**
  * The adaptive certification engine decides whether a staff member is
@@ -159,5 +169,33 @@ describe("certificationLevel", () => {
     // anything below must not. These two constants drift apart easily.
     expect(certificationLevel(IRT.passTheta)).not.toBe("Not Certified");
     expect(certificationLevel(IRT.passTheta - 0.0001)).toBe("Not Certified");
+  });
+});
+
+describe("time limit", () => {
+  const start = new Date("2026-09-21T10:00:00.000Z");
+
+  it("puts the deadline exactly one limit after the start", () => {
+    expect(deadlineFor(start).getTime() - start.getTime()).toBe(IRT.timeLimitMinutes * 60 * 1000);
+  });
+
+  it("is not expired before the deadline", () => {
+    const justBefore = new Date(deadlineFor(start).getTime() - 1000);
+    expect(isExpired(start, justBefore)).toBe(false);
+  });
+
+  it("is expired after the deadline plus the skew grace", () => {
+    const wellAfter = new Date(deadlineFor(start).getTime() + 10_000);
+    expect(isExpired(start, wellAfter)).toBe(true);
+  });
+
+  it("grants a grace window so latency alone does not reject an answer", () => {
+    // Submitted on time, arrives a moment late. Must still count.
+    const barelyLate = new Date(deadlineFor(start).getTime() + 1000);
+    expect(isExpired(start, barelyLate, 2000)).toBe(false);
+  });
+
+  it("does not treat the exact deadline as expired", () => {
+    expect(isExpired(start, deadlineFor(start))).toBe(false);
   });
 });

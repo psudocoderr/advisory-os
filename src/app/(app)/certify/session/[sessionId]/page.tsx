@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
-import { selectNextQuestion } from "@/lib/irt";
+import { deadlineFor, selectNextQuestion } from "@/lib/irt";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import { TestSessionClient } from "@/components/test-session-client";
@@ -82,6 +82,8 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
             theta: session.abilityEstimate,
             se: session.standardError
           }}
+          startedAtMs={session.startedAt.getTime()}
+          deadlineMs={deadlineFor(session.startedAt).getTime()}
           autoFinish="BANK_EXHAUSTED"
         />
       </>
@@ -107,6 +109,8 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
           theta: session.abilityEstimate,
           se: session.standardError
         }}
+        startedAtMs={session.startedAt.getTime()}
+        deadlineMs={deadlineFor(session.startedAt).getTime()}
       />
     </>
   );

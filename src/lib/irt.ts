@@ -5,6 +5,7 @@ export const IRT = {
   minQuestions: 10,
   maxQuestions: 18,
   seStop: 0.3,
+  timeLimitMinutes: 20,
   thetaMin: -4,
   thetaMax: 4,
   cooldownHours: 24
@@ -12,6 +13,25 @@ export const IRT = {
 
 type ResponseLike = Pick<ResponseLog, "questionId" | "isCorrect">;
 type QuestionLike = Pick<QuestionItem, "id" | "difficulty" | "discrimination" | "guessing">;
+
+/** When a session that began at `startedAt` must end. */
+export function deadlineFor(startedAt: Date): Date {
+  return new Date(startedAt.getTime() + IRT.timeLimitMinutes * 60 * 1000);
+}
+
+/**
+ * Whether a session has run out of time.
+ *
+ * The server calls this on every write. The countdown in the browser is a
+ * display, not a control: a client clock can be wrong or deliberately changed,
+ * so nothing is allowed to depend on it.
+ *
+ * `skewMs` grants a small grace so an answer submitted a fraction of a second
+ * before the deadline is not rejected by network latency alone.
+ */
+export function isExpired(startedAt: Date, now: Date = new Date(), skewMs = 2000): boolean {
+  return now.getTime() > deadlineFor(startedAt).getTime() + skewMs;
+}
 
 export function probability(theta: number, question: QuestionLike) {
   const a = question.discrimination;

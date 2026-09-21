@@ -89,6 +89,16 @@ enum TestSessionStatus {
   ABANDONED
 }
 
+enum IntegrityEventKind {
+  FULLSCREEN_EXIT
+  FULLSCREEN_ENTER
+  TAB_HIDDEN
+  WINDOW_BLUR
+  COPY
+  PASTE
+  CONTEXT_MENU
+}
+
 enum CertificationStatus {
   ACTIVE
   EXPIRED
@@ -309,9 +319,10 @@ model TestSession {
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  responses     ResponseLog[]
-  certification Certification?
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  responses       ResponseLog[]
+  certification   Certification?
+  integrityEvents IntegrityEvent[]
 
   @@index([userId, module])
   @@map("test_sessions")
@@ -333,6 +344,24 @@ model ResponseLog {
 
   @@unique([sessionId, questionId])
   @@map("response_logs")
+}
+
+/// Records that a candidate left the exam surface during a test: exited
+/// fullscreen, switched tab, blurred the window, copied or pasted.
+///
+/// Deliberately a record, not a control. No browser API can prevent a
+/// screenshot, a phone camera or a second device, so this does not pretend to
+/// stop anything. It exists so a reviewer can see what happened and when.
+model IntegrityEvent {
+  id         String             @id @default(cuid())
+  sessionId  String
+  kind       IntegrityEventKind
+  occurredAt DateTime           @default(now())
+
+  session TestSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, occurredAt])
+  @@map("integrity_events")
 }
 
 model Certification {
