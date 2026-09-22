@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-
-type IntegrityKind =
-  "FULLSCREEN_EXIT" | "FULLSCREEN_ENTER" | "TAB_HIDDEN" | "WINDOW_BLUR" | "COPY" | "PASTE" | "CONTEXT_MENU";
+import { STRIKE_LIMIT, strikesRemaining, type IntegrityKind } from "@/lib/integrity";
 
 /**
  * Exam surface: fullscreen, a countdown, and integrity event reporting.
@@ -26,6 +24,7 @@ export function useExamShell({
   deadlineMs,
   active,
   onExpire,
+  onTerminate,
   targetRef
 }: {
   sessionId: string;
@@ -33,6 +32,8 @@ export function useExamShell({
   deadlineMs: number;
   active: boolean;
   onExpire: () => void;
+  /** Called when the server ends the attempt for repeated violations. */
+  onTerminate: (result: unknown) => void;
   /**
    * The element to make fullscreen. Deliberately not documentElement: that
    * blows the whole application up to full size, sidebar and navigation
@@ -46,6 +47,7 @@ export function useExamShell({
   const [warning, setWarning] = useState<string>("");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const expiredRef = useRef(false);
+  const terminatedRef = useRef(false);
 
   const report = useCallback(
     async (kind: IntegrityKind) => {
@@ -57,12 +59,18 @@ export function useExamShell({
         });
         const payload = await response.json();
         if (typeof payload.strikes === "number") setStrikes(payload.strikes);
+
+        // The server decides whether the attempt ends, not this component.
+        if (payload.terminated) {
+          terminatedRef.current = true;
+          onTerminate(payload.result);
+        }
       } catch {
         // Never let integrity reporting break the test itself. A candidate
         // must not be blocked by a failed log write.
       }
     },
-    [sessionId]
+    [sessionId, onTerminate]
   );
 
   const requestFullscreen = useCallback(async () => {
@@ -107,14 +115,18 @@ export function useExamShell({
         setWarning("");
       } else {
         void report("FULLSCREEN_EXIT");
-        setWarning("You left fullscreen. This is recorded on your attempt.");
+        setWarning(
+          `You left fullscreen. This is recorded. More than ${STRIKE_LIMIT} integrity events end the attempt.`
+        );
       }
     };
 
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
         void report("TAB_HIDDEN");
-        setWarning("You switched away from the test. This is recorded on your attempt.");
+        setWarning(
+          `You switched away from the test. This is recorded. More than ${STRIKE_LIMIT} integrity events end the attempt.`
+        );
       }
     };
 
@@ -126,6 +138,35 @@ export function useExamShell({
       void report("CONTEXT_MENU");
     };
 
+    /**
+     * Blocks the keyboard shortcuts that open developer tools, and records the
+     * attempt.
+     *
+     * Be clear about what this is: a speed bump, not a control. Developer
+     * tools can still be opened from the browser menu, the page source read
+     * through view-source or a proxy, and JavaScript disabled entirely. No
+     * page can prevent any of that, and the widely-copied tricks for
+     * "detecting devtools" are unreliable and produce false positives on
+     * ordinary window resizes.
+     *
+     * The value is that trying is recorded. Someone who works around this has
+     * still left a DEVTOOLS_ATTEMPT on their attempt.
+     */
+    const onKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      const blocked =
+        event.key === "F12" ||
+        ((event.ctrlKey || event.metaKey) && event.shiftKey && ["i", "j", "c"].includes(key)) ||
+        ((event.ctrlKey || event.metaKey) && key === "u") ||
+        // Save-page: not devtools, but an obvious way to take the paper home.
+        ((event.ctrlKey || event.metaKey) && key === "s");
+
+      if (!blocked) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void report("DEVTOOLS_ATTEMPT");
+    };
+
     // Sync on mount: a resumed page may already be fullscreen.
     setIsFullscreen(document.fullscreenElement === targetRef.current);
 
@@ -135,6 +176,7 @@ export function useExamShell({
     document.addEventListener("copy", onCopy);
     document.addEventListener("paste", onPaste);
     document.addEventListener("contextmenu", onContextMenu);
+    document.addEventListener("keydown", onKeyDown, true);
 
     return () => {
       document.removeEventListener("fullscreenchange", onFullscreenChange);
@@ -143,6 +185,7 @@ export function useExamShell({
       document.removeEventListener("copy", onCopy);
       document.removeEventListener("paste", onPaste);
       document.removeEventListener("contextmenu", onContextMenu);
+      document.removeEventListener("keydown", onKeyDown, true);
     };
   }, [active, report, targetRef]);
 
@@ -157,7 +200,16 @@ export function useExamShell({
     }
   }, [active, targetRef]);
 
-  return { remainingMs, strikes, warning, isFullscreen, requestFullscreen, startedAtMs };
+  return {
+    remainingMs,
+    strikes,
+    strikeLimit: STRIKE_LIMIT,
+    strikesLeft: strikesRemaining(strikes),
+    warning,
+    isFullscreen,
+    requestFullscreen,
+    startedAtMs
+  };
 }
 
 export function formatRemaining(ms: number): string {

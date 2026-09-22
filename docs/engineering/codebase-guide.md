@@ -332,11 +332,33 @@ TestSessionClient (client component)
 questions down to `{id, content, options:{key,text}}`. `correctKey` and
 `explanation` are stripped. Verified — do not undo it.
 
+**Four strikes ends the attempt.** `src/lib/integrity.ts` holds the policy:
+which events count, the limit, and the dedupe window. The decision is made in
+`/api/certify/integrity` — server-side, because the browser reporting its own
+violations must not also decide its own fate. Over the limit, the session is
+finalized as `INTEGRITY_TERMINATED`, which sets status `TERMINATED`, never
+certifies whatever the ability estimate says, and counts toward the retry
+cooldown alongside `FAILED`.
+
+Not every event is a strike. `FULLSCREEN_ENTER` is the candidate coming back.
+`WINDOW_BLUR` fires alongside `TAB_HIDDEN` for the same single alt-tab, so
+counting both scored one action as two — which would have ended an attempt
+after two ordinary actions rather than four deliberate ones. Repeats of one
+kind within 3 seconds also collapse to one.
+
 **Proctoring is recording, not prevention.** `useExamShell` requests fullscreen
 and logs fullscreen exit, tab switch, blur, copy, paste and right-click to
 `IntegrityEvent`. No web API can stop a screenshot, a phone camera or a second
-device, and fullscreen can always be exited — browsers guarantee that. The
-value is the audit trail.
+device, and fullscreen can always be exited — browsers guarantee that.
+
+Right-click and the devtools keyboard shortcuts (F12, Ctrl/Cmd+Shift+I/J/C,
+Ctrl/Cmd+U, Ctrl/Cmd+S) are blocked and logged. **This is a speed bump, not a
+control.** Developer tools still open from the browser menu, the page source
+is still readable through view-source or a proxy, and JavaScript can be
+disabled outright. No page can prevent any of that, and the widely-copied
+"devtools detection" tricks are unreliable and fire on ordinary window
+resizes. What the blocking buys is that trying leaves a `DEVTOOLS_ATTEMPT` on
+the attempt record — and four of those end the test.
 
 ---
 

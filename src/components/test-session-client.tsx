@@ -17,10 +17,11 @@ type Progress = {
   se: number;
 };
 
-type FinishReason = "STOP_RULE" | "BANK_EXHAUSTED" | "TIMED_OUT";
+type FinishReason = "STOP_RULE" | "BANK_EXHAUSTED" | "TIMED_OUT" | "INTEGRITY_TERMINATED";
 
 type Result = {
   passed: boolean;
+  terminated?: boolean;
   theta: number;
   se: number;
   level: string;
@@ -32,7 +33,8 @@ type Result = {
 const REASON_NOTE: Record<FinishReason, string> = {
   STOP_RULE: "The estimate reached the required confidence.",
   BANK_EXHAUSTED: "Every available question in this module was answered.",
-  TIMED_OUT: "The time limit was reached."
+  TIMED_OUT: "The time limit was reached.",
+  INTEGRITY_TERMINATED: "The attempt was ended after repeated integrity violations, and has been flagged for review."
 };
 
 export function TestSessionClient({
@@ -97,6 +99,12 @@ export function TestSessionClient({
 
   const handleExpire = useCallback(() => void finish("TIMED_OUT"), [finish]);
 
+  // The server has already closed the session; just show what it decided.
+  const handleTerminate = useCallback((payload: unknown) => {
+    finishRequested.current = true;
+    if (payload) setResult(payload as Result);
+  }, []);
+
   const examRef = useRef<HTMLDivElement | null>(null);
 
   const exam = useExamShell({
@@ -105,6 +113,7 @@ export function TestSessionClient({
     deadlineMs,
     active: !result && Boolean(question),
     onExpire: handleExpire,
+    onTerminate: handleTerminate,
     targetRef: examRef
   });
 
@@ -147,7 +156,7 @@ export function TestSessionClient({
       <Card className="p-5">
         <div className="flex flex-wrap items-center gap-3">
           <StatusBadge tone={result.passed ? "teal" : "rose"}>
-            {result.passed ? "Certified" : "Not certified"}
+            {result.terminated ? "Attempt terminated" : result.passed ? "Certified" : "Not certified"}
           </StatusBadge>
           <StatusBadge tone="navy">Theta {result.theta.toFixed(2)}</StatusBadge>
           <StatusBadge tone="amber">SE {result.se.toFixed(2)}</StatusBadge>
@@ -157,9 +166,11 @@ export function TestSessionClient({
           Test ended after {result.answered} question{result.answered === 1 ? "" : "s"}. {REASON_NOTE[result.reason]}
         </p>
         <p className="mt-2 text-sm leading-6 text-muted">
-          {result.passed
-            ? `You passed ${module}. The credential is now visible on the certification dashboard.`
-            : "Review the weakest linked SOPs before retrying after the cooldown window."}
+          {result.terminated
+            ? "This attempt was ended by the system and does not count as a pass. It is recorded on your attempt history and flagged for review."
+            : result.passed
+              ? `You passed ${module}. The credential is now visible on the certification dashboard.`
+              : "Review the weakest linked SOPs before retrying after the cooldown window."}
         </p>
         {!result.passed && result.remediation.length ? (
           <div className="mt-4 grid gap-2">

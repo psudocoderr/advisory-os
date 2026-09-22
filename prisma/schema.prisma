@@ -87,9 +87,14 @@ enum TestSessionStatus {
   PASSED
   FAILED
   ABANDONED
+  /// Ended by the system for repeated integrity violations. Distinct from
+  /// FAILED (sat the test and did not reach the standard) and from ABANDONED
+  /// (walked away), because conflating them would misreport what happened.
+  TERMINATED
 }
 
 enum IntegrityEventKind {
+  DEVTOOLS_ATTEMPT
   FULLSCREEN_EXIT
   FULLSCREEN_ENTER
   TAB_HIDDEN

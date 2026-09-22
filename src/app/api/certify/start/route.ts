@@ -56,11 +56,15 @@ export async function POST(request: Request) {
     }
   }
 
+  // TERMINATED counts toward the cooldown as much as FAILED. Without it,
+  // someone removed for repeated integrity violations could start again
+  // immediately, which is the opposite of the intended consequence.
+  // ABANDONED is excluded on purpose: walking away is not an attempt.
   const latestFailure = await prisma.testSession.findFirst({
     where: {
       userId: session.user.id,
       module: parsed.data.module,
-      status: "FAILED",
+      status: { in: ["FAILED", "TERMINATED"] },
       completedAt: { not: null }
     },
     orderBy: { completedAt: "desc" }

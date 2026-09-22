@@ -9,10 +9,12 @@ import { prisma } from "@/lib/prisma";
  * IN_PROGRESS, which bricked the module for that user because the start route
  * resumes an in-progress session and the resumed page then 404s.
  */
-export type FinishReason = "STOP_RULE" | "BANK_EXHAUSTED" | "TIMED_OUT";
+export type FinishReason = "STOP_RULE" | "BANK_EXHAUSTED" | "TIMED_OUT" | "INTEGRITY_TERMINATED";
 
 export type SessionResult = {
   passed: boolean;
+  /** Ended by the system for integrity violations. Never certifies. */
+  terminated: boolean;
   /**
    * True when the session ended without enough questions to count as an
    * attempt. No certification, no failure on record, and no retry cooldown.
@@ -29,7 +31,8 @@ export type SessionResult = {
 const REASON_NOTE: Record<FinishReason, string> = {
   STOP_RULE: "the estimate reached the required confidence",
   BANK_EXHAUSTED: "every available question was answered",
-  TIMED_OUT: "the time limit was reached"
+  TIMED_OUT: "the time limit was reached",
+  INTEGRITY_TERMINATED: "the attempt was ended for repeated integrity violations"
 };
 
 export function reasonNote(reason: FinishReason): string {
@@ -84,6 +87,13 @@ export async function finalizeSession(params: {
    */
   const abandoned = reason === "TIMED_OUT" && answered < IRT.minQuestions;
 
+  /**
+   * A terminated attempt never certifies, whatever the estimate says. Someone
+   * removed for repeated violations has not demonstrated anything, and the
+   * ability estimate at that point is not evidence of competence.
+   */
+  const terminated = reason === "INTEGRITY_TERMINATED";
+
   const current = await prisma.testSession.findUnique({ where: { id: sessionId } });
   if (!current) throw new Error("Session not found");
 
@@ -92,6 +102,7 @@ export async function finalizeSession(params: {
     return {
       passed: current.certified,
       abandoned: current.status === "ABANDONED",
+      terminated: current.status === "TERMINATED",
       theta: current.abilityEstimate,
       se: current.standardError,
       level: certificationLevel(current.abilityEstimate),
@@ -101,8 +112,8 @@ export async function finalizeSession(params: {
     };
   }
 
-  const passed = !abandoned && theta >= IRT.passTheta;
-  const level = abandoned ? "Not attempted" : certificationLevel(theta);
+  const passed = !abandoned && !terminated && theta >= IRT.passTheta;
+  const level = terminated ? "Terminated" : abandoned ? "Not attempted" : certificationLevel(theta);
 
   await prisma.testSession.update({
     where: { id: sessionId },
@@ -110,7 +121,7 @@ export async function finalizeSession(params: {
       abilityEstimate: theta,
       standardError: se,
       certified: passed,
-      status: abandoned ? "ABANDONED" : passed ? "PASSED" : "FAILED",
+      status: terminated ? "TERMINATED" : abandoned ? "ABANDONED" : passed ? "PASSED" : "FAILED",
       completedAt: new Date()
     }
   });
@@ -138,24 +149,27 @@ export async function finalizeSession(params: {
   await prisma.auditLog.create({
     data: {
       actorId: userId,
-      action: abandoned ? "ABANDON" : passed ? "PASS" : "FAIL",
+      action: terminated ? "TERMINATE" : abandoned ? "ABANDON" : passed ? "PASS" : "FAIL",
       entity: "TestSession",
       entityId: sessionId,
-      summary: abandoned
-        ? `Abandoned ${module} certification after ${answered} question${answered === 1 ? "" : "s"} (${REASON_NOTE[reason]}); not counted as an attempt`
-        : `${passed ? "Passed" : "Failed"} ${module} certification at theta ${theta.toFixed(2)} ` +
-          `after ${answered} questions (${REASON_NOTE[reason]})`
+      summary: terminated
+        ? `TERMINATED ${module} certification after ${answered} question${answered === 1 ? "" : "s"}: repeated integrity violations. Flagged for review.`
+        : abandoned
+          ? `Abandoned ${module} certification after ${answered} question${answered === 1 ? "" : "s"} (${REASON_NOTE[reason]}); not counted as an attempt`
+          : `${passed ? "Passed" : "Failed"} ${module} certification at theta ${theta.toFixed(2)} ` +
+            `after ${answered} questions (${REASON_NOTE[reason]})`
     }
   });
 
   return {
     passed,
     abandoned,
+    terminated,
     theta,
     se,
     level,
     reason,
     answered,
-    remediation: passed || abandoned ? [] : await weakestSops(sessionId)
+    remediation: passed || abandoned || terminated ? [] : await weakestSops(sessionId)
   };
 }
