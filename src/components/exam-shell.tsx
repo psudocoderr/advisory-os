@@ -46,6 +46,9 @@ export function useExamShell({
   const [strikes, setStrikes] = useState(0);
   const [warning, setWarning] = useState<string>("");
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Assumed until checked on mount: the server cannot know, and guessing
+  // "unsupported" would flash the wrong message on every load.
+  const [fullscreenSupported, setFullscreenSupported] = useState(true);
   const expiredRef = useRef(false);
   const terminatedRef = useRef(false);
 
@@ -169,6 +172,9 @@ export function useExamShell({
 
     // Sync on mount: a resumed page may already be fullscreen.
     setIsFullscreen(document.fullscreenElement === targetRef.current);
+    // False where fullscreen is unavailable (iPhone Safari cannot fullscreen an
+    // element) or blocked (an iframe without allow="fullscreen").
+    setFullscreenSupported(document.fullscreenEnabled);
 
     document.addEventListener("fullscreenchange", onFullscreenChange);
     document.addEventListener("visibilitychange", onVisibility);
@@ -207,6 +213,7 @@ export function useExamShell({
     strikesLeft: strikesRemaining(strikes),
     warning,
     isFullscreen,
+    fullscreenSupported,
     requestFullscreen,
     startedAtMs
   };
