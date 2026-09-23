@@ -42,15 +42,15 @@ export function TestSessionClient({
   module,
   initialProgress,
   autoFinish,
-  startedAtMs,
   deadlineMs
 }: {
   sessionId: string;
   module: string;
   initialProgress: Progress;
-  /** Server-issued. The browser never decides when time is up. */
-  startedAtMs: number;
-  /** Null until the first question has been released and the clock started. */
+  /**
+   * Server-issued; the browser never decides when time is up. Null until the
+   * first question has been released and the clock started.
+   */
   deadlineMs: number | null;
   /**
    * Set when the session cannot continue and must be closed on arrival --
@@ -171,7 +171,6 @@ export function TestSessionClient({
 
   const exam = useExamShell({
     sessionId,
-    startedAtMs,
     deadlineMs: deadline,
     active: !result && !autoFinish,
     onExpire: handleExpire,

@@ -79,7 +79,6 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
             theta: session.abilityEstimate,
             se: session.standardError
           }}
-          startedAtMs={session.startedAt.getTime()}
           deadlineMs={null}
           autoFinish="BANK_EXHAUSTED"
         />
@@ -106,7 +105,6 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
           theta: session.abilityEstimate,
           se: session.standardError
         }}
-        startedAtMs={session.startedAt.getTime()}
         deadlineMs={session.timerStartedAt ? deadlineFor(session.timerStartedAt).getTime() : null}
       />
     </>

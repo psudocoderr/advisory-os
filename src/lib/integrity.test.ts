@@ -6,8 +6,7 @@ import {
   isOnExamSurface,
   isRedundantEvent,
   isStrike,
-  shouldTerminate,
-  strikesRemaining
+  shouldTerminate
 } from "./integrity";
 
 /**
@@ -64,21 +63,6 @@ describe("shouldTerminate", () => {
 
   it("stays terminated well beyond the limit", () => {
     expect(shouldTerminate(STRIKE_LIMIT + 50)).toBe(true);
-  });
-});
-
-describe("strikesRemaining", () => {
-  it("reports the full allowance before any violation", () => {
-    expect(strikesRemaining(0)).toBe(STRIKE_LIMIT);
-  });
-
-  it("counts down", () => {
-    expect(strikesRemaining(1)).toBe(STRIKE_LIMIT - 1);
-    expect(strikesRemaining(STRIKE_LIMIT)).toBe(0);
-  });
-
-  it("never goes negative", () => {
-    expect(strikesRemaining(STRIKE_LIMIT + 10)).toBe(0);
   });
 });
 

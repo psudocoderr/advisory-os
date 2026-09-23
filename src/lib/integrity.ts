@@ -60,11 +60,6 @@ export function isStrike(kind: IntegrityKind): boolean {
   return (STRIKE_KINDS as readonly string[]).includes(kind);
 }
 
-/** How many strikes remain before the attempt ends. Never negative. */
-export function strikesRemaining(strikes: number): number {
-  return Math.max(0, STRIKE_LIMIT - strikes);
-}
-
 /** Whether this strike total ends the attempt. */
 export function shouldTerminate(strikes: number): boolean {
   return strikes > STRIKE_LIMIT;

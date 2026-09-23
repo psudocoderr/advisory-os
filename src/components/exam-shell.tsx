@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { IRT } from "@/lib/irt";
-import { STRIKE_LIMIT, strikesRemaining, type IntegrityKind } from "@/lib/integrity";
+import { STRIKE_LIMIT, type IntegrityKind } from "@/lib/integrity";
 
 /**
  * Exam surface: fullscreen, a countdown, and integrity event reporting.
@@ -21,7 +21,6 @@ import { STRIKE_LIMIT, strikesRemaining, type IntegrityKind } from "@/lib/integr
  */
 export function useExamShell({
   sessionId,
-  startedAtMs,
   deadlineMs,
   active,
   onExpire,
@@ -30,7 +29,6 @@ export function useExamShell({
   targetRef
 }: {
   sessionId: string;
-  startedAtMs: number;
   /** Null until the first question is released and the clock starts. */
   deadlineMs: number | null;
   active: boolean;
@@ -230,14 +228,11 @@ export function useExamShell({
   return {
     remainingMs,
     strikes,
-    strikeLimit: STRIKE_LIMIT,
-    strikesLeft: strikesRemaining(strikes),
     warning,
     isFullscreen,
     fullscreenSupported,
     requestFullscreen,
-    report,
-    startedAtMs
+    report
   };
 }
 
