@@ -88,6 +88,10 @@ jobs:
     env:
       DATABASE_URL: postgresql://advisory_app:advisory_app_password@localhost:5432/advisory_os?schema=public
       DIRECT_URL: postgresql://advisory_app:advisory_app_password@localhost:5432/advisory_os?schema=public
+      # The seed refuses to run without these. Throwaway values: the database is
+      # a service container that is discarded with the job.
+      SEED_ADMIN_PASSWORD: ci-only-admin-password
+      SEED_ADVISOR_PASSWORD: ci-only-advisor-password
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
