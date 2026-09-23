@@ -3,9 +3,9 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { estimateEap } from "@/lib/irt";
-import { finalizeSession } from "@/lib/certify-session";
+import { finalizeSession, latestFullscreenKind } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
-import { DEDUPE_WINDOW_MS, INTEGRITY_KINDS, STRIKE_KINDS, STRIKE_LIMIT, shouldTerminate } from "@/lib/integrity";
+import { INTEGRITY_KINDS, STRIKE_KINDS, STRIKE_LIMIT, isRedundantEvent, shouldTerminate } from "@/lib/integrity";
 
 /**
  * Records that the candidate left the exam surface, and ends the attempt once
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
   const testSession = await prisma.testSession.findUnique({
     where: { id: sessionId },
-    select: { id: true, userId: true, status: true, module: true, startedAt: true }
+    select: { id: true, userId: true, status: true, module: true, timerStartedAt: true }
   });
   if (!testSession || testSession.userId !== auth.user.id) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
@@ -52,18 +52,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ recorded: false, strikes: total, capped: true, terminated: false });
   }
 
-  const duplicate = await prisma.integrityEvent.findFirst({
-    where: { sessionId, kind, occurredAt: { gt: new Date(Date.now() - DEDUPE_WINDOW_MS) } },
-    select: { id: true }
+  const [fullscreenKind, sameKind] = await Promise.all([
+    latestFullscreenKind(sessionId),
+    prisma.integrityEvent.findFirst({
+      where: { sessionId, kind },
+      orderBy: { occurredAt: "desc" },
+      select: { occurredAt: true }
+    })
+  ]);
+  const duplicate = isRedundantEvent(kind, {
+    latestFullscreenKind: fullscreenKind,
+    latestSameKindAt: sameKind?.occurredAt
   });
 
   if (!duplicate) {
     await prisma.integrityEvent.create({ data: { sessionId, kind } });
   }
 
-  const strikes = await prisma.integrityEvent.count({
-    where: { sessionId, kind: { in: [...STRIKE_KINDS] } }
-  });
+  // Only what happens once the clock is running counts. Before the first
+  // question the candidate is still getting into fullscreen, and an alt-tab
+  // then has nothing to gain from.
+  const strikes = testSession.timerStartedAt
+    ? await prisma.integrityEvent.count({
+        where: { sessionId, kind: { in: [...STRIKE_KINDS] }, occurredAt: { gte: testSession.timerStartedAt } }
+      })
+    : 0;
 
   if (!shouldTerminate(strikes)) {
     return NextResponse.json({

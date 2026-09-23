@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { STRIKE_KINDS, STRIKE_LIMIT, isStrike, shouldTerminate, strikesRemaining } from "./integrity";
+import {
+  DEDUPE_WINDOW_MS,
+  STRIKE_KINDS,
+  STRIKE_LIMIT,
+  isOnExamSurface,
+  isRedundantEvent,
+  isStrike,
+  shouldTerminate,
+  strikesRemaining
+} from "./integrity";
 
 /**
  * The strike policy decides whether someone's certification attempt is ended
@@ -70,5 +79,53 @@ describe("strikesRemaining", () => {
 
   it("never goes negative", () => {
     expect(strikesRemaining(STRIKE_LIMIT + 10)).toBe(0);
+  });
+});
+
+describe("isOnExamSurface", () => {
+  it("is false before the candidate has entered fullscreen", () => {
+    expect(isOnExamSurface(null)).toBe(false);
+    expect(isOnExamSurface(undefined)).toBe(false);
+  });
+
+  it("follows the most recent fullscreen event", () => {
+    expect(isOnExamSurface("FULLSCREEN_ENTER")).toBe(true);
+    expect(isOnExamSurface("FULLSCREEN_EXIT")).toBe(false);
+  });
+});
+
+describe("isRedundantEvent", () => {
+  const now = new Date("2026-09-23T10:00:00Z");
+  const ago = (ms: number) => new Date(now.getTime() - ms);
+
+  it("keeps a return to fullscreen that follows an exit, however quickly", () => {
+    // A time window here dropped the return, leaving the server convinced
+    // the candidate was still outside fullscreen.
+    expect(
+      isRedundantEvent("FULLSCREEN_ENTER", { latestFullscreenKind: "FULLSCREEN_EXIT", latestSameKindAt: ago(500), now })
+    ).toBe(false);
+  });
+
+  it("drops a fullscreen event that repeats the current state, however late", () => {
+    expect(
+      isRedundantEvent("FULLSCREEN_EXIT", {
+        latestFullscreenKind: "FULLSCREEN_EXIT",
+        latestSameKindAt: ago(60_000),
+        now
+      })
+    ).toBe(true);
+  });
+
+  it("records the first fullscreen entry", () => {
+    expect(isRedundantEvent("FULLSCREEN_ENTER", { latestFullscreenKind: null, latestSameKindAt: null, now })).toBe(
+      false
+    );
+  });
+
+  it("collapses other repeats only inside the window", () => {
+    const base = { latestFullscreenKind: "FULLSCREEN_ENTER" as const, now };
+    expect(isRedundantEvent("TAB_HIDDEN", { ...base, latestSameKindAt: ago(DEDUPE_WINDOW_MS - 1) })).toBe(true);
+    expect(isRedundantEvent("TAB_HIDDEN", { ...base, latestSameKindAt: ago(DEDUPE_WINDOW_MS + 1) })).toBe(false);
+    expect(isRedundantEvent("TAB_HIDDEN", { ...base, latestSameKindAt: null })).toBe(false);
   });
 });

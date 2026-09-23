@@ -315,6 +315,10 @@ model TestSession {
   userId          String
   module          ModuleCode
   startedAt       DateTime          @default(now())
+  /// When the first question was released and the clock started. Null until
+  /// the candidate has entered fullscreen: time spent getting there is not
+  /// time spent answering. The deadline is measured from this, not startedAt.
+  timerStartedAt  DateTime?
   completedAt     DateTime?
   abilityEstimate Float             @default(0)
   standardError   Float             @default(99)

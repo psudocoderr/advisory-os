@@ -3,6 +3,7 @@ import {
   IRT,
   deadlineFor,
   isExpired,
+  isSessionExpired,
   certificationLevel,
   estimateEap,
   information,
@@ -137,6 +138,17 @@ describe("selectNextQuestion", () => {
     expect(selectNextQuestion(2.0, bank, []).id).toBe("q-hard-2");
     expect(selectNextQuestion(-2.0, bank, []).id).toBe("q-easy-2");
   });
+
+  it("breaks ties the same way whatever order the bank arrives in", () => {
+    // A candidate who leaves fullscreen and returns must get the same question
+    // back, and the database returns rows in no guaranteed order.
+    const twins = [
+      { id: "q-b", difficulty: 0, discrimination: 1, guessing: 0.2 },
+      { id: "q-a", difficulty: 0, discrimination: 1, guessing: 0.2 }
+    ];
+    expect(selectNextQuestion(0, twins, []).id).toBe("q-a");
+    expect(selectNextQuestion(0, [...twins].reverse(), []).id).toBe("q-a");
+  });
 });
 
 describe("shouldStop", () => {
@@ -197,5 +209,20 @@ describe("time limit", () => {
 
   it("does not treat the exact deadline as expired", () => {
     expect(isExpired(start, deadlineFor(start))).toBe(false);
+  });
+});
+
+describe("isSessionExpired", () => {
+  const start = new Date("2026-09-21T10:00:00.000Z");
+
+  it("never expires a session whose clock has not started", () => {
+    // The clock starts with the first question. Time spent getting into
+    // fullscreen, or away from the page before that, is not counted.
+    expect(isSessionExpired(null, new Date("2030-01-01T00:00:00.000Z"))).toBe(false);
+  });
+
+  it("expires on the clock's start, not the session's creation", () => {
+    expect(isSessionExpired(start, new Date(deadlineFor(start).getTime() - 1000))).toBe(false);
+    expect(isSessionExpired(start, new Date(deadlineFor(start).getTime() + 10_000))).toBe(true);
   });
 });

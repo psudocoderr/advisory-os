@@ -14,7 +14,7 @@ export const IRT = {
 type ResponseLike = Pick<ResponseLog, "questionId" | "isCorrect">;
 type QuestionLike = Pick<QuestionItem, "id" | "difficulty" | "discrimination" | "guessing">;
 
-/** When a session that began at `startedAt` must end. */
+/** When a session whose clock started at `startedAt` must end. */
 export function deadlineFor(startedAt: Date): Date {
   return new Date(startedAt.getTime() + IRT.timeLimitMinutes * 60 * 1000);
 }
@@ -31,6 +31,17 @@ export function deadlineFor(startedAt: Date): Date {
  */
 export function isExpired(startedAt: Date, now: Date = new Date(), skewMs = 2000): boolean {
   return now.getTime() > deadlineFor(startedAt).getTime() + skewMs;
+}
+
+/**
+ * Whether a session has run out of time, given when its clock started.
+ *
+ * The clock starts when the first question is released, not when the session
+ * is created: time spent getting into fullscreen is not time spent answering.
+ * A session whose clock has not started cannot have run out.
+ */
+export function isSessionExpired(timerStartedAt: Date | null, now: Date = new Date()): boolean {
+  return timerStartedAt !== null && isExpired(timerStartedAt, now);
 }
 
 export function probability(theta: number, question: QuestionLike) {
@@ -81,9 +92,15 @@ export function estimateEap(responses: ResponseLike[], questions: QuestionLike[]
 
 export function selectNextQuestion<T extends QuestionLike>(theta: number, questions: T[], usedQuestionIds: string[]) {
   const used = new Set(usedQuestionIds);
-  return questions
-    .filter((question) => !used.has(question.id))
-    .sort((a, b) => information(theta, b) - information(theta, a))[0];
+  return (
+    questions
+      .filter((question) => !used.has(question.id))
+      // Ties broken by id so the same state always yields the same question.
+      // The bank arrives in no guaranteed order, and a candidate who leaves and
+      // re-enters fullscreen must be handed back the question they left, not a
+      // different one of equal information.
+      .sort((a, b) => information(theta, b) - information(theta, a) || a.id.localeCompare(b.id))[0]
+  );
 }
 
 export function shouldStop(answered: number, se: number) {

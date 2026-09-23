@@ -40,7 +40,6 @@ const REASON_NOTE: Record<FinishReason, string> = {
 export function TestSessionClient({
   sessionId,
   module,
-  initialQuestion,
   initialProgress,
   autoFinish,
   startedAtMs,
@@ -48,11 +47,11 @@ export function TestSessionClient({
 }: {
   sessionId: string;
   module: string;
-  initialQuestion: Question | null;
   initialProgress: Progress;
   /** Server-issued. The browser never decides when time is up. */
   startedAtMs: number;
-  deadlineMs: number;
+  /** Null until the first question has been released and the clock started. */
+  deadlineMs: number | null;
   /**
    * Set when the session cannot continue and must be closed on arrival --
    * currently only a bank that has run out. This is what recovers sessions
@@ -61,14 +60,28 @@ export function TestSessionClient({
    */
   autoFinish?: FinishReason;
 }) {
-  const [question, setQuestion] = useState(initialQuestion);
+  // Never in the page's HTML. Fetched once the server has recorded fullscreen,
+  // and dropped again the moment the candidate leaves it.
+  const [question, setQuestion] = useState<Question | null>(null);
   const [progress, setProgress] = useState(initialProgress);
+  const [deadline, setDeadline] = useState(deadlineMs);
   const [selected, setSelected] = useState("");
   const [error, setError] = useState("");
+  const [loadingQuestion, setLoadingQuestion] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
-  const [startedAt, setStartedAt] = useState(Date.now());
   const [pending, startTransition] = useTransition();
   const finishRequested = useRef(false);
+  const examRef = useRef<HTMLDivElement | null>(null);
+  // When each question first appeared, for its response time. Kept per id so
+  // leaving and returning to the same question does not reset it.
+  const shownAt = useRef<{ id: string; at: number } | null>(null);
+
+  const onExamSurface = () => Boolean(examRef.current) && document.fullscreenElement === examRef.current;
+
+  const showQuestion = useCallback((next: Question) => {
+    if (shownAt.current?.id !== next.id) shownAt.current = { id: next.id, at: Date.now() };
+    setQuestion(next);
+  }, []);
 
   const finish = useCallback(
     async (reason: FinishReason) => {
@@ -85,6 +98,12 @@ export function TestSessionClient({
       const payload = await response.json();
       if (!response.ok) {
         finishRequested.current = false;
+        // This browser's clock ran ahead of the server's. Ask again when the
+        // server says time is really up.
+        if (typeof payload.remainingMs === "number") {
+          window.setTimeout(() => void finish(reason), payload.remainingMs + 1000);
+          return;
+        }
         setError(payload.error || "Unable to close this test.");
         return;
       }
@@ -97,6 +116,51 @@ export function TestSessionClient({
     if (autoFinish) void finish(autoFinish);
   }, [autoFinish, finish]);
 
+  const releaseQuestion = useCallback(async () => {
+    if (!onExamSurface()) return;
+    setLoadingQuestion(true);
+    setError("");
+    try {
+      const response = await fetch("/api/certify/question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setError(payload.error || "Unable to load the question.");
+        return;
+      }
+      if (payload.complete) {
+        finishRequested.current = true;
+        setResult(payload.result);
+        return;
+      }
+      // Left fullscreen while this was in flight. Do not show it; the same
+      // question comes back on return.
+      if (!onExamSurface()) return;
+      setProgress(payload.progress);
+      setDeadline(payload.deadlineMs);
+      showQuestion(payload.question);
+    } catch {
+      setError("Unable to load the question. Check your connection and try again.");
+    } finally {
+      setLoadingQuestion(false);
+    }
+  }, [sessionId, showQuestion]);
+
+  const handleSurfaceChange = useCallback(
+    (onSurface: boolean) => {
+      if (onSurface) {
+        void releaseQuestion();
+      } else {
+        setQuestion(null);
+        setSelected("");
+      }
+    },
+    [releaseQuestion]
+  );
+
   const handleExpire = useCallback(() => void finish("TIMED_OUT"), [finish]);
 
   // The server has already closed the session; just show what it decided.
@@ -105,21 +169,24 @@ export function TestSessionClient({
     if (payload) setResult(payload as Result);
   }, []);
 
-  const examRef = useRef<HTMLDivElement | null>(null);
-
   const exam = useExamShell({
     sessionId,
     startedAtMs,
-    deadlineMs,
-    active: !result && Boolean(question),
+    deadlineMs: deadline,
+    active: !result && !autoFinish,
     onExpire: handleExpire,
     onTerminate: handleTerminate,
+    onSurfaceChange: handleSurfaceChange,
     targetRef: examRef
   });
 
-  // The question stays out of reach until the exam is fullscreen, and again
-  // whenever the candidate leaves it.
-  const locked = !exam.isFullscreen;
+  const locked = !question || !exam.isFullscreen;
+
+  function retry() {
+    // Re-report the entry in case the first report never reached the server;
+    // a repeat is recognised and not written twice.
+    void exam.report("FULLSCREEN_ENTER").then(releaseQuestion);
+  }
 
   function submit() {
     if (!question || locked) return;
@@ -136,22 +203,26 @@ export function TestSessionClient({
           sessionId,
           questionId: question.id,
           selectedKey: selected,
-          responseTimeMs: Date.now() - startedAt
+          responseTimeMs: Date.now() - (shownAt.current?.at ?? Date.now())
         })
       });
       const payload = await response.json();
       if (!response.ok) {
+        if (payload.needsFullscreen) {
+          setQuestion(null);
+          return;
+        }
         setError(payload.error || "Unable to submit answer.");
         return;
       }
       setSelected("");
       if (payload.complete) {
         setResult(payload.result);
-      } else {
-        setQuestion(payload.question);
-        setProgress(payload.progress);
-        setStartedAt(Date.now());
+        return;
       }
+      setProgress(payload.progress);
+      if (onExamSurface()) showQuestion(payload.question);
+      else setQuestion(null);
     });
   }
 
@@ -196,7 +267,7 @@ export function TestSessionClient({
     );
   }
 
-  if (!question) {
+  if (autoFinish) {
     return (
       <Card className="p-5">
         <p className="text-sm text-muted">Closing this test...</p>
@@ -211,8 +282,8 @@ export function TestSessionClient({
     <div ref={examRef} className="exam-surface">
       <Card className="p-5">
         <div className="mb-5 flex flex-wrap items-center gap-3">
-          <StatusBadge tone={exam.remainingMs <= 60_000 ? "rose" : "navy"}>
-            {formatRemaining(exam.remainingMs)} left
+          <StatusBadge tone={deadline !== null && exam.remainingMs <= 60_000 ? "rose" : "navy"}>
+            {formatRemaining(exam.remainingMs)} {deadline === null ? "once you begin" : "left"}
           </StatusBadge>
           <StatusBadge tone="navy">Answered {progress.answered}</StatusBadge>
           <StatusBadge tone="teal">Theta {progress.theta.toFixed(2)}</StatusBadge>
@@ -230,50 +301,8 @@ export function TestSessionClient({
           </div>
         ) : null}
 
-        <div className="relative">
-          {locked ? (
-            <div className="absolute inset-0 z-10 flex items-start justify-center pt-10">
-              <div role="alert" className="max-w-md rounded border border-line bg-panel p-5 text-center shadow-soft">
-                {exam.fullscreenSupported ? (
-                  <>
-                    <h3 className="font-semibold text-ink">
-                      {progress.answered === 0 ? "Enter fullscreen to begin" : "Return to fullscreen to continue"}
-                    </h3>
-                    <p className="mt-1 text-sm leading-6 text-muted">
-                      The test is taken in fullscreen. Leaving it is recorded on your attempt.
-                    </p>
-                    <button
-                      onClick={() => void exam.requestFullscreen()}
-                      className="mt-4 rounded bg-navy px-4 py-2 text-sm font-semibold text-white"
-                    >
-                      Enter fullscreen
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <h3 className="font-semibold text-ink">This browser cannot run the test</h3>
-                    <p className="mt-1 text-sm leading-6 text-muted">
-                      The test needs fullscreen, which this browser does not support. Open it in Chrome, Edge, Firefox
-                      or Safari on a computer.
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-          ) : null}
-
-          {/*
-            Locked until the exam is fullscreen. `inert` takes the question out
-            of reach entirely -- no clicks, no keyboard focus, no text selection
-            -- and the blur keeps it from being read over the prompt. This is
-            the browser enforcing it, so like the rest of the exam shell it
-            deters rather than prevents: the question is in the page already.
-          */}
-          <div
-            inert={locked}
-            aria-hidden={locked}
-            className={locked ? "pointer-events-none select-none opacity-40 blur-sm" : undefined}
-          >
+        {question && !locked ? (
+          <div>
             <h2 className="text-lg font-semibold leading-7 text-ink">{question.content}</h2>
             <div className="mt-5 grid gap-3">
               {question.options.map((option) => (
@@ -313,7 +342,57 @@ export function TestSessionClient({
               </button>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="relative">
+            {/* A stand-in, not the question: the real one is not in the page. */}
+            <div aria-hidden className="select-none space-y-4 opacity-40 blur-sm">
+              <div className="h-6 w-3/4 rounded bg-line" />
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} className="h-12 rounded border border-line bg-wash" />
+              ))}
+              <div className="h-10 border-t border-line" />
+            </div>
+            <div className="absolute inset-0 flex items-start justify-center pt-10">
+              <div role="alert" className="max-w-md rounded border border-line bg-panel p-5 text-center shadow-soft">
+                {!exam.fullscreenSupported ? (
+                  <>
+                    <h3 className="font-semibold text-ink">This browser cannot run the test</h3>
+                    <p className="mt-1 text-sm leading-6 text-muted">
+                      The test needs fullscreen, which this browser does not support. Open it in Chrome, Edge, Firefox
+                      or Safari on a computer.
+                    </p>
+                  </>
+                ) : !exam.isFullscreen ? (
+                  <>
+                    <h3 className="font-semibold text-ink">
+                      {deadline === null ? "Enter fullscreen to begin" : "Return to fullscreen to continue"}
+                    </h3>
+                    <p className="mt-1 text-sm leading-6 text-muted">
+                      {deadline === null
+                        ? "The first question appears in fullscreen, and the clock starts when it does."
+                        : "The question is hidden outside fullscreen, and the clock keeps running. Leaving is recorded on your attempt."}
+                    </p>
+                    <button
+                      onClick={() => void exam.requestFullscreen()}
+                      className="mt-4 rounded bg-navy px-4 py-2 text-sm font-semibold text-white"
+                    >
+                      Enter fullscreen
+                    </button>
+                  </>
+                ) : error ? (
+                  <>
+                    <p className="text-sm text-rose">{error}</p>
+                    <button onClick={retry} className="mt-4 rounded bg-navy px-4 py-2 text-sm font-semibold text-white">
+                      Try again
+                    </button>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted">{loadingQuestion ? "Loading the question..." : "Preparing..."}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );

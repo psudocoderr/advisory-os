@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { estimateEap, isExpired, IRT } from "@/lib/irt";
+import { estimateEap, isSessionExpired, IRT } from "@/lib/irt";
 import { finalizeSession } from "@/lib/certify-session";
 import { MINIMUM_BANK_SIZE } from "@/lib/question-bank";
 
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     // countdown showed 0:00 on arrival, the test closed itself before the
     // first question, and integrity events were rejected because the session
     // was no longer active. Close it out and start fresh instead.
-    if (isExpired(activeAttempt.startedAt)) {
+    if (isSessionExpired(activeAttempt.timerStartedAt)) {
       const responses = await prisma.responseLog.findMany({
         where: { sessionId: activeAttempt.id },
         select: { questionId: true, isCorrect: true }

@@ -5,8 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import { TestSessionClient } from "@/components/test-session-client";
 
-type Option = { key: string; text: string };
-
 export default async function TestSessionPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const auth = await requireSession();
   const { sessionId } = await params;
@@ -76,14 +74,13 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
         <TestSessionClient
           sessionId={session.id}
           module={session.module}
-          initialQuestion={null}
           initialProgress={{
             answered: session.responses.length,
             theta: session.abilityEstimate,
             se: session.standardError
           }}
           startedAtMs={session.startedAt.getTime()}
-          deadlineMs={deadlineFor(session.startedAt).getTime()}
+          deadlineMs={null}
           autoFinish="BANK_EXHAUSTED"
         />
       </>
@@ -96,21 +93,21 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
         title={`${session.module} Adaptive Test`}
         description="Answer each item from current SOP knowledge. Correct keys are validated on the server only."
       />
+      {/*
+        No question here. It is fetched from /api/certify/question once the
+        server has recorded the candidate entering fullscreen, so it never
+        appears in this page's HTML.
+      */}
       <TestSessionClient
         sessionId={session.id}
         module={session.module}
-        initialQuestion={{
-          id: next.id,
-          content: next.content,
-          options: (next.options as Option[]).map(({ key, text }) => ({ key, text }))
-        }}
         initialProgress={{
           answered: session.responses.length,
           theta: session.abilityEstimate,
           se: session.standardError
         }}
         startedAtMs={session.startedAt.getTime()}
-        deadlineMs={deadlineFor(session.startedAt).getTime()}
+        deadlineMs={session.timerStartedAt ? deadlineFor(session.timerStartedAt).getTime() : null}
       />
     </>
   );

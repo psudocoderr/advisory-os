@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
-import { estimateEap, isExpired, selectNextQuestion, shouldStop } from "@/lib/irt";
-import { finalizeSession } from "@/lib/certify-session";
+import { estimateEap, isSessionExpired, selectNextQuestion, shouldStop } from "@/lib/irt";
+import { candidateOnExamSurface, finalizeSession } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
 
 type Option = { key: string; text: string };
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
   // display; a client clock can be wrong or deliberately changed. An answer
   // arriving after the deadline does not count, and the session closes on the
   // estimate reached before time ran out.
-  if (isExpired(testSession.startedAt)) {
+  if (isSessionExpired(testSession.timerStartedAt)) {
     const bankForScore = await prisma.questionItem.findMany({
       where: { module: testSession.module, isActive: true }
     });
@@ -62,12 +62,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ complete: true, result });
   }
 
-  const [question, bank] = await Promise.all([
-    prisma.questionItem.findUnique({ where: { id: input.questionId } }),
-    prisma.questionItem.findMany({ where: { module: testSession.module, isActive: true } })
-  ]);
-  if (!question || question.module !== testSession.module || !question.isActive) {
-    return NextResponse.json({ error: "Question not found" }, { status: 404 });
+  // No question has been released until the clock starts, and none is
+  // answerable outside fullscreen. Both are the server's record, not the
+  // browser's say-so: pressing Escape and answering anyway does not work.
+  if (!testSession.timerStartedAt || !(await candidateOnExamSurface(testSession.id))) {
+    return NextResponse.json({ error: "Return to fullscreen to answer.", needsFullscreen: true }, { status: 409 });
+  }
+
+  const bank = await prisma.questionItem.findMany({ where: { module: testSession.module, isActive: true } });
+
+  // Only the question the session is on can be answered. Selection is
+  // deterministic, so this is the one the question route released. Without
+  // it, anyone who knew question ids could choose which ones to answer.
+  const question = selectNextQuestion(
+    testSession.abilityEstimate,
+    bank,
+    testSession.responses.map((response) => response.questionId)
+  );
+  if (!question || question.id !== input.questionId) {
+    return NextResponse.json({ error: "That is not the current question." }, { status: 409 });
   }
 
   const isCorrect = question.correctKey === input.selectedKey;

@@ -69,3 +69,50 @@ export function strikesRemaining(strikes: number): number {
 export function shouldTerminate(strikes: number): boolean {
   return strikes > STRIKE_LIMIT;
 }
+
+/** The two events that say where the candidate is, rather than what they did. */
+export const FULLSCREEN_KINDS = ["FULLSCREEN_ENTER", "FULLSCREEN_EXIT"] as const satisfies readonly IntegrityKind[];
+
+function isFullscreenKind(kind: IntegrityKind): boolean {
+  return (FULLSCREEN_KINDS as readonly string[]).includes(kind);
+}
+
+/**
+ * Whether the candidate is on the exam surface, going by the most recent
+ * fullscreen event the server has recorded. No event yet means they have not
+ * entered it.
+ *
+ * Questions are released and answers accepted only while this is true. It is
+ * the server's record of what the browser reported, which is as close to the
+ * truth as a web page can get: a browser that lies about fullscreen can still
+ * get through, but only by forging requests, not by pressing Escape.
+ */
+export function isOnExamSurface(latestFullscreenKind: IntegrityKind | null | undefined): boolean {
+  return latestFullscreenKind === "FULLSCREEN_ENTER";
+}
+
+/**
+ * Whether an incoming event repeats one already recorded and should not be
+ * written again.
+ *
+ * Fullscreen events are state changes, so they are redundant only if they
+ * repeat the current state: an exit after an exit is one exit fired twice,
+ * however far apart. A time window would be wrong for them -- leaving and
+ * returning within three seconds would drop the return, and the server would
+ * go on believing the candidate was outside fullscreen.
+ *
+ * Everything else collapses repeats of one kind inside DEDUPE_WINDOW_MS.
+ */
+export function isRedundantEvent(
+  kind: IntegrityKind,
+  context: {
+    latestFullscreenKind: IntegrityKind | null | undefined;
+    latestSameKindAt: Date | null | undefined;
+    now?: Date;
+  }
+): boolean {
+  if (isFullscreenKind(kind)) return context.latestFullscreenKind === kind;
+  if (!context.latestSameKindAt) return false;
+  const now = context.now ?? new Date();
+  return now.getTime() - context.latestSameKindAt.getTime() < DEDUPE_WINDOW_MS;
+}

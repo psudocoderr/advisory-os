@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { IRT } from "@/lib/irt";
 import { STRIKE_LIMIT, strikesRemaining, type IntegrityKind } from "@/lib/integrity";
 
 /**
@@ -25,13 +26,22 @@ export function useExamShell({
   active,
   onExpire,
   onTerminate,
+  onSurfaceChange,
   targetRef
 }: {
   sessionId: string;
   startedAtMs: number;
-  deadlineMs: number;
+  /** Null until the first question is released and the clock starts. */
+  deadlineMs: number | null;
   active: boolean;
   onExpire: () => void;
+  /**
+   * Called with true once the server has recorded the candidate entering
+   * fullscreen -- after, not before, so a question requested in response is
+   * requested of a server that already knows -- and with false when they
+   * leave.
+   */
+  onSurfaceChange: (onSurface: boolean) => void;
   /** Called when the server ends the attempt for repeated violations. */
   onTerminate: (result: unknown) => void;
   /**
@@ -42,7 +52,10 @@ export function useExamShell({
    */
   targetRef: RefObject<HTMLElement | null>;
 }) {
-  const [remainingMs, setRemainingMs] = useState(() => Math.max(0, deadlineMs - Date.now()));
+  const fullLimitMs = IRT.timeLimitMinutes * 60 * 1000;
+  const [remainingMs, setRemainingMs] = useState(() =>
+    deadlineMs === null ? fullLimitMs : Math.max(0, deadlineMs - Date.now())
+  );
   const [strikes, setStrikes] = useState(0);
   const [warning, setWarning] = useState<string>("");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -53,7 +66,7 @@ export function useExamShell({
   const terminatedRef = useRef(false);
 
   const report = useCallback(
-    async (kind: IntegrityKind) => {
+    async (kind: IntegrityKind): Promise<void> => {
       try {
         const response = await fetch("/api/certify/integrity", {
           method: "POST",
@@ -93,7 +106,11 @@ export function useExamShell({
   // decremented, so a backgrounded tab with throttled timers still shows the
   // right time when it returns. The server enforces expiry regardless.
   useEffect(() => {
-    if (!active) return;
+    // The clock has not started until the first question is on screen.
+    if (!active || deadlineMs === null) {
+      setRemainingMs(fullLimitMs);
+      return;
+    }
     const tick = () => {
       const left = Math.max(0, deadlineMs - Date.now());
       setRemainingMs(left);
@@ -105,7 +122,7 @@ export function useExamShell({
     tick();
     const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, [active, deadlineMs, onExpire]);
+  }, [active, deadlineMs, fullLimitMs, onExpire]);
 
   useEffect(() => {
     if (!active) return;
@@ -114,9 +131,10 @@ export function useExamShell({
       const now = document.fullscreenElement === targetRef.current;
       setIsFullscreen(now);
       if (now) {
-        void report("FULLSCREEN_ENTER");
+        void report("FULLSCREEN_ENTER").then(() => onSurfaceChange(true));
         setWarning("");
       } else {
+        onSurfaceChange(false);
         void report("FULLSCREEN_EXIT");
         setWarning(
           `You left fullscreen. This is recorded. More than ${STRIKE_LIMIT} integrity events end the attempt.`
@@ -170,8 +188,11 @@ export function useExamShell({
       void report("DEVTOOLS_ATTEMPT");
     };
 
-    // Sync on mount: a resumed page may already be fullscreen.
-    setIsFullscreen(document.fullscreenElement === targetRef.current);
+    // Sync on mount: a resumed page may already be fullscreen. Report it, so
+    // the server's record matches and the question can be released.
+    const alreadyFullscreen = document.fullscreenElement === targetRef.current;
+    setIsFullscreen(alreadyFullscreen);
+    if (alreadyFullscreen) void report("FULLSCREEN_ENTER").then(() => onSurfaceChange(true));
     // False where fullscreen is unavailable (iPhone Safari cannot fullscreen an
     // element) or blocked (an iframe without allow="fullscreen").
     setFullscreenSupported(document.fullscreenEnabled);
@@ -193,7 +214,7 @@ export function useExamShell({
       document.removeEventListener("contextmenu", onContextMenu);
       document.removeEventListener("keydown", onKeyDown, true);
     };
-  }, [active, report, targetRef]);
+  }, [active, report, onSurfaceChange, targetRef]);
 
   // Leave fullscreen once the test is over, so the result is not trapped
   // behind it. Only exits the element this hook put there -- it must not close
@@ -215,6 +236,7 @@ export function useExamShell({
     isFullscreen,
     fullscreenSupported,
     requestFullscreen,
+    report,
     startedAtMs
   };
 }

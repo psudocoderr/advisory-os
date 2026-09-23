@@ -1,4 +1,5 @@
 import { certificationLevel, IRT } from "@/lib/irt";
+import { FULLSCREEN_KINDS, isOnExamSurface, type IntegrityKind } from "@/lib/integrity";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -37,6 +38,24 @@ const REASON_NOTE: Record<FinishReason, string> = {
 
 export function reasonNote(reason: FinishReason): string {
   return REASON_NOTE[reason];
+}
+
+/** The most recent fullscreen event recorded for a session, if any. */
+export async function latestFullscreenKind(sessionId: string): Promise<IntegrityKind | null> {
+  const latest = await prisma.integrityEvent.findFirst({
+    where: { sessionId, kind: { in: [...FULLSCREEN_KINDS] } },
+    orderBy: { occurredAt: "desc" },
+    select: { kind: true }
+  });
+  return latest?.kind ?? null;
+}
+
+/**
+ * Whether the server's record says the candidate is in fullscreen. Gates both
+ * releasing a question and accepting an answer.
+ */
+export async function candidateOnExamSurface(sessionId: string): Promise<boolean> {
+  return isOnExamSurface(await latestFullscreenKind(sessionId));
 }
 
 /** The three SOPs behind the most wrong answers, for remediation links. */
