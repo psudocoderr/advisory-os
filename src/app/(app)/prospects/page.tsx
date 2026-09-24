@@ -2,7 +2,9 @@ import { createMeeting, createProspect, onboardProspect, updateProspectStage } f
 import { requireSession, scopedUserFilter } from "@/lib/auth";
 import { dateLabel, maskPhone, titleCase } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
-import { Card, EmptyState, PageHeader, StatusBadge, SubmitButton } from "@/components/ui";
+import { CalendarPlus, UserCheck, UserPlus } from "lucide-react";
+import { FormDialog } from "@/components/form-dialog";
+import { Card, EmptyState, PageHeader, StatusBadge, SubmitButton, TableScroll } from "@/components/ui";
 
 export default async function ProspectsPage({
   searchParams
@@ -40,6 +42,89 @@ export default async function ProspectsPage({
       <PageHeader
         title="Prospects"
         description="Track lead source, stage, notes, and next action dates before onboarding."
+        action={
+          <div className="flex flex-wrap gap-2">
+            <FormDialog label="Log prospect" title="Log prospect" icon={<UserPlus size={15} />} primary>
+              <form action={createProspect} className="space-y-3">
+                <input className="field" name="name" placeholder="Full name" required />
+                <input className="field" name="phone" placeholder="Phone" required />
+                <div className="grid grid-cols-2 gap-3">
+                  <select className="field" name="source" defaultValue="REFERRAL">
+                    <option value="REFERRAL">Referral</option>
+                    <option value="WALK_IN">Walk-in</option>
+                    <option value="EVENT">Event</option>
+                    <option value="ONLINE">Online</option>
+                  </select>
+                  <select className="field" name="stage" defaultValue="LEAD">
+                    <option value="LEAD">Lead</option>
+                    <option value="MEETING_HELD">Meeting held</option>
+                    <option value="PLAN_SENT">Plan sent</option>
+                    <option value="ONBOARDED">Onboarded</option>
+                    <option value="DROPPED">Dropped</option>
+                  </select>
+                </div>
+                <label className="label">
+                  First contact
+                  <input className="field" name="firstContactDate" type="date" required />
+                </label>
+                <label className="label">
+                  Follow-up
+                  <input className="field" name="followUpDate" type="date" />
+                </label>
+                <textarea className="field min-h-24" name="notes" placeholder="Running notes" />
+                <SubmitButton>Add prospect</SubmitButton>
+              </form>
+            </FormDialog>
+            <FormDialog label="Quick meeting" title="Quick meeting" icon={<CalendarPlus size={15} />}>
+              <form action={createMeeting} className="space-y-3">
+                <input type="hidden" name="kind" value="PROSPECT" />
+                <select className="field" name="prospectId" required>
+                  <option value="">Select prospect</option>
+                  {prospects.map((prospect) => (
+                    <option key={prospect.id} value={prospect.id}>
+                      {prospect.name}
+                    </option>
+                  ))}
+                </select>
+                <input className="field" name="summary" placeholder="Summary" required />
+                <label className="label">
+                  Meeting date
+                  <input className="field" name="meetingDate" type="date" required />
+                </label>
+                <label className="label">
+                  Follow-up
+                  <input className="field" name="followUpDate" type="date" />
+                </label>
+                <textarea className="field min-h-20" name="notes" placeholder="Notes" />
+                <SubmitButton>Log meeting</SubmitButton>
+              </form>
+            </FormDialog>
+            <FormDialog label="Onboard prospect" title="Onboard prospect" icon={<UserCheck size={15} />}>
+              <form action={onboardProspect} className="space-y-3">
+                <select className="field" name="prospectId" required>
+                  <option value="">Select prospect</option>
+                  {onboardableProspects.map((prospect) => (
+                    <option key={prospect.id} value={prospect.id}>
+                      {prospect.name}
+                    </option>
+                  ))}
+                </select>
+                <input className="field uppercase" name="pan" placeholder="ABCDE1234F" required />
+                <select className="field" name="kycStatus" defaultValue="VERIFIED">
+                  <option value="VERIFIED">Verified</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="EXPIRED">Expired</option>
+                </select>
+                <input className="field" name="aum" type="number" min="1" placeholder="Opening AUM" required />
+                <label className="label">
+                  Onboarding date
+                  <input className="field" name="onboardingDate" type="date" required />
+                </label>
+                <SubmitButton>Create client</SubmitButton>
+              </form>
+            </FormDialog>
+          </div>
+        }
       />
       <Card className="mb-5 p-4">
         <form className="grid gap-3 md:grid-cols-[1fr_220px_auto]" action="/prospects">
@@ -55,8 +140,8 @@ export default async function ProspectsPage({
           <button className="rounded bg-navy px-4 py-2 text-sm font-semibold text-white">Filter</button>
         </form>
       </Card>
-      <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
-        <Card className="overflow-hidden">
+      <Card className="overflow-hidden">
+        <TableScroll>
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead className="bg-wash text-xs uppercase tracking-wide text-muted">
               <tr>
@@ -100,93 +185,11 @@ export default async function ProspectsPage({
               ))}
             </tbody>
           </table>
-          {!prospects.length ? <EmptyState title="No prospects" body="Add the first prospect from the form." /> : null}
-        </Card>
-        <div className="space-y-5">
-          <Card className="p-4">
-            <h2 className="mb-4 font-semibold text-ink">Log prospect</h2>
-            <form action={createProspect} className="space-y-3">
-              <input className="field" name="name" placeholder="Full name" required />
-              <input className="field" name="phone" placeholder="Phone" required />
-              <div className="grid grid-cols-2 gap-3">
-                <select className="field" name="source" defaultValue="REFERRAL">
-                  <option value="REFERRAL">Referral</option>
-                  <option value="WALK_IN">Walk-in</option>
-                  <option value="EVENT">Event</option>
-                  <option value="ONLINE">Online</option>
-                </select>
-                <select className="field" name="stage" defaultValue="LEAD">
-                  <option value="LEAD">Lead</option>
-                  <option value="MEETING_HELD">Meeting held</option>
-                  <option value="PLAN_SENT">Plan sent</option>
-                  <option value="ONBOARDED">Onboarded</option>
-                  <option value="DROPPED">Dropped</option>
-                </select>
-              </div>
-              <label className="label">
-                First contact
-                <input className="field" name="firstContactDate" type="date" required />
-              </label>
-              <label className="label">
-                Follow-up
-                <input className="field" name="followUpDate" type="date" />
-              </label>
-              <textarea className="field min-h-24" name="notes" placeholder="Running notes" />
-              <SubmitButton>Add prospect</SubmitButton>
-            </form>
-          </Card>
-          <Card className="p-4">
-            <h2 className="mb-4 font-semibold text-ink">Quick meeting</h2>
-            <form action={createMeeting} className="space-y-3">
-              <input type="hidden" name="kind" value="PROSPECT" />
-              <select className="field" name="prospectId" required>
-                <option value="">Select prospect</option>
-                {prospects.map((prospect) => (
-                  <option key={prospect.id} value={prospect.id}>
-                    {prospect.name}
-                  </option>
-                ))}
-              </select>
-              <input className="field" name="summary" placeholder="Summary" required />
-              <label className="label">
-                Meeting date
-                <input className="field" name="meetingDate" type="date" required />
-              </label>
-              <label className="label">
-                Follow-up
-                <input className="field" name="followUpDate" type="date" />
-              </label>
-              <textarea className="field min-h-20" name="notes" placeholder="Notes" />
-              <SubmitButton>Log meeting</SubmitButton>
-            </form>
-          </Card>
-          <Card className="p-4">
-            <h2 className="mb-4 font-semibold text-ink">Onboard prospect</h2>
-            <form action={onboardProspect} className="space-y-3">
-              <select className="field" name="prospectId" required>
-                <option value="">Select prospect</option>
-                {onboardableProspects.map((prospect) => (
-                  <option key={prospect.id} value={prospect.id}>
-                    {prospect.name}
-                  </option>
-                ))}
-              </select>
-              <input className="field uppercase" name="pan" placeholder="ABCDE1234F" required />
-              <select className="field" name="kycStatus" defaultValue="VERIFIED">
-                <option value="VERIFIED">Verified</option>
-                <option value="PENDING">Pending</option>
-                <option value="EXPIRED">Expired</option>
-              </select>
-              <input className="field" name="aum" type="number" min="1" placeholder="Opening AUM" required />
-              <label className="label">
-                Onboarding date
-                <input className="field" name="onboardingDate" type="date" required />
-              </label>
-              <SubmitButton>Create client</SubmitButton>
-            </form>
-          </Card>
-        </div>
-      </div>
+        </TableScroll>
+        {!prospects.length ? (
+          <EmptyState title="No prospects" body="Add the first prospect with Log prospect." />
+        ) : null}
+      </Card>
     </>
   );
 }

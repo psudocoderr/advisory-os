@@ -2,7 +2,7 @@ import { createQuestionItem, createUser, updateUserActive } from "@/lib/actions"
 import { requireAdmin } from "@/lib/auth";
 import { compactInr, dateLabel, titleCase } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
-import { Card, PageHeader, StatCard, StatusBadge } from "@/components/ui";
+import { Card, PageHeader, StatCard, StatusBadge, TableScroll } from "@/components/ui";
 
 export default async function AdminPage() {
   await requireAdmin();
@@ -55,55 +55,57 @@ export default async function AdminPage() {
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
         <Card className="overflow-hidden">
           <SectionTitle title="Team certification status" />
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead className="bg-wash text-xs uppercase tracking-wide text-muted">
-              <tr>
-                <th className="px-4 py-3">Advisor</th>
-                <th className="px-4 py-3">Role</th>
-                <th className="px-4 py-3">Active</th>
-                <th className="px-4 py-3">M1</th>
-                <th className="px-4 py-3">M2</th>
-                <th className="px-4 py-3">M3</th>
-                <th className="px-4 py-3">M4</th>
-                <th className="px-4 py-3">M5</th>
-                <th className="px-4 py-3">Access</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {users.map((user) => (
-                <tr key={user.id}>
-                  <td className="px-4 py-3 font-semibold text-ink">{user.name}</td>
-                  <td className="px-4 py-3">{titleCase(user.role)}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge tone={user.isActive ? "teal" : "rose"}>
-                      {user.isActive ? "Active" : "Inactive"}
-                    </StatusBadge>
-                  </td>
-                  {modules.map((module) => {
-                    const cert = certs.find((item) => item.userId === user.id && item.module === module);
-                    return (
-                      <td key={module} className="px-4 py-3">
-                        {cert ? (
-                          <StatusBadge tone="teal">{cert.level}</StatusBadge>
-                        ) : (
-                          <StatusBadge>Not taken</StatusBadge>
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td className="px-4 py-3">
-                    <form action={updateUserActive}>
-                      <input type="hidden" name="id" value={user.id} />
-                      <input type="hidden" name="isActive" value={user.isActive ? "false" : "true"} />
-                      <button className="rounded border border-line px-2 py-1 text-xs font-bold">
-                        {user.isActive ? "Deactivate" : "Activate"}
-                      </button>
-                    </form>
-                  </td>
+          <TableScroll>
+            <table className="w-full min-w-[760px] text-left text-sm">
+              <thead className="bg-wash text-xs uppercase tracking-wide text-muted">
+                <tr>
+                  <th className="px-4 py-3">Advisor</th>
+                  <th className="px-4 py-3">Role</th>
+                  <th className="px-4 py-3">Active</th>
+                  <th className="px-4 py-3">M1</th>
+                  <th className="px-4 py-3">M2</th>
+                  <th className="px-4 py-3">M3</th>
+                  <th className="px-4 py-3">M4</th>
+                  <th className="px-4 py-3">M5</th>
+                  <th className="px-4 py-3">Access</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {users.map((user) => (
+                  <tr key={user.id}>
+                    <td className="px-4 py-3 font-semibold text-ink">{user.name}</td>
+                    <td className="px-4 py-3">{titleCase(user.role)}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge tone={user.isActive ? "teal" : "rose"}>
+                        {user.isActive ? "Active" : "Inactive"}
+                      </StatusBadge>
+                    </td>
+                    {modules.map((module) => {
+                      const cert = certs.find((item) => item.userId === user.id && item.module === module);
+                      return (
+                        <td key={module} className="px-4 py-3">
+                          {cert ? (
+                            <StatusBadge tone="teal">{cert.level}</StatusBadge>
+                          ) : (
+                            <StatusBadge>Not taken</StatusBadge>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="px-4 py-3">
+                      <form action={updateUserActive}>
+                        <input type="hidden" name="id" value={user.id} />
+                        <input type="hidden" name="isActive" value={user.isActive ? "false" : "true"} />
+                        <button className="rounded border border-line px-2 py-1 text-xs font-bold">
+                          {user.isActive ? "Deactivate" : "Activate"}
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableScroll>
         </Card>
 
         <Card className="p-4">
@@ -255,42 +257,50 @@ export default async function AdminPage() {
 
       <Card className="mt-5 overflow-hidden">
         <SectionTitle title="Item performance report" />
-        <table className="w-full min-w-[820px] text-left text-sm">
-          <thead className="bg-wash text-xs uppercase tracking-wide text-muted">
-            <tr>
-              <th className="px-4 py-3">Question</th>
-              <th className="px-4 py-3">Module</th>
-              <th className="px-4 py-3">SOP</th>
-              <th className="px-4 py-3">Attempts</th>
-              <th className="px-4 py-3">% Correct</th>
-              <th className="px-4 py-3">Flag</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {questionPerformance.map((question) => {
-              const attemptsCount = question.responses.length;
-              const correct = attemptsCount
-                ? Math.round((question.responses.filter((item) => item.isCorrect).length / attemptsCount) * 100)
-                : 0;
-              const flag =
-                attemptsCount === 0 ? "No data" : correct > 80 ? "Too easy" : correct < 20 ? "Review item" : "Healthy";
-              return (
-                <tr key={question.id}>
-                  <td className="max-w-lg px-4 py-3">{question.content}</td>
-                  <td className="px-4 py-3">{question.module}</td>
-                  <td className="px-4 py-3">{question.linkedSop.title}</td>
-                  <td className="mono px-4 py-3">{attemptsCount}</td>
-                  <td className="mono px-4 py-3">{attemptsCount ? `${correct}%` : "—"}</td>
-                  <td className="px-4 py-3">
-                    <StatusBadge tone={flag === "Healthy" ? "teal" : flag === "No data" ? "slate" : "amber"}>
-                      {flag}
-                    </StatusBadge>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <TableScroll>
+          <table className="w-full min-w-[820px] text-left text-sm">
+            <thead className="bg-wash text-xs uppercase tracking-wide text-muted">
+              <tr>
+                <th className="px-4 py-3">Question</th>
+                <th className="px-4 py-3">Module</th>
+                <th className="px-4 py-3">SOP</th>
+                <th className="px-4 py-3">Attempts</th>
+                <th className="px-4 py-3">% Correct</th>
+                <th className="px-4 py-3">Flag</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {questionPerformance.map((question) => {
+                const attemptsCount = question.responses.length;
+                const correct = attemptsCount
+                  ? Math.round((question.responses.filter((item) => item.isCorrect).length / attemptsCount) * 100)
+                  : 0;
+                const flag =
+                  attemptsCount === 0
+                    ? "No data"
+                    : correct > 80
+                      ? "Too easy"
+                      : correct < 20
+                        ? "Review item"
+                        : "Healthy";
+                return (
+                  <tr key={question.id}>
+                    <td className="max-w-lg px-4 py-3">{question.content}</td>
+                    <td className="px-4 py-3">{question.module}</td>
+                    <td className="px-4 py-3">{question.linkedSop.title}</td>
+                    <td className="mono px-4 py-3">{attemptsCount}</td>
+                    <td className="mono px-4 py-3">{attemptsCount ? `${correct}%` : "—"}</td>
+                    <td className="px-4 py-3">
+                      <StatusBadge tone={flag === "Healthy" ? "teal" : flag === "No data" ? "slate" : "amber"}>
+                        {flag}
+                      </StatusBadge>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </TableScroll>
       </Card>
     </>
   );

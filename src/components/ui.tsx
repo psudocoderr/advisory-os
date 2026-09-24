@@ -24,6 +24,11 @@ export function Card({ children, className }: { children: React.ReactNode; class
   return <div className={clsx("rounded border border-line bg-panel shadow-soft", className)}>{children}</div>;
 }
 
+/** Lets a wide table scroll sideways inside its card instead of being clipped. */
+export function TableScroll({ children }: { children: React.ReactNode }) {
+  return <div className="overflow-x-auto">{children}</div>;
+}
+
 export function StatCard({ label, value, detail }: { label: string; value: string | number; detail?: string }) {
   return (
     <Card className="p-4">
