@@ -63,7 +63,7 @@ export function AppFrame({
     <div className="min-h-screen bg-wash">
       <aside
         className={clsx(
-          "fixed inset-y-0 left-0 z-20 hidden border-r border-line bg-panel transition-[width] duration-200 lg:flex lg:flex-col",
+          "fixed inset-y-0 left-0 z-20 hidden overflow-hidden whitespace-nowrap border-r border-line bg-panel transition-[width] duration-200 lg:flex lg:flex-col",
           collapsed ? "w-16" : "w-64"
         )}
       >
@@ -133,12 +133,11 @@ export function AppFrame({
             aria-expanded={!collapsed}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={clsx(
-              "flex w-full items-center gap-3 rounded py-2 text-sm font-semibold text-muted hover:bg-wash hover:text-ink",
+              "flex w-full items-center rounded py-2 text-muted hover:bg-wash hover:text-ink",
               collapsed ? "justify-center px-0" : "px-3"
             )}
           >
             {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-            {collapsed ? null : "Collapse"}
           </button>
         </div>
       </aside>
