@@ -50,30 +50,34 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Prom
         title="Portfolio Reviews"
         description="Record AUM, returns, rebalancing actions, and next review dates."
         action={
-          <FormDialog label="Add review" title="Add review" icon={<ClipboardPlus size={15} />} primary>
-            <form action={createReview} className="space-y-3">
-              <select className="field" name="clientId" required>
-                <option value="">Select client</option>
-                {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))}
-              </select>
-              <label className="label">
-                Review date
-                <input className="field" name="reviewDate" type="date" required />
-              </label>
-              <input className="field" name="currentAum" type="number" min="1" placeholder="Current AUM" required />
-              <input className="field" name="returns" type="number" step="0.01" placeholder="XIRR %" required />
-              <textarea className="field min-h-24" name="actions" placeholder="Rebalancing actions" required />
-              <label className="label">
-                Next review
-                <input className="field" name="nextReviewDate" type="date" required />
-              </label>
-              <input className="field" name="attachmentNote" placeholder="Attachment note" />
-              <SubmitButton>Add review</SubmitButton>
-            </form>
+          <FormDialog
+            label="Add review"
+            title="Add review"
+            icon={<ClipboardPlus size={15} />}
+            primary
+            action={createReview}
+          >
+            <select className="field" name="clientId" required>
+              <option value="">Select client</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
+            </select>
+            <label className="label">
+              Review date
+              <input className="field" name="reviewDate" type="date" required />
+            </label>
+            <input className="field" name="currentAum" type="number" min="1" placeholder="Current AUM" required />
+            <input className="field" name="returns" type="number" step="0.01" placeholder="XIRR %" required />
+            <textarea className="field min-h-24" name="actions" placeholder="Rebalancing actions" required />
+            <label className="label">
+              Next review
+              <input className="field" name="nextReviewDate" type="date" required />
+            </label>
+            <input className="field" name="attachmentNote" placeholder="Attachment note" />
+            <SubmitButton>Add review</SubmitButton>
           </FormDialog>
         }
       />

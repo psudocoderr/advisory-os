@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE } from "@/lib/identifiers";
 
 export function PageHeader({
   title,
@@ -65,6 +66,52 @@ export function SubmitButton({ children = "Save" }: { children?: React.ReactNode
     <button className="inline-flex items-center justify-center rounded bg-navy px-3 py-2 text-sm font-semibold text-white hover:bg-ink">
       {children}
     </button>
+  );
+}
+
+/** Country code plus mobile number; the server joins them into E.164 (see src/lib/identifiers.ts). */
+export function PhoneField() {
+  return (
+    <div className="grid grid-cols-[7.5rem_1fr] gap-3">
+      <select className="field" name="phoneCountry" defaultValue={DEFAULT_COUNTRY_CODE} aria-label="Country code">
+        {COUNTRY_CODES.map(({ code, label }) => (
+          <option key={code} value={code}>
+            {code} {label}
+          </option>
+        ))}
+      </select>
+      <input
+        className="field mono"
+        name="phone"
+        type="tel"
+        inputMode="numeric"
+        autoComplete="tel-national"
+        maxLength={14}
+        pattern="[0-9 \-]{6,14}"
+        title="Mobile number, digits only"
+        placeholder="Mobile number"
+        aria-label="Mobile number"
+        required
+      />
+    </div>
+  );
+}
+
+export function PanField() {
+  return (
+    <input
+      className="field mono uppercase"
+      name="pan"
+      maxLength={10}
+      autoCapitalize="characters"
+      autoComplete="off"
+      spellCheck={false}
+      pattern="[A-Za-z]{5}[0-9]{4}[A-Za-z]"
+      title="PAN is 10 characters, like ABCDE1234F"
+      placeholder="PAN (ABCDE1234F)"
+      aria-label="PAN"
+      required
+    />
   );
 }
 

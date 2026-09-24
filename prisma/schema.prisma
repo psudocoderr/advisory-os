@@ -149,7 +149,8 @@ model AuditLog {
 model Prospect {
   id               String         @id @default(cuid())
   name             String
-  phone            String
+  /// E.164, e.g. +919876543210. Shape enforced by a CHECK constraint.
+  phone            String         @unique @db.VarChar(16)
   source           ProspectSource
   firstContactDate DateTime
   stage            ProspectStage  @default(LEAD)
@@ -170,8 +171,10 @@ model Prospect {
 model Client {
   id             String    @id @default(cuid())
   name           String
-  phone          String
-  pan            String
+  /// E.164, e.g. +919876543210. Shape enforced by a CHECK constraint.
+  phone          String    @unique @db.VarChar(16)
+  /// Uppercase, ABCDE1234F. Shape enforced by a CHECK constraint.
+  pan            String    @unique @db.Char(10)
   kycStatus      KycStatus @default(PENDING)
   aum            Decimal   @db.Decimal(18, 2)
   onboardingDate DateTime

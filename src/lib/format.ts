@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { splitPhone } from "@/lib/identifiers";
 
 export function inr(value: number | string) {
   const amount = Number(value);
@@ -26,9 +27,10 @@ export function maskPan(pan: string) {
 }
 
 export function maskPhone(phone: string) {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length < 4) return "••••";
-  return `${digits.slice(0, 2)}XXXXXX${digits.slice(-2)}`;
+  const { countryCode, national } = splitPhone(phone);
+  if (national.length < 4) return "••••";
+  const masked = `${national.slice(0, 2)}XXXXXX${national.slice(-2)}`;
+  return countryCode ? `${countryCode} ${masked}` : masked;
 }
 
 export function titleCase(value: string) {

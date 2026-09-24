@@ -126,7 +126,7 @@ async function main() {
     prisma.prospect.create({
       data: {
         name: "Meera Iyer",
-        phone: "9876543210",
+        phone: "+919876543210",
         source: "REFERRAL",
         firstContactDate: daysAgo(18),
         stage: "PLAN_SENT",
@@ -138,7 +138,7 @@ async function main() {
     prisma.prospect.create({
       data: {
         name: "Sanjay Kulkarni",
-        phone: "9822011144",
+        phone: "+919822011144",
         source: "EVENT",
         firstContactDate: daysAgo(9),
         stage: "MEETING_HELD",
@@ -150,7 +150,7 @@ async function main() {
     prisma.prospect.create({
       data: {
         name: "Neha Shah",
-        phone: "9988776655",
+        phone: "+919988776655",
         source: "ONLINE",
         firstContactDate: daysAgo(3),
         stage: "LEAD",
@@ -165,7 +165,7 @@ async function main() {
     prisma.client.create({
       data: {
         name: "Arvind Nair",
-        phone: "9898981122",
+        phone: "+919898981122",
         pan: "ABCDE1234F",
         kycStatus: "VERIFIED",
         aum: new Prisma.Decimal(4250000),
@@ -176,7 +176,7 @@ async function main() {
     prisma.client.create({
       data: {
         name: "Priya Menon",
-        phone: "9811122233",
+        phone: "+919811122233",
         pan: "PQRSX2345L",
         kycStatus: "PENDING",
         aum: new Prisma.Decimal(1850000),
@@ -187,7 +187,7 @@ async function main() {
     prisma.client.create({
       data: {
         name: "Devendra Joshi",
-        phone: "9765432109",
+        phone: "+919765432109",
         pan: "LMNOP9876Q",
         kycStatus: "EXPIRED",
         aum: new Prisma.Decimal(7200000),

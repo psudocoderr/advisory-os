@@ -4,7 +4,7 @@ import { compactInr, dateLabel, maskPan, maskPhone, titleCase } from "@/lib/form
 import { prisma } from "@/lib/prisma";
 import { CalendarPlus, UserPlus } from "lucide-react";
 import { FormDialog } from "@/components/form-dialog";
-import { Card, PageHeader, StatusBadge, SubmitButton, TableScroll } from "@/components/ui";
+import { Card, PageHeader, PanField, PhoneField, StatusBadge, SubmitButton, TableScroll } from "@/components/ui";
 
 export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ q?: string; kyc?: string }> }) {
   const session = await requireSession();
@@ -37,47 +37,54 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
         description="Searchable active-client log with masked PAN and phone in the list view."
         action={
           <div className="flex flex-wrap gap-2">
-            <FormDialog label="Add client" title="Add client" icon={<UserPlus size={15} />} primary>
-              <form action={createClient} className="space-y-3">
-                <input className="field" name="name" placeholder="Full name" required />
-                <input className="field" name="phone" placeholder="Phone" required />
-                <input className="field uppercase" name="pan" placeholder="ABCDE1234F" required />
-                <select className="field" name="kycStatus" defaultValue="PENDING">
-                  <option value="VERIFIED">Verified</option>
-                  <option value="PENDING">Pending</option>
-                  <option value="EXPIRED">Expired</option>
-                </select>
-                <input className="field" name="aum" type="number" min="1" placeholder="AUM" required />
-                <label className="label">
-                  Onboarding date
-                  <input className="field" name="onboardingDate" type="date" required />
-                </label>
-                <SubmitButton>Add client</SubmitButton>
-              </form>
+            <FormDialog
+              label="Add client"
+              title="Add client"
+              icon={<UserPlus size={15} />}
+              primary
+              action={createClient}
+            >
+              <input className="field" name="name" placeholder="Full name" required />
+              <PhoneField />
+              <PanField />
+              <select className="field" name="kycStatus" defaultValue="PENDING">
+                <option value="VERIFIED">Verified</option>
+                <option value="PENDING">Pending</option>
+                <option value="EXPIRED">Expired</option>
+              </select>
+              <input className="field" name="aum" type="number" min="1" placeholder="AUM" required />
+              <label className="label">
+                Onboarding date
+                <input className="field" name="onboardingDate" type="date" required />
+              </label>
+              <SubmitButton>Add client</SubmitButton>
             </FormDialog>
-            <FormDialog label="Log client meeting" title="Log client meeting" icon={<CalendarPlus size={15} />}>
-              <form action={createMeeting} className="space-y-3">
-                <input type="hidden" name="kind" value="CLIENT" />
-                <select className="field" name="clientId" required>
-                  <option value="">Select client</option>
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
-                <input className="field" name="summary" placeholder="Summary" required />
-                <label className="label">
-                  Meeting date
-                  <input className="field" name="meetingDate" type="date" required />
-                </label>
-                <label className="label">
-                  Follow-up
-                  <input className="field" name="followUpDate" type="date" />
-                </label>
-                <textarea className="field min-h-20" name="notes" placeholder="Notes" />
-                <SubmitButton>Log meeting</SubmitButton>
-              </form>
+            <FormDialog
+              label="Log client meeting"
+              title="Log client meeting"
+              icon={<CalendarPlus size={15} />}
+              action={createMeeting}
+            >
+              <input type="hidden" name="kind" value="CLIENT" />
+              <select className="field" name="clientId" required>
+                <option value="">Select client</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+              <input className="field" name="summary" placeholder="Summary" required />
+              <label className="label">
+                Meeting date
+                <input className="field" name="meetingDate" type="date" required />
+              </label>
+              <label className="label">
+                Follow-up
+                <input className="field" name="followUpDate" type="date" />
+              </label>
+              <textarea className="field min-h-20" name="notes" placeholder="Notes" />
+              <SubmitButton>Log meeting</SubmitButton>
             </FormDialog>
           </div>
         }

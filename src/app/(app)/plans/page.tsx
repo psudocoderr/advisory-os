@@ -48,47 +48,45 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
         title="Investment Plans"
         description="Track SIP, ELSS, lump sum, and mixed plans from draft through activation."
         action={
-          <FormDialog label="Create plan" title="Create plan" icon={<FilePlus size={15} />} primary>
-            <form action={createPlan} className="space-y-3">
-              <select className="field" name="clientId" required>
-                <option value="">Select client</option>
-                {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))}
+          <FormDialog label="Create plan" title="Create plan" icon={<FilePlus size={15} />} primary action={createPlan}>
+            <select className="field" name="clientId" required>
+              <option value="">Select client</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
+            </select>
+            <div className="grid grid-cols-2 gap-3">
+              <select className="field" name="planType" defaultValue="SIP">
+                <option value="SIP">SIP</option>
+                <option value="LUMP_SUM">Lump sum</option>
+                <option value="ELSS">ELSS</option>
+                <option value="MIXED">Mixed</option>
               </select>
-              <div className="grid grid-cols-2 gap-3">
-                <select className="field" name="planType" defaultValue="SIP">
-                  <option value="SIP">SIP</option>
-                  <option value="LUMP_SUM">Lump sum</option>
-                  <option value="ELSS">ELSS</option>
-                  <option value="MIXED">Mixed</option>
-                </select>
-                <select className="field" name="frequency" defaultValue="MONTHLY">
-                  <option value="MONTHLY">Monthly</option>
-                  <option value="QUARTERLY">Quarterly</option>
-                  <option value="ONE_TIME">One-time</option>
-                </select>
-              </div>
-              <input className="field" name="amount" type="number" min="1" placeholder="Amount" required />
-              <select className="field" name="goal" defaultValue="WEALTH">
-                <option value="RETIREMENT">Retirement</option>
-                <option value="EDUCATION">Education</option>
-                <option value="WEALTH">Wealth</option>
-                <option value="TAX_SAVING">Tax saving</option>
-                <option value="OTHER">Other</option>
+              <select className="field" name="frequency" defaultValue="MONTHLY">
+                <option value="MONTHLY">Monthly</option>
+                <option value="QUARTERLY">Quarterly</option>
+                <option value="ONE_TIME">One-time</option>
               </select>
-              <select className="field" name="status" defaultValue="DRAFT">
-                <option value="DRAFT">Draft</option>
-                <option value="SENT">Sent</option>
-                <option value="ACCEPTED">Accepted</option>
-                <option value="ACTIVE">Active</option>
-                <option value="CLOSED">Closed</option>
-              </select>
-              <textarea className="field min-h-24" name="notes" placeholder="Plan notes" />
-              <SubmitButton>Create plan</SubmitButton>
-            </form>
+            </div>
+            <input className="field" name="amount" type="number" min="1" placeholder="Amount" required />
+            <select className="field" name="goal" defaultValue="WEALTH">
+              <option value="RETIREMENT">Retirement</option>
+              <option value="EDUCATION">Education</option>
+              <option value="WEALTH">Wealth</option>
+              <option value="TAX_SAVING">Tax saving</option>
+              <option value="OTHER">Other</option>
+            </select>
+            <select className="field" name="status" defaultValue="DRAFT">
+              <option value="DRAFT">Draft</option>
+              <option value="SENT">Sent</option>
+              <option value="ACCEPTED">Accepted</option>
+              <option value="ACTIVE">Active</option>
+              <option value="CLOSED">Closed</option>
+            </select>
+            <textarea className="field min-h-24" name="notes" placeholder="Plan notes" />
+            <SubmitButton>Create plan</SubmitButton>
           </FormDialog>
         }
       />

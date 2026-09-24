@@ -4,7 +4,16 @@ import { dateLabel, maskPhone, titleCase } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { CalendarPlus, UserCheck, UserPlus } from "lucide-react";
 import { FormDialog } from "@/components/form-dialog";
-import { Card, EmptyState, PageHeader, StatusBadge, SubmitButton, TableScroll } from "@/components/ui";
+import {
+  Card,
+  EmptyState,
+  PageHeader,
+  PanField,
+  PhoneField,
+  StatusBadge,
+  SubmitButton,
+  TableScroll
+} from "@/components/ui";
 
 export default async function ProspectsPage({
   searchParams
@@ -44,84 +53,94 @@ export default async function ProspectsPage({
         description="Track lead source, stage, notes, and next action dates before onboarding."
         action={
           <div className="flex flex-wrap gap-2">
-            <FormDialog label="Log prospect" title="Log prospect" icon={<UserPlus size={15} />} primary>
-              <form action={createProspect} className="space-y-3">
-                <input className="field" name="name" placeholder="Full name" required />
-                <input className="field" name="phone" placeholder="Phone" required />
-                <div className="grid grid-cols-2 gap-3">
-                  <select className="field" name="source" defaultValue="REFERRAL">
-                    <option value="REFERRAL">Referral</option>
-                    <option value="WALK_IN">Walk-in</option>
-                    <option value="EVENT">Event</option>
-                    <option value="ONLINE">Online</option>
-                  </select>
-                  <select className="field" name="stage" defaultValue="LEAD">
-                    <option value="LEAD">Lead</option>
-                    <option value="MEETING_HELD">Meeting held</option>
-                    <option value="PLAN_SENT">Plan sent</option>
-                    <option value="ONBOARDED">Onboarded</option>
-                    <option value="DROPPED">Dropped</option>
-                  </select>
-                </div>
-                <label className="label">
-                  First contact
-                  <input className="field" name="firstContactDate" type="date" required />
-                </label>
-                <label className="label">
-                  Follow-up
-                  <input className="field" name="followUpDate" type="date" />
-                </label>
-                <textarea className="field min-h-24" name="notes" placeholder="Running notes" />
-                <SubmitButton>Add prospect</SubmitButton>
-              </form>
+            <FormDialog
+              label="Log prospect"
+              title="Log prospect"
+              icon={<UserPlus size={15} />}
+              primary
+              action={createProspect}
+            >
+              <input className="field" name="name" placeholder="Full name" required />
+              <PhoneField />
+              <div className="grid grid-cols-2 gap-3">
+                <select className="field" name="source" defaultValue="REFERRAL">
+                  <option value="REFERRAL">Referral</option>
+                  <option value="WALK_IN">Walk-in</option>
+                  <option value="EVENT">Event</option>
+                  <option value="ONLINE">Online</option>
+                </select>
+                <select className="field" name="stage" defaultValue="LEAD">
+                  <option value="LEAD">Lead</option>
+                  <option value="MEETING_HELD">Meeting held</option>
+                  <option value="PLAN_SENT">Plan sent</option>
+                  <option value="ONBOARDED">Onboarded</option>
+                  <option value="DROPPED">Dropped</option>
+                </select>
+              </div>
+              <label className="label">
+                First contact
+                <input className="field" name="firstContactDate" type="date" required />
+              </label>
+              <label className="label">
+                Follow-up
+                <input className="field" name="followUpDate" type="date" />
+              </label>
+              <textarea className="field min-h-24" name="notes" placeholder="Running notes" />
+              <SubmitButton>Add prospect</SubmitButton>
             </FormDialog>
-            <FormDialog label="Quick meeting" title="Quick meeting" icon={<CalendarPlus size={15} />}>
-              <form action={createMeeting} className="space-y-3">
-                <input type="hidden" name="kind" value="PROSPECT" />
-                <select className="field" name="prospectId" required>
-                  <option value="">Select prospect</option>
-                  {prospects.map((prospect) => (
-                    <option key={prospect.id} value={prospect.id}>
-                      {prospect.name}
-                    </option>
-                  ))}
-                </select>
-                <input className="field" name="summary" placeholder="Summary" required />
-                <label className="label">
-                  Meeting date
-                  <input className="field" name="meetingDate" type="date" required />
-                </label>
-                <label className="label">
-                  Follow-up
-                  <input className="field" name="followUpDate" type="date" />
-                </label>
-                <textarea className="field min-h-20" name="notes" placeholder="Notes" />
-                <SubmitButton>Log meeting</SubmitButton>
-              </form>
+            <FormDialog
+              label="Quick meeting"
+              title="Quick meeting"
+              icon={<CalendarPlus size={15} />}
+              action={createMeeting}
+            >
+              <input type="hidden" name="kind" value="PROSPECT" />
+              <select className="field" name="prospectId" required>
+                <option value="">Select prospect</option>
+                {prospects.map((prospect) => (
+                  <option key={prospect.id} value={prospect.id}>
+                    {prospect.name}
+                  </option>
+                ))}
+              </select>
+              <input className="field" name="summary" placeholder="Summary" required />
+              <label className="label">
+                Meeting date
+                <input className="field" name="meetingDate" type="date" required />
+              </label>
+              <label className="label">
+                Follow-up
+                <input className="field" name="followUpDate" type="date" />
+              </label>
+              <textarea className="field min-h-20" name="notes" placeholder="Notes" />
+              <SubmitButton>Log meeting</SubmitButton>
             </FormDialog>
-            <FormDialog label="Onboard prospect" title="Onboard prospect" icon={<UserCheck size={15} />}>
-              <form action={onboardProspect} className="space-y-3">
-                <select className="field" name="prospectId" required>
-                  <option value="">Select prospect</option>
-                  {onboardableProspects.map((prospect) => (
-                    <option key={prospect.id} value={prospect.id}>
-                      {prospect.name}
-                    </option>
-                  ))}
-                </select>
-                <input className="field uppercase" name="pan" placeholder="ABCDE1234F" required />
-                <select className="field" name="kycStatus" defaultValue="VERIFIED">
-                  <option value="VERIFIED">Verified</option>
-                  <option value="PENDING">Pending</option>
-                  <option value="EXPIRED">Expired</option>
-                </select>
-                <input className="field" name="aum" type="number" min="1" placeholder="Opening AUM" required />
-                <label className="label">
-                  Onboarding date
-                  <input className="field" name="onboardingDate" type="date" required />
-                </label>
-                <SubmitButton>Create client</SubmitButton>
-              </form>
+            <FormDialog
+              label="Onboard prospect"
+              title="Onboard prospect"
+              icon={<UserCheck size={15} />}
+              action={onboardProspect}
+            >
+              <select className="field" name="prospectId" required>
+                <option value="">Select prospect</option>
+                {onboardableProspects.map((prospect) => (
+                  <option key={prospect.id} value={prospect.id}>
+                    {prospect.name}
+                  </option>
+                ))}
+              </select>
+              <PanField />
+              <select className="field" name="kycStatus" defaultValue="VERIFIED">
+                <option value="VERIFIED">Verified</option>
+                <option value="PENDING">Pending</option>
+                <option value="EXPIRED">Expired</option>
+              </select>
+              <input className="field" name="aum" type="number" min="1" placeholder="Opening AUM" required />
+              <label className="label">
+                Onboarding date
+                <input className="field" name="onboardingDate" type="date" required />
+              </label>
+              <SubmitButton>Create client</SubmitButton>
             </FormDialog>
           </div>
         }

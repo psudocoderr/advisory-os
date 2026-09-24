@@ -7,34 +7,40 @@ import bcrypt from "bcryptjs";
 import { Prisma, ProspectStage, KycStatus, PlanStatus } from "@prisma/client";
 import { requireAdmin, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { FormState } from "@/lib/form-state";
+import { panSchema, phoneShape, toE164 } from "@/lib/identifiers";
 
 const optionalDate = z
   .string()
   .optional()
   .transform((value) => (value ? new Date(value) : undefined));
 
-const prospectSchema = z.object({
-  name: z.string().min(2).max(120),
-  phone: z.string().min(8).max(20),
-  source: z.enum(["REFERRAL", "WALK_IN", "EVENT", "ONLINE"]),
-  stage: z.enum(["LEAD", "MEETING_HELD", "PLAN_SENT", "ONBOARDED", "DROPPED"]),
-  notes: z.string().max(2000).default(""),
-  firstContactDate: z.string().transform((value) => new Date(value)),
-  followUpDate: optionalDate
-});
+const prospectSchema = z
+  .object({
+    name: z.string().min(2).max(120),
+    ...phoneShape,
+    source: z.enum(["REFERRAL", "WALK_IN", "EVENT", "ONLINE"]),
+    stage: z.enum(["LEAD", "MEETING_HELD", "PLAN_SENT", "ONBOARDED", "DROPPED"]),
+    notes: z.string().max(2000).default(""),
+    firstContactDate: z.string().transform((value) => new Date(value)),
+    followUpDate: optionalDate
+  })
+  .transform(toE164);
 
-const clientSchema = z.object({
-  name: z.string().min(2).max(120),
-  phone: z.string().min(8).max(20),
-  pan: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]$/),
-  kycStatus: z.enum(["VERIFIED", "PENDING", "EXPIRED"]),
-  aum: z.coerce.number().positive(),
-  onboardingDate: z.string().transform((value) => new Date(value))
-});
+const clientSchema = z
+  .object({
+    name: z.string().min(2).max(120),
+    ...phoneShape,
+    pan: panSchema,
+    kycStatus: z.enum(["VERIFIED", "PENDING", "EXPIRED"]),
+    aum: z.coerce.number().positive(),
+    onboardingDate: z.string().transform((value) => new Date(value))
+  })
+  .transform(toE164);
 
 const prospectOnboardingSchema = z.object({
   prospectId: z.string(),
-  pan: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]$/),
+  pan: panSchema,
   kycStatus: z.enum(["VERIFIED", "PENDING", "EXPIRED"]),
   aum: z.coerce.number().positive(),
   onboardingDate: z.string().transform((value) => new Date(value))
@@ -95,14 +101,24 @@ const userSchema = z.object({
   role: z.enum(["ADMIN", "ADVISOR"])
 });
 
-export async function createProspect(formData: FormData) {
+export async function createProspect(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireSession();
-  const parsed = prospectSchema.parse(Object.fromEntries(formData));
-  await prisma.prospect.create({
-    data: { ...parsed, assignedToId: session.user.id }
-  });
+  const result = prospectSchema.safeParse(Object.fromEntries(formData));
+  if (!result.success) return formError(result.error);
+  const parsed = result.data;
+  if (await prisma.prospect.findUnique({ where: { phone: parsed.phone } })) {
+    return { error: DUPLICATE.prospectPhone };
+  }
+  try {
+    await prisma.prospect.create({
+      data: { ...parsed, assignedToId: session.user.id }
+    });
+  } catch (error) {
+    return duplicateError(error, { phone: DUPLICATE.prospectPhone });
+  }
   await log(session.user.id, "CREATE", "Prospect", parsed.name);
   revalidatePath("/prospects");
+  return done();
 }
 
 export async function updateProspectStage(formData: FormData) {
@@ -118,60 +134,79 @@ export async function updateProspectStage(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
-export async function createClient(formData: FormData) {
+export async function createClient(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireSession();
-  const parsed = clientSchema.parse(Object.fromEntries(formData));
-  await prisma.client.create({
-    data: { ...parsed, aum: new Prisma.Decimal(parsed.aum), assignedToId: session.user.id }
-  });
+  const result = clientSchema.safeParse(Object.fromEntries(formData));
+  if (!result.success) return formError(result.error);
+  const parsed = result.data;
+  if (await prisma.client.findUnique({ where: { pan: parsed.pan } })) return { error: DUPLICATE.clientPan };
+  if (await prisma.client.findUnique({ where: { phone: parsed.phone } })) return { error: DUPLICATE.clientPhone };
+  try {
+    await prisma.client.create({
+      data: { ...parsed, aum: new Prisma.Decimal(parsed.aum), assignedToId: session.user.id }
+    });
+  } catch (error) {
+    return duplicateError(error, { pan: DUPLICATE.clientPan, phone: DUPLICATE.clientPhone });
+  }
   await log(session.user.id, "CREATE", "Client", parsed.name);
   revalidatePath("/clients");
+  return done();
 }
 
-export async function onboardProspect(formData: FormData) {
+export async function onboardProspect(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireSession();
-  const parsed = prospectOnboardingSchema.parse(Object.fromEntries(formData));
+  const result = prospectOnboardingSchema.safeParse(Object.fromEntries(formData));
+  if (!result.success) return formError(result.error);
+  const parsed = result.data;
   const prospect = await prisma.prospect.findFirst({
     where: { id: parsed.prospectId, ...(session.user.role === "ADMIN" ? {} : { assignedToId: session.user.id }) }
   });
-  if (!prospect) throw new Error("Prospect not found");
+  if (!prospect) return { error: "Prospect not found" };
 
-  const existingPan = await prisma.client.findFirst({ where: { pan: parsed.pan.toUpperCase() } });
-  if (existingPan) throw new Error("A client with this PAN already exists");
+  if (await prisma.client.findUnique({ where: { pan: parsed.pan } })) return { error: DUPLICATE.clientPan };
+  if (await prisma.client.findUnique({ where: { phone: prospect.phone } })) {
+    return { error: DUPLICATE.clientPhone };
+  }
 
-  const client = await prisma.$transaction(async (tx) => {
-    const created = await tx.client.create({
-      data: {
-        name: prospect.name,
-        phone: prospect.phone,
-        pan: parsed.pan.toUpperCase(),
-        kycStatus: parsed.kycStatus,
-        aum: new Prisma.Decimal(parsed.aum),
-        onboardingDate: parsed.onboardingDate,
-        assignedToId: prospect.assignedToId
-      }
+  let client;
+  try {
+    client = await prisma.$transaction(async (tx) => {
+      const created = await tx.client.create({
+        data: {
+          name: prospect.name,
+          phone: prospect.phone,
+          pan: parsed.pan,
+          kycStatus: parsed.kycStatus,
+          aum: new Prisma.Decimal(parsed.aum),
+          onboardingDate: parsed.onboardingDate,
+          assignedToId: prospect.assignedToId
+        }
+      });
+      await tx.prospect.update({
+        where: { id: prospect.id },
+        data: { stage: "ONBOARDED", followUpDate: null }
+      });
+      await tx.meetingLog.create({
+        data: {
+          kind: "CLIENT",
+          summary: "Prospect onboarded as client",
+          notes: `Converted from prospect record for ${prospect.name}.`,
+          meetingDate: parsed.onboardingDate,
+          ownerId: session.user.id,
+          clientId: created.id
+        }
+      });
+      return created;
     });
-    await tx.prospect.update({
-      where: { id: prospect.id },
-      data: { stage: "ONBOARDED", followUpDate: null }
-    });
-    await tx.meetingLog.create({
-      data: {
-        kind: "CLIENT",
-        summary: "Prospect onboarded as client",
-        notes: `Converted from prospect record for ${prospect.name}.`,
-        meetingDate: parsed.onboardingDate,
-        ownerId: session.user.id,
-        clientId: created.id
-      }
-    });
-    return created;
-  });
+  } catch (error) {
+    return duplicateError(error, { pan: DUPLICATE.clientPan, phone: DUPLICATE.clientPhone });
+  }
 
   await log(session.user.id, "ONBOARD", "Prospect", `${prospect.name} converted to client`, client.id);
   revalidatePath("/prospects");
   revalidatePath("/clients");
   revalidatePath("/dashboard");
+  return done();
 }
 
 export async function updateClientKyc(formData: FormData) {
@@ -186,13 +221,15 @@ export async function updateClientKyc(formData: FormData) {
   revalidatePath("/clients");
 }
 
-export async function createPlan(formData: FormData) {
+export async function createPlan(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireSession();
-  const parsed = planSchema.parse(Object.fromEntries(formData));
+  const result = planSchema.safeParse(Object.fromEntries(formData));
+  if (!result.success) return formError(result.error);
+  const parsed = result.data;
   const client = await prisma.client.findFirst({
     where: { id: parsed.clientId, ...(session.user.role === "ADMIN" ? {} : { assignedToId: session.user.id }) }
   });
-  if (!client) throw new Error("Client not found");
+  if (!client) return { error: "Client not found" };
   const now = new Date();
   const plan = await prisma.investmentPlan.create({
     data: {
@@ -205,6 +242,7 @@ export async function createPlan(formData: FormData) {
   await log(session.user.id, "CREATE", "InvestmentPlan", `${parsed.planType} for ${client.name}`, plan.id);
   revalidatePath("/plans");
   revalidatePath("/dashboard");
+  return done();
 }
 
 export async function updatePlanStatus(formData: FormData) {
@@ -229,13 +267,15 @@ export async function updatePlanStatus(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
-export async function createReview(formData: FormData) {
+export async function createReview(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireSession();
-  const parsed = reviewSchema.parse(Object.fromEntries(formData));
+  const result = reviewSchema.safeParse(Object.fromEntries(formData));
+  if (!result.success) return formError(result.error);
+  const parsed = result.data;
   const client = await prisma.client.findFirst({
     where: { id: parsed.clientId, ...(session.user.role === "ADMIN" ? {} : { assignedToId: session.user.id }) }
   });
-  if (!client) throw new Error("Client not found");
+  if (!client) return { error: "Client not found" };
   const review = await prisma.$transaction(async (tx) => {
     const created = await tx.portfolioReview.create({
       data: {
@@ -254,23 +294,26 @@ export async function createReview(formData: FormData) {
   revalidatePath("/reviews");
   revalidatePath("/clients");
   revalidatePath("/dashboard");
+  return done();
 }
 
-export async function createMeeting(formData: FormData) {
+export async function createMeeting(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireSession();
-  const parsed = meetingSchema.parse(Object.fromEntries(formData));
-  if (!parsed.prospectId && !parsed.clientId) throw new Error("Meeting must be linked to a prospect or client");
+  const result = meetingSchema.safeParse(Object.fromEntries(formData));
+  if (!result.success) return formError(result.error);
+  const parsed = result.data;
+  if (!parsed.prospectId && !parsed.clientId) return { error: "Meeting must be linked to a prospect or client" };
   if (parsed.prospectId) {
     const prospect = await prisma.prospect.findFirst({
       where: { id: parsed.prospectId, ...(session.user.role === "ADMIN" ? {} : { assignedToId: session.user.id }) }
     });
-    if (!prospect) throw new Error("Prospect not found");
+    if (!prospect) return { error: "Prospect not found" };
   }
   if (parsed.clientId) {
     const client = await prisma.client.findFirst({
       where: { id: parsed.clientId, ...(session.user.role === "ADMIN" ? {} : { assignedToId: session.user.id }) }
     });
-    if (!client) throw new Error("Client not found");
+    if (!client) return { error: "Client not found" };
   }
   const meeting = await prisma.meetingLog.create({
     data: {
@@ -289,6 +332,7 @@ export async function createMeeting(formData: FormData) {
   revalidatePath("/prospects");
   revalidatePath("/clients");
   revalidatePath("/reviews");
+  return done();
 }
 
 export async function createQuestionItem(formData: FormData) {
@@ -365,4 +409,35 @@ export async function signInRedirect() {
 
 async function log(actorId: string, action: string, entity: string, summary: string, entityId?: string) {
   await prisma.auditLog.create({ data: { actorId, action, entity, summary, entityId } });
+}
+
+const DUPLICATE = {
+  prospectPhone: "A prospect with this mobile number already exists",
+  clientPhone: "A client with this mobile number already exists",
+  clientPan: "A client with this PAN already exists"
+};
+
+function done(): FormState {
+  return { ok: Date.now() };
+}
+
+/** The first validation problem, worded for the person filling in the form. */
+function formError(error: z.ZodError): FormState {
+  const issue = error.issues[0];
+  // Custom and pattern messages (PAN, mobile) are written as full sentences already.
+  if (!issue || issue.code === "custom" || issue.code === "invalid_string") return { error: issue?.message };
+  const field = String(issue.path[0] ?? "");
+  const label = field.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+  return { error: label ? `${label}: ${issue.message}` : issue.message };
+}
+
+/**
+ * Turns a unique-constraint race (two people saving the same PAN or mobile at
+ * once, after both passed the lookup) into the same message the lookup gives.
+ */
+function duplicateError(error: unknown, messages: Partial<Record<"pan" | "phone", string>>): FormState {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+  const target = String(error.meta?.target ?? "");
+  const field = (["pan", "phone"] as const).find((name) => target.includes(name) && messages[name]);
+  return { error: field ? messages[field] : "This record already exists" };
 }
