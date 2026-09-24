@@ -104,6 +104,19 @@ export function AppFrame({
           })}
         </nav>
         <div className="space-y-2 border-t border-line p-3">
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={clsx(
+              "flex w-full items-center rounded py-2 text-muted hover:bg-wash hover:text-ink",
+              collapsed ? "justify-center px-0" : "px-3"
+            )}
+          >
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
           {collapsed ? (
             <div className="flex flex-col items-center gap-2">
               <div
@@ -126,19 +139,6 @@ export function AppFrame({
               <LogoutButton />
             </div>
           )}
-          <button
-            type="button"
-            onClick={toggle}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-expanded={!collapsed}
-            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className={clsx(
-              "flex w-full items-center rounded py-2 text-muted hover:bg-wash hover:text-ink",
-              collapsed ? "justify-center px-0" : "px-3"
-            )}
-          >
-            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-          </button>
         </div>
       </aside>
       <main className={clsx("transition-[padding] duration-200", collapsed ? "lg:pl-16" : "lg:pl-64")}>
