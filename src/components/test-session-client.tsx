@@ -22,6 +22,7 @@ type FinishReason = "STOP_RULE" | "BANK_EXHAUSTED" | "TIMED_OUT" | "INTEGRITY_TE
 type Result = {
   passed: boolean;
   terminated?: boolean;
+  inconclusive?: boolean;
   theta: number;
   se: number;
   level: string;
@@ -229,8 +230,14 @@ export function TestSessionClient({
     return (
       <Card className="p-5">
         <div className="flex flex-wrap items-center gap-3">
-          <StatusBadge tone={result.passed ? "teal" : "rose"}>
-            {result.terminated ? "Attempt terminated" : result.passed ? "Certified" : "Not certified"}
+          <StatusBadge tone={result.passed ? "teal" : result.inconclusive ? "amber" : "rose"}>
+            {result.terminated
+              ? "Attempt terminated"
+              : result.passed
+                ? "Certified"
+                : result.inconclusive
+                  ? "Inconclusive"
+                  : "Not certified"}
           </StatusBadge>
           <StatusBadge tone="navy">Theta {result.theta.toFixed(2)}</StatusBadge>
           <StatusBadge tone="amber">SE {result.se.toFixed(2)}</StatusBadge>
@@ -244,7 +251,9 @@ export function TestSessionClient({
             ? "This attempt was ended by the system and does not count as a pass. It is recorded on your attempt history and flagged for review."
             : result.passed
               ? `You passed ${module}. Your badge is on the Tests & badges page.`
-              : "Review these chapters before retrying after the cooldown window."}
+              : result.inconclusive
+                ? "Too close to call: no badge, and nothing on your record. Review these chapters and retake whenever you are ready."
+                : "Review these chapters before retrying after the cooldown window."}
         </p>
         {!result.passed && result.remediation.length ? (
           <div className="mt-4 grid gap-2">
