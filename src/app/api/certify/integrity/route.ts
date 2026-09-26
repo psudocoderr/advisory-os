@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { estimateEap } from "@/lib/irt";
-import { finalizeSession, latestFullscreenKind } from "@/lib/certify-session";
+import { finalizeSession, latestFullscreenKind, questionBank } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
 import { INTEGRITY_KINDS, STRIKE_KINDS, STRIKE_LIMIT, isRedundantEvent, shouldTerminate } from "@/lib/integrity";
 
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
   const testSession = await prisma.testSession.findUnique({
     where: { id: sessionId },
-    select: { id: true, userId: true, status: true, module: true, timerStartedAt: true }
+    select: { id: true, userId: true, status: true, trackId: true, moduleId: true, timerStartedAt: true }
   });
   if (!testSession || testSession.userId !== auth.user.id) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
@@ -93,15 +93,12 @@ export async function POST(request: Request) {
     where: { sessionId },
     select: { questionId: true, isCorrect: true }
   });
-  const bank = await prisma.questionItem.findMany({
-    where: { module: testSession.module, isActive: true }
-  });
+  const bank = await questionBank(testSession);
   const estimate = estimateEap(responses, bank);
 
   const result = await finalizeSession({
     sessionId,
     userId: auth.user.id,
-    module: testSession.module!,
     theta: estimate.theta,
     se: estimate.se,
     answered: responses.length,

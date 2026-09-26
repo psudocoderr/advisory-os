@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { MINIMUM_BANK_SIZE, validateBank, validateQuestion, type Issue, type QuestionDraft } from "./question-bank";
 
 const q = (over: Partial<QuestionDraft> = {}, i = 0): QuestionDraft => ({
-  module: "M1",
-  sopSlug: "day-1-kyc",
+  module: "m1",
+  chapterSlug: "introduction",
   content: `A sufficiently long question stem number ${i}?`,
   options: [
     { key: "A", text: `alpha ${i}` },
@@ -59,7 +59,7 @@ describe("validateQuestion", () => {
   });
 
   it("requires an SOP link and an explanation", () => {
-    expect(errors(validateQuestion(q({ sopSlug: "" }), "row"))).not.toHaveLength(0);
+    expect(errors(validateQuestion(q({ chapterSlug: "" }), "row"))).not.toHaveLength(0);
     expect(errors(validateQuestion(q({ explanation: "" }), "row"))).not.toHaveLength(0);
   });
 });

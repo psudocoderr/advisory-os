@@ -168,19 +168,19 @@ describe("shouldStop", () => {
 
 describe("certificationLevel", () => {
   it("places each band at its boundary", () => {
-    expect(certificationLevel(1.5)).toBe("Expert");
-    expect(certificationLevel(1.49)).toBe("Proficient");
-    expect(certificationLevel(1.0)).toBe("Proficient");
-    expect(certificationLevel(0.99)).toBe("Foundation");
-    expect(certificationLevel(IRT.passTheta)).toBe("Foundation");
-    expect(certificationLevel(IRT.passTheta - 0.01)).toBe("Not Certified");
+    expect(certificationLevel(1.5)).toBe("EXPERT");
+    expect(certificationLevel(1.49)).toBe("PROFICIENT");
+    expect(certificationLevel(1.0)).toBe("PROFICIENT");
+    expect(certificationLevel(0.99)).toBe("SATISFACTORY");
+    expect(certificationLevel(IRT.passTheta)).toBe("SATISFACTORY");
+    expect(certificationLevel(IRT.passTheta - 0.01)).toBeNull();
   });
 
   it("agrees with the pass threshold", () => {
-    // Anything at or above passTheta must carry a certification level, and
-    // anything below must not. These two constants drift apart easily.
-    expect(certificationLevel(IRT.passTheta)).not.toBe("Not Certified");
-    expect(certificationLevel(IRT.passTheta - 0.0001)).toBe("Not Certified");
+    // Anything at or above passTheta must carry a level, and anything below
+    // must not. These two constants drift apart easily.
+    expect(certificationLevel(IRT.passTheta)).not.toBeNull();
+    expect(certificationLevel(IRT.passTheta - 0.0001)).toBeNull();
   });
 });
 

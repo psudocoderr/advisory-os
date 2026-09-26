@@ -1,4 +1,5 @@
-import { certificationLevel, IRT } from "@/lib/irt";
+import { certificationLevel, IRT, LEVEL_LABEL } from "@/lib/irt";
+import { chapterHref } from "@/lib/knowledge";
 import { FULLSCREEN_KINDS, isOnExamSurface, type IntegrityKind } from "@/lib/integrity";
 import { prisma } from "@/lib/prisma";
 
@@ -26,8 +27,10 @@ export type SessionResult = {
   level: string;
   reason: FinishReason;
   answered: number;
-  remediation: { title: string; slug: string; count: number }[];
+  remediation: Remediation[];
 };
+
+export type Remediation = { title: string; href: string; count: number };
 
 const REASON_NOTE: Record<FinishReason, string> = {
   STOP_RULE: "the estimate reached the required confidence",
@@ -58,20 +61,42 @@ export async function candidateOnExamSurface(sessionId: string): Promise<boolean
   return isOnExamSurface(await latestFullscreenKind(sessionId));
 }
 
-/** The three SOPs behind the most wrong answers, for remediation links. */
-export async function weakestSops(sessionId: string) {
+/**
+ * The active questions a session draws from: its module's, or on a final
+ * exam (no module) every module's in the track.
+ */
+export function questionBank(session: { trackId: string | null; moduleId: string | null }) {
+  if (session.moduleId) return prisma.questionItem.findMany({ where: { moduleId: session.moduleId, isActive: true } });
+  // Never fall through to an unfiltered query: that is every question in
+  // every track.
+  if (!session.trackId) throw new Error("Test session has neither a module nor a track");
+  return prisma.questionItem.findMany({
+    where: { trainingModule: { trackId: session.trackId }, isActive: true }
+  });
+}
+
+/** The three chapters behind the most wrong answers, for remediation links. */
+export async function weakestChapters(sessionId: string): Promise<Remediation[]> {
   const incorrect = await prisma.responseLog.findMany({
     where: { sessionId, isCorrect: false },
-    include: { question: { include: { linkedSop: true } } }
+    include: {
+      question: {
+        include: { chapter: { include: { module: { include: { track: { select: { slug: true } } } } } } }
+      }
+    }
   });
 
-  const counts = new Map<string, { title: string; slug: string; count: number }>();
+  const counts = new Map<string, Remediation>();
   for (const row of incorrect) {
-    const sop = row.question.linkedSop;
-    if (!sop) continue;
-    const current = counts.get(sop.id) || { title: sop.title, slug: sop.slug, count: 0 };
+    const chapter = row.question.chapter;
+    if (!chapter) continue;
+    const current = counts.get(chapter.id) || {
+      title: chapter.title,
+      href: chapterHref(chapter.module.track.slug, chapter.module.slug, chapter.slug),
+      count: 0
+    };
     current.count += 1;
-    counts.set(sop.id, current);
+    counts.set(chapter.id, current);
   }
 
   return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 3);
@@ -88,13 +113,12 @@ export async function weakestSops(sessionId: string) {
 export async function finalizeSession(params: {
   sessionId: string;
   userId: string;
-  module: string;
   theta: number;
   se: number;
   answered: number;
   reason: FinishReason;
 }): Promise<SessionResult> {
-  const { sessionId, userId, module, theta, se, answered, reason } = params;
+  const { sessionId, userId, theta, se, answered, reason } = params;
 
   /**
    * Running out of time after one question is abandonment, not failure.
@@ -114,8 +138,12 @@ export async function finalizeSession(params: {
    */
   const terminated = reason === "INTEGRITY_TERMINATED";
 
-  const current = await prisma.testSession.findUnique({ where: { id: sessionId } });
+  const current = await prisma.testSession.findUnique({
+    where: { id: sessionId },
+    include: { trainingModule: { select: { title: true } }, track: { select: { title: true } } }
+  });
   if (!current) throw new Error("Session not found");
+  const label = current.trainingModule?.title ?? current.track?.title ?? "test";
 
   // Idempotent. A timeout racing a final answer must not certify twice.
   if (current.status !== "IN_PROGRESS") {
@@ -125,15 +153,16 @@ export async function finalizeSession(params: {
       terminated: current.status === "TERMINATED",
       theta: current.abilityEstimate,
       se: current.standardError,
-      level: certificationLevel(current.abilityEstimate),
+      level: levelLabel(current.certified ? certificationLevel(current.abilityEstimate) : null),
       reason,
       answered,
-      remediation: current.certified ? [] : await weakestSops(sessionId)
+      remediation: current.certified ? [] : await weakestChapters(sessionId)
     };
   }
 
-  const passed = !abandoned && !terminated && theta >= IRT.passTheta;
-  const level = terminated ? "Terminated" : abandoned ? "Not attempted" : certificationLevel(theta);
+  const badgeLevel = abandoned || terminated ? null : certificationLevel(theta);
+  const passed = badgeLevel !== null;
+  const level = terminated ? "Terminated" : abandoned ? "Not attempted" : levelLabel(badgeLevel);
 
   await prisma.testSession.update({
     where: { id: sessionId },
@@ -147,21 +176,21 @@ export async function finalizeSession(params: {
   });
 
   if (passed) {
-    const expiresAt = new Date();
-    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+    const responses = await prisma.responseLog.findMany({ where: { sessionId }, select: { isCorrect: true } });
+    const percentCorrect = responses.length
+      ? (100 * responses.filter((response) => response.isCorrect).length) / responses.length
+      : 0;
+    const data = { sessionId, abilityScore: theta, badgeLevel, percentCorrect, issuedAt: new Date() };
 
     const existing = await prisma.certification.findFirst({
-      where: { userId, module: module as never, status: "ACTIVE" }
+      where: { userId, trackId: current.trackId, moduleId: current.moduleId, status: "ACTIVE" }
     });
 
     if (existing) {
-      await prisma.certification.update({
-        where: { id: existing.id },
-        data: { sessionId, abilityScore: theta, level, issuedAt: new Date(), expiresAt }
-      });
+      await prisma.certification.update({ where: { id: existing.id }, data });
     } else {
       await prisma.certification.create({
-        data: { userId, module: module as never, sessionId, abilityScore: theta, level, expiresAt }
+        data: { ...data, userId, trackId: current.trackId, moduleId: current.moduleId }
       });
     }
   }
@@ -173,10 +202,10 @@ export async function finalizeSession(params: {
       entity: "TestSession",
       entityId: sessionId,
       summary: terminated
-        ? `TERMINATED ${module} certification after ${answered} question${answered === 1 ? "" : "s"}: repeated integrity violations. Flagged for review.`
+        ? `TERMINATED ${label} certification after ${answered} question${answered === 1 ? "" : "s"}: repeated integrity violations. Flagged for review.`
         : abandoned
-          ? `Abandoned ${module} certification after ${answered} question${answered === 1 ? "" : "s"} (${REASON_NOTE[reason]}); not counted as an attempt`
-          : `${passed ? "Passed" : "Failed"} ${module} certification at theta ${theta.toFixed(2)} ` +
+          ? `Abandoned ${label} certification after ${answered} question${answered === 1 ? "" : "s"} (${REASON_NOTE[reason]}); not counted as an attempt`
+          : `${passed ? "Passed" : "Failed"} ${label} certification at theta ${theta.toFixed(2)} ` +
             `after ${answered} questions (${REASON_NOTE[reason]})`
     }
   });
@@ -190,6 +219,10 @@ export async function finalizeSession(params: {
     level,
     reason,
     answered,
-    remediation: passed || abandoned || terminated ? [] : await weakestSops(sessionId)
+    remediation: passed || abandoned || terminated ? [] : await weakestChapters(sessionId)
   };
+}
+
+function levelLabel(level: ReturnType<typeof certificationLevel>) {
+  return level ? LEVEL_LABEL[level] : "Not certified";
 }

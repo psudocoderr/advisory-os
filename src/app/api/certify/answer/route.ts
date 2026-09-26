@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { estimateEap, isSessionExpired, selectNextQuestion, shouldStop } from "@/lib/irt";
-import { candidateOnExamSurface, finalizeSession } from "@/lib/certify-session";
+import { candidateOnExamSurface, finalizeSession, questionBank } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
 
 type Option = { key: string; text: string };
@@ -46,14 +46,11 @@ export async function POST(request: Request) {
   // arriving after the deadline does not count, and the session closes on the
   // estimate reached before time ran out.
   if (isSessionExpired(testSession.timerStartedAt)) {
-    const bankForScore = await prisma.questionItem.findMany({
-      where: { module: testSession.module, isActive: true }
-    });
+    const bankForScore = await questionBank(testSession);
     const expiredEstimate = estimateEap(testSession.responses, bankForScore);
     const result = await finalizeSession({
       sessionId: testSession.id,
       userId: auth.user.id,
-      module: testSession.module!,
       theta: expiredEstimate.theta,
       se: expiredEstimate.se,
       answered: testSession.responses.length,
@@ -69,7 +66,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Return to fullscreen to answer.", needsFullscreen: true }, { status: 409 });
   }
 
-  const bank = await prisma.questionItem.findMany({ where: { module: testSession.module, isActive: true } });
+  const bank = await questionBank(testSession);
 
   // Only the question the session is on can be answered. Selection is
   // deterministic, so this is the one the question route released. Without
@@ -104,7 +101,6 @@ export async function POST(request: Request) {
     const result = await finalizeSession({
       sessionId: testSession.id,
       userId: auth.user.id,
-      module: testSession.module!,
       theta: estimate.theta,
       se: estimate.se,
       answered: answeredCount,
@@ -129,7 +125,6 @@ export async function POST(request: Request) {
     const result = await finalizeSession({
       sessionId: testSession.id,
       userId: auth.user.id,
-      module: testSession.module!,
       theta: estimate.theta,
       se: estimate.se,
       answered: answeredCount,

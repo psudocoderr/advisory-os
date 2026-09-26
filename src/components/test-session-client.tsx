@@ -27,7 +27,7 @@ type Result = {
   level: string;
   reason: FinishReason;
   answered: number;
-  remediation: { title: string; slug: string; count: number }[];
+  remediation: { title: string; href: string; count: number }[];
 };
 
 const REASON_NOTE: Record<FinishReason, string> = {
@@ -243,15 +243,15 @@ export function TestSessionClient({
           {result.terminated
             ? "This attempt was ended by the system and does not count as a pass. It is recorded on your attempt history and flagged for review."
             : result.passed
-              ? `You passed ${module}. The credential is now visible on the certification dashboard.`
-              : "Review the weakest linked SOPs before retrying after the cooldown window."}
+              ? `You passed ${module}. Your badge is on the Tests & badges page.`
+              : "Review these chapters before retrying after the cooldown window."}
         </p>
         {!result.passed && result.remediation.length ? (
           <div className="mt-4 grid gap-2">
             {result.remediation.map((item) => (
               <Link
-                key={item.slug}
-                href={`/knowledge/${item.slug}`}
+                key={item.href}
+                href={item.href}
                 className="rounded border border-line px-3 py-2 text-sm font-semibold text-ink hover:border-teal"
               >
                 {item.title}
@@ -260,7 +260,7 @@ export function TestSessionClient({
           </div>
         ) : null}
         <Link href="/certify" className="mt-5 inline-flex rounded bg-navy px-3 py-2 text-sm font-semibold text-white">
-          Back to certification
+          Back to tests
         </Link>
       </Card>
     );

@@ -21,7 +21,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import {
-  MODULES,
   TARGET_BANK_SIZE,
   validateBank,
   validateQuestion,
@@ -33,7 +32,7 @@ const prisma = new PrismaClient();
 
 const COLUMNS = [
   "module",
-  "sop_slug",
+  "chapter",
   "content",
   "option_a",
   "option_b",
@@ -89,14 +88,24 @@ function report(issues: Issue[]): { errors: number; warnings: number } {
   return { errors: errors.length, warnings: warnings.length };
 }
 
-async function loadFromDatabase(): Promise<QuestionDraft[]> {
+/** Every module, as "slug" -> id. A slug shared by two tracks is ambiguous. */
+async function loadModules() {
+  const modules = await prisma.module.findMany({
+    orderBy: [{ track: { order: "asc" } }, { order: "asc" }],
+    select: { id: true, slug: true, chapters: { select: { id: true, slug: true } } }
+  });
+  return modules;
+}
+
+async function loadFromDatabase(): Promise<(QuestionDraft & { moduleId: string })[]> {
   const rows = await prisma.questionItem.findMany({
-    where: { isActive: true },
-    include: { linkedSop: { select: { slug: true } } }
+    where: { isActive: true, moduleId: { not: null } },
+    include: { trainingModule: { select: { slug: true } }, chapter: { select: { slug: true } } }
   });
   return rows.map((r) => ({
-    module: r.module!,
-    sopSlug: r.linkedSop!.slug,
+    moduleId: r.moduleId!,
+    module: r.trainingModule!.slug,
+    chapterSlug: r.chapter?.slug ?? "",
     content: r.content,
     options: r.options as { key: string; text: string }[],
     correctKey: r.correctKey,
@@ -108,15 +117,15 @@ async function loadFromDatabase(): Promise<QuestionDraft[]> {
 }
 
 async function check() {
-  const bank = await loadFromDatabase();
+  const [bank, modules] = await Promise.all([loadFromDatabase(), loadModules()]);
   console.log(`  ${bank.length} active questions\n`);
-  for (const m of MODULES) {
-    const n = bank.filter((q) => q.module === m).length;
+  for (const m of modules) {
+    const n = bank.filter((q) => q.moduleId === m.id).length;
     const bar = "#".repeat(Math.round((n / TARGET_BANK_SIZE) * 20)).padEnd(20, ".");
-    console.log(`  ${m}  ${bar}  ${n}/${TARGET_BANK_SIZE}`);
+    console.log(`  ${m.slug.padEnd(8)}  ${bar}  ${n}/${TARGET_BANK_SIZE}`);
   }
   console.log("");
-  const { errors } = report(validateBank(bank, "database"));
+  const { errors } = report(validateBank(bank, "database", { modules: modules.map((m) => m.slug) }));
   process.exitCode = errors ? 1 : 0;
 }
 
@@ -129,8 +138,8 @@ function template() {
    */
   const examples: string[][] = [
     [
-      "M1",
-      "day-3-4-pan-kra-ckyc-verification",
+      "m1",
+      "introduction",
       "The KRA record shows a different surname from the PAN-linked name. What is the correct next step?",
       "Proceed with onboarding and note the difference",
       "Raise the proof protocol and resolve before onboarding",
@@ -143,8 +152,8 @@ function template() {
       "0.25"
     ],
     [
-      "M1",
-      "day-1-2-nism-euin-registration",
+      "m1",
+      "introduction",
       "Which identifier must be tagged on a transaction to attribute advice to the individual who gave it?",
       "The ARN of the distributor firm",
       "The folio number",
@@ -157,8 +166,8 @@ function template() {
       "0.25"
     ],
     [
-      "M2",
-      "day-8-10-account-setup-mandates",
+      "m2",
+      "introduction",
       "A penny-drop verification fails but the client insists the account is correct. What should happen?",
       "Do not proceed until the bank account is verified",
       "Accept a cancelled cheque as sufficient proof",
@@ -171,8 +180,8 @@ function template() {
       "0.25"
     ],
     [
-      "M3",
-      "day-20-21-elss-transaction-recon",
+      "m3",
+      "introduction",
       "An ELSS purchase is submitted at 14:45 on a business day. Which NAV applies?",
       "The previous business day's NAV",
       "The NAV of the next business day",
@@ -185,8 +194,8 @@ function template() {
       "0.25"
     ],
     [
-      "M4",
-      "day-22-24-xirr-drift-analysis",
+      "m4",
+      "introduction",
       "A portfolio's equity allocation has drifted from 60% to 72%. What does this indicate?",
       "The client's risk profile has changed",
       "The portfolio needs rebalancing toward the agreed allocation",
@@ -221,10 +230,11 @@ function template() {
   console.log("    discrimination  around 1.0. Higher means the item separates ability more");
   console.log("                    sharply. Leave at 1.0 unless you have response data.");
   console.log("    guessing        0.25 for a four-option item -- the chance of a blind hit.");
-  console.log("    sop_slug        must match an existing SOP. See the list below.");
+  console.log("    module          the module's slug, e.g. m1.");
+  console.log("    chapter         the slug of the chapter the question tests, in that module.");
   console.log("    explanation     shown when reviewing a wrong answer. Say why the correct");
   console.log("                    option is correct, not just what it is.\n");
-  console.log(`  Target: ${TARGET_BANK_SIZE} questions per module, across M1 to M5.`);
+  console.log(`  Target: ${TARGET_BANK_SIZE} questions per module.`);
   console.log("  Run 'npm run questions:check' at any time to see where the bank stands.");
 }
 
@@ -238,8 +248,8 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
   const at = (row: string[], col: string) => (row[header.indexOf(col)] ?? "").trim();
 
   const drafts: QuestionDraft[] = rows.slice(1).map((row) => ({
-    module: at(row, "module").toUpperCase(),
-    sopSlug: at(row, "sop_slug"),
+    module: at(row, "module").toLowerCase(),
+    chapterSlug: at(row, "chapter").toLowerCase(),
     content: at(row, "content"),
     options: [
       { key: "A", text: at(row, "option_a") },
@@ -268,11 +278,36 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
     return;
   }
 
+  // Every row must name a module and chapter that exist. Checked in the dry
+  // run too, so a typo is caught before anyone reaches for --apply.
+  const modules = await loadModules();
+  const unknown: string[] = [];
+  const resolved = drafts.map((d, i) => {
+    const matches = modules.filter((m) => m.slug === d.module);
+    if (matches.length !== 1) {
+      unknown.push(`row ${i + 2}: module "${d.module}" ${matches.length ? "is in more than one track" : "not found"}`);
+      return null;
+    }
+    const chapter = matches[0].chapters.find((c) => c.slug === d.chapterSlug);
+    if (!chapter) {
+      unknown.push(`row ${i + 2}: chapter "${d.chapterSlug}" not found in module "${d.module}"`);
+      return null;
+    }
+    return { moduleId: matches[0].id, chapterId: chapter.id };
+  });
+  if (unknown.length) {
+    for (const line of unknown) console.log(`  ERROR    ${line}`);
+    console.log(`\n  ${unknown.length} row(s) point at modules or chapters that do not exist. Nothing imported.`);
+    process.exitCode = 1;
+    return;
+  }
+
   // Then the merged result: a file that is balanced on its own can still tip
   // the module it joins.
   const existing = await loadFromDatabase();
   const modulesCovered = new Set(drafts.map((d) => d.module));
-  const retained = replace ? existing.filter((q) => !modulesCovered.has(q.module)) : existing;
+  const moduleIdsCovered = [...new Set(resolved.map((r) => r!.moduleId))];
+  const retained = replace ? existing.filter((q) => !moduleIdsCovered.includes(q.moduleId)) : existing;
   const merged = [...retained, ...drafts];
 
   console.log(`\n  Checking the resulting bank${replace ? " (existing questions in these modules retired)" : ""}:`);
@@ -297,51 +332,49 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
     return;
   }
 
-  const sops = await prisma.sopEntry.findMany({ select: { id: true, slug: true } });
-  const slugToId = new Map(sops.map((s) => [s.slug, s.id]));
-  const unknown = [...new Set(drafts.map((d) => d.sopSlug))].filter((s) => !slugToId.has(s));
-  if (unknown.length) {
-    console.log(`\n  ERROR  unknown sop_slug: ${unknown.join(", ")}`);
-    process.exitCode = 1;
-    return;
-  }
-
   const author = await prisma.user.findFirst({ where: { role: "ADMIN" }, select: { id: true } });
   if (!author) throw new Error("no ADMIN user to attribute these questions to");
 
-  if (replace) {
-    // Deactivate rather than delete: ResponseLog references these rows, and
-    // past attempts should keep the questions they were actually asked.
-    const retired = await prisma.questionItem.updateMany({
-      where: { module: { in: [...modulesCovered] as never[] }, isActive: true },
-      data: { isActive: false }
-    });
-    console.log(`  retired ${retired.count} existing question(s) in ${[...modulesCovered].sort().join(", ")}`);
-  }
-
-  await prisma.questionItem.createMany({
-    data: drafts.map((d) => ({
-      module: d.module as never,
-      content: d.content,
-      options: d.options,
-      correctKey: d.correctKey,
-      explanation: d.explanation,
-      difficulty: d.difficulty,
-      discrimination: d.discrimination,
-      guessing: d.guessing,
-      linkedSopId: slugToId.get(d.sopSlug)!,
-      createdById: author.id,
-      isActive: true
-    }))
-  });
-  await prisma.auditLog.create({
-    data: {
-      actorId: author.id,
-      action: "CREATE",
-      entity: "QuestionItem",
-      summary: `Imported ${drafts.length} questions from ${path}${replace ? `, retiring existing questions in ${[...modulesCovered].sort().join(", ")}` : ""}`
+  // One transaction: a failed insert must not leave a module with its old
+  // questions retired and nothing active in their place.
+  let retiredCount = 0;
+  await prisma.$transaction(async (tx) => {
+    if (replace) {
+      // Deactivate rather than delete: ResponseLog references these rows, and
+      // past attempts should keep the questions they were actually asked.
+      const retired = await tx.questionItem.updateMany({
+        where: { moduleId: { in: moduleIdsCovered }, isActive: true },
+        data: { isActive: false }
+      });
+      retiredCount = retired.count;
     }
+
+    await tx.questionItem.createMany({
+      data: drafts.map((d, i) => ({
+        moduleId: resolved[i]!.moduleId,
+        chapterId: resolved[i]!.chapterId,
+        content: d.content,
+        options: d.options,
+        correctKey: d.correctKey,
+        explanation: d.explanation,
+        difficulty: d.difficulty,
+        discrimination: d.discrimination,
+        guessing: d.guessing,
+        createdById: author.id,
+        isActive: true
+      }))
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: author.id,
+        action: "CREATE",
+        entity: "QuestionItem",
+        summary: `Imported ${drafts.length} questions from ${path}${replace ? `, retiring existing questions in ${[...modulesCovered].sort().join(", ")}` : ""}`
+      }
+    });
   });
+  if (replace)
+    console.log(`  retired ${retiredCount} existing question(s) in ${[...modulesCovered].sort().join(", ")}`);
   console.log(`\n  imported ${drafts.length} questions`);
 }
 

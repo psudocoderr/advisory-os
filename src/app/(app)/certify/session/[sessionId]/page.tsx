@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
-import { deadlineFor, selectNextQuestion } from "@/lib/irt";
+import { deadlineFor, LEVEL_LABEL, selectNextQuestion } from "@/lib/irt";
+import { questionBank, weakestChapters } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import { TestSessionClient } from "@/components/test-session-client";
@@ -11,24 +12,20 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
   const session = await prisma.testSession.findUnique({
     where: { id: sessionId },
     include: {
-      responses: { include: { question: { include: { linkedSop: true } } }, orderBy: { createdAt: "asc" } },
+      trainingModule: { select: { title: true } },
+      track: { select: { title: true } },
+      responses: { select: { questionId: true } },
       certification: true
     }
   });
   if (!session || session.userId !== auth.user.id) notFound();
+  const label = session.trainingModule?.title ?? session.track?.title ?? "Test";
 
   if (session.status !== "IN_PROGRESS") {
-    const incorrect = session.responses.filter((response) => !response.isCorrect);
-    const remediation = [
-      ...new Map(
-        incorrect.flatMap((row) =>
-          row.question.linkedSop ? [[row.question.linkedSop.slug, row.question.linkedSop] as const] : []
-        )
-      ).values()
-    ].slice(0, 3);
+    const remediation = session.certified ? [] : await weakestChapters(session.id);
     return (
       <>
-        <PageHeader title={`${session.module} Result`} description="Completed adaptive certification attempt." />
+        <PageHeader title={`${label}: result`} description="Completed adaptive certification attempt." />
         <Card className="p-5">
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge tone={session.certified ? "teal" : "rose"}>{session.status}</StatusBadge>
@@ -37,18 +34,18 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
           </div>
           <p className="mt-4 text-sm leading-6 text-muted">
             {session.certified
-              ? `Certification issued at ${session.certification?.level || "Foundation"} level.`
-              : "Certification was not issued. Review the linked SOPs before retrying after the cooldown window."}
+              ? `Badge awarded at ${session.certification?.badgeLevel ? LEVEL_LABEL[session.certification.badgeLevel] : "Satisfactory"} level.`
+              : "No badge this time. Review these chapters before retrying after the cooldown window."}
           </p>
           {!session.certified && remediation.length ? (
             <div className="mt-5 grid gap-2">
-              {remediation.map((sop) => (
+              {remediation.map((chapter) => (
                 <a
-                  key={sop.id}
-                  href={`/knowledge/${sop.slug}`}
+                  key={chapter.href}
+                  href={chapter.href}
                   className="rounded border border-line px-3 py-2 text-sm font-semibold text-ink hover:border-teal"
                 >
-                  Review {sop.title}
+                  Review {chapter.title}
                 </a>
               ))}
             </div>
@@ -58,7 +55,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
     );
   }
 
-  const bank = await prisma.questionItem.findMany({ where: { module: session.module, isActive: true } });
+  const bank = await questionBank(session);
   const next = selectNextQuestion(
     session.abilityEstimate,
     bank,
@@ -71,13 +68,10 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
   if (!next) {
     return (
       <>
-        <PageHeader
-          title={`${session.module} Adaptive Test`}
-          description="Every available question in this module has been answered."
-        />
+        <PageHeader title={`${label}: test`} description="Every available question in this module has been answered." />
         <TestSessionClient
           sessionId={session.id}
-          module={session.module!}
+          module={label}
           initialProgress={{
             answered: session.responses.length,
             theta: session.abilityEstimate,
@@ -92,10 +86,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
 
   return (
     <>
-      <PageHeader
-        title={`${session.module} Adaptive Test`}
-        description="Answer each item from current SOP knowledge. Correct keys are validated on the server only."
-      />
+      <PageHeader title={`${label}: test`} description="Answer each question. Answers are checked on the server." />
       {/*
         No question here. It is fetched from /api/certify/question once the
         server has recorded the candidate entering fullscreen, so it never
@@ -103,7 +94,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
       */}
       <TestSessionClient
         sessionId={session.id}
-        module={session.module!}
+        module={label}
         initialProgress={{
           answered: session.responses.length,
           theta: session.abilityEstimate,

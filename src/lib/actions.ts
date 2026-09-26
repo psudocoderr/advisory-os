@@ -9,6 +9,7 @@ import { requireAdmin, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { FormState } from "@/lib/form-state";
 import { panSchema, phoneShape, toE164 } from "@/lib/identifiers";
+import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
 
 const optionalDate = z
   .string()
@@ -77,8 +78,7 @@ const meetingSchema = z.object({
 });
 
 const questionSchema = z.object({
-  module: z.enum(["M1", "M2", "M3", "M4", "M5"]),
-  linkedSopId: z.string(),
+  chapterId: z.string().min(1),
   content: z.string().min(10).max(500),
   optionA: z.string().min(1).max(300),
   optionB: z.string().min(1).max(300),
@@ -338,15 +338,17 @@ export async function createMeeting(_prev: FormState, formData: FormData): Promi
 export async function createQuestionItem(formData: FormData) {
   const session = await requireAdmin();
   const parsed = questionSchema.parse(Object.fromEntries(formData));
-  const sop = await prisma.sopEntry.findFirst({
-    where: { id: parsed.linkedSopId, isPublished: true, OR: [{ module: parsed.module }, { module: null }] }
+  // The chapter decides the module, so the two cannot disagree.
+  const chapter = await prisma.chapter.findUnique({
+    where: { id: parsed.chapterId },
+    include: { module: { select: { title: true } } }
   });
-  if (!sop) throw new Error("Linked SOP not found for this module");
+  if (!chapter) throw new Error("Chapter not found");
 
   const question = await prisma.questionItem.create({
     data: {
-      module: parsed.module,
-      linkedSopId: parsed.linkedSopId,
+      moduleId: chapter.moduleId,
+      chapterId: chapter.id,
       content: parsed.content,
       options: [
         { key: "A", text: parsed.optionA },
@@ -362,10 +364,40 @@ export async function createQuestionItem(formData: FormData) {
       createdById: session.user.id
     }
   });
-  await log(session.user.id, "CREATE", "QuestionItem", `${parsed.module} item added`, question.id);
+  await log(session.user.id, "CREATE", "QuestionItem", `${chapter.module.title} item added`, question.id);
   revalidatePath("/admin");
   revalidatePath("/certify");
-  revalidatePath(`/certify/${parsed.module}`);
+  revalidatePath(`/certify/${chapter.moduleId}`);
+}
+
+/**
+ * Marks a chapter complete for the signed-in user: the tick on the chapter.
+ *
+ * Checks the chapter is open to them. The page only shows the button on an
+ * open chapter, but a form post can name any chapter id.
+ */
+export async function markChapterComplete(formData: FormData) {
+  const session = await requireSession();
+  const chapterId = z.string().min(1).parse(formData.get("chapterId"));
+  const chapter = await prisma.chapter.findUnique({
+    where: { id: chapterId },
+    include: { module: { include: { track: true } } }
+  });
+  if (!chapter || !chapter.isPublished) throw new Error("Chapter not found");
+
+  const standing = await loadTrackProgress({ id: chapter.module.trackId }, session.user);
+  const state = standing?.progress
+    .find((module) => module.id === chapter.moduleId)
+    ?.chapters.find((row) => row.id === chapterId)?.state;
+  if (state !== "open" && state !== "complete") throw new Error("This chapter is locked");
+
+  await prisma.chapterCompletion.upsert({
+    where: { userId_chapterId: { userId: session.user.id, chapterId } },
+    create: { userId: session.user.id, chapterId },
+    update: {}
+  });
+  revalidatePath(chapterHref(chapter.module.track.slug, chapter.module.slug, chapter.slug));
+  revalidatePath(`/knowledge/${chapter.module.track.slug}`);
 }
 
 export async function createUser(formData: FormData) {
