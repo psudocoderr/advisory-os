@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     const result = await finalizeSession({
       sessionId: testSession.id,
       userId: auth.user.id,
-      module: testSession.module,
+      module: testSession.module!,
       theta: expiredEstimate.theta,
       se: expiredEstimate.se,
       answered: testSession.responses.length,
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
     const result = await finalizeSession({
       sessionId: testSession.id,
       userId: auth.user.id,
-      module: testSession.module,
+      module: testSession.module!,
       theta: estimate.theta,
       se: estimate.se,
       answered: answeredCount,
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
     const result = await finalizeSession({
       sessionId: testSession.id,
       userId: auth.user.id,
-      module: testSession.module,
+      module: testSession.module!,
       theta: estimate.theta,
       se: estimate.se,
       answered: answeredCount,

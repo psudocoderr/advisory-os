@@ -68,6 +68,7 @@ export async function weakestSops(sessionId: string) {
   const counts = new Map<string, { title: string; slug: string; count: number }>();
   for (const row of incorrect) {
     const sop = row.question.linkedSop;
+    if (!sop) continue;
     const current = counts.get(sop.id) || { title: sop.title, slug: sop.slug, count: 0 };
     current.count += 1;
     counts.set(sop.id, current);

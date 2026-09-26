@@ -140,7 +140,8 @@ export default async function AdminPage() {
                   <div>
                     <div className="font-semibold text-ink">{cert.user.name}</div>
                     <div className="text-sm text-muted">
-                      {cert.module} expires {dateLabel(cert.expiresAt)}
+                      {cert.module}
+                      {cert.expiresAt ? ` expires ${dateLabel(cert.expiresAt)}` : ""}
                     </div>
                   </div>
                   <StatusBadge tone="amber">{cert.level}</StatusBadge>
@@ -287,7 +288,7 @@ export default async function AdminPage() {
                   <tr key={question.id}>
                     <td className="max-w-lg px-4 py-3">{question.content}</td>
                     <td className="px-4 py-3">{question.module}</td>
-                    <td className="px-4 py-3">{question.linkedSop.title}</td>
+                    <td className="px-4 py-3">{question.linkedSop?.title}</td>
                     <td className="mono px-4 py-3">{attemptsCount}</td>
                     <td className="mono px-4 py-3">{attemptsCount ? `${correct}%` : "—"}</td>
                     <td className="px-4 py-3">

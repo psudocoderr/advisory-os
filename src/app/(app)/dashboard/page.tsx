@@ -250,7 +250,8 @@ export default async function DashboardPage() {
                       <StatusBadge tone="teal">{cert.level}</StatusBadge>
                     </div>
                     <div className="mt-1 text-xs text-muted">
-                      {session.user.role === "ADMIN" ? `${cert.user.name} • ` : ""}Expires {dateLabel(cert.expiresAt)}
+                      {session.user.role === "ADMIN" ? `${cert.user.name} • ` : ""}
+                      {cert.expiresAt ? `Expires ${dateLabel(cert.expiresAt)}` : ""}
                     </div>
                   </div>
                 ))

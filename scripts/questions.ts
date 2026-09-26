@@ -95,8 +95,8 @@ async function loadFromDatabase(): Promise<QuestionDraft[]> {
     include: { linkedSop: { select: { slug: true } } }
   });
   return rows.map((r) => ({
-    module: r.module,
-    sopSlug: r.linkedSop.slug,
+    module: r.module!,
+    sopSlug: r.linkedSop!.slug,
     content: r.content,
     options: r.options as { key: string; text: string }[],
     correctKey: r.correctKey,

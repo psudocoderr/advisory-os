@@ -20,7 +20,11 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
   if (session.status !== "IN_PROGRESS") {
     const incorrect = session.responses.filter((response) => !response.isCorrect);
     const remediation = [
-      ...new Map(incorrect.map((row) => [row.question.linkedSop.slug, row.question.linkedSop])).values()
+      ...new Map(
+        incorrect.flatMap((row) =>
+          row.question.linkedSop ? [[row.question.linkedSop.slug, row.question.linkedSop] as const] : []
+        )
+      ).values()
     ].slice(0, 3);
     return (
       <>
@@ -73,7 +77,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
         />
         <TestSessionClient
           sessionId={session.id}
-          module={session.module}
+          module={session.module!}
           initialProgress={{
             answered: session.responses.length,
             theta: session.abilityEstimate,
@@ -99,7 +103,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
       */}
       <TestSessionClient
         sessionId={session.id}
-        module={session.module}
+        module={session.module!}
         initialProgress={{
           answered: session.responses.length,
           theta: session.abilityEstimate,

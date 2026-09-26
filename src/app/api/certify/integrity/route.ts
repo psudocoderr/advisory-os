@@ -101,7 +101,7 @@ export async function POST(request: Request) {
   const result = await finalizeSession({
     sessionId,
     userId: auth.user.id,
-    module: testSession.module,
+    module: testSession.module!,
     theta: estimate.theta,
     se: estimate.se,
     answered: responses.length,

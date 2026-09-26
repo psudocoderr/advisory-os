@@ -137,7 +137,7 @@ async function main() {
       ...certifications.map(
         (c) =>
           `| ${c.module} | ${c.level} | ${c.status} | ${c.abilityScore.toFixed(2)} | ` +
-          `${c.issuedAt.toISOString().slice(0, 10)} | ${c.expiresAt.toISOString().slice(0, 10)} |`
+          `${c.issuedAt.toISOString().slice(0, 10)} | ${c.expiresAt?.toISOString().slice(0, 10) ?? "never"} |`
       )
     );
   } else {
