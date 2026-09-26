@@ -91,6 +91,10 @@ enum TestSessionStatus {
   /// FAILED (sat the test and did not reach the standard) and from ABANDONED
   /// (walked away), because conflating them would misreport what happened.
   TERMINATED
+  /// Sat the test, but the estimate was too uncertain to call either way:
+  /// neither confidently above the pass mark nor confidently below it. No
+  /// badge, no failure on record, no retry cooldown.
+  INCONCLUSIVE
 }
 
 enum IntegrityEventKind {
