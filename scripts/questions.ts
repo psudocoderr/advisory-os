@@ -309,39 +309,46 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
   const author = await prisma.user.findFirst({ where: { role: "ADMIN" }, select: { id: true } });
   if (!author) throw new Error("no ADMIN user to attribute these questions to");
 
-  if (replace) {
-    // Deactivate rather than delete: ResponseLog references these rows, and
-    // past attempts should keep the questions they were actually asked.
-    const retired = await prisma.questionItem.updateMany({
-      where: { module: { in: [...modulesCovered] as never[] }, isActive: true },
-      data: { isActive: false }
-    });
-    console.log(`  retired ${retired.count} existing question(s) in ${[...modulesCovered].sort().join(", ")}`);
-  }
-
-  await prisma.questionItem.createMany({
-    data: drafts.map((d) => ({
-      module: d.module as never,
-      content: d.content,
-      options: d.options,
-      correctKey: d.correctKey,
-      explanation: d.explanation,
-      difficulty: d.difficulty,
-      discrimination: d.discrimination,
-      guessing: d.guessing,
-      linkedSopId: slugToId.get(d.sopSlug)!,
-      createdById: author.id,
-      isActive: true
-    }))
-  });
-  await prisma.auditLog.create({
-    data: {
-      actorId: author.id,
-      action: "CREATE",
-      entity: "QuestionItem",
-      summary: `Imported ${drafts.length} questions from ${path}${replace ? `, retiring existing questions in ${[...modulesCovered].sort().join(", ")}` : ""}`
+  // One transaction: a failed insert must not leave a module with its old
+  // questions retired and nothing active in their place.
+  let retiredCount = 0;
+  await prisma.$transaction(async (tx) => {
+    if (replace) {
+      // Deactivate rather than delete: ResponseLog references these rows, and
+      // past attempts should keep the questions they were actually asked.
+      const retired = await tx.questionItem.updateMany({
+        where: { module: { in: [...modulesCovered] as never[] }, isActive: true },
+        data: { isActive: false }
+      });
+      retiredCount = retired.count;
     }
+
+    await tx.questionItem.createMany({
+      data: drafts.map((d) => ({
+        module: d.module as never,
+        content: d.content,
+        options: d.options,
+        correctKey: d.correctKey,
+        explanation: d.explanation,
+        difficulty: d.difficulty,
+        discrimination: d.discrimination,
+        guessing: d.guessing,
+        linkedSopId: slugToId.get(d.sopSlug)!,
+        createdById: author.id,
+        isActive: true
+      }))
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId: author.id,
+        action: "CREATE",
+        entity: "QuestionItem",
+        summary: `Imported ${drafts.length} questions from ${path}${replace ? `, retiring existing questions in ${[...modulesCovered].sort().join(", ")}` : ""}`
+      }
+    });
   });
+  if (replace)
+    console.log(`  retired ${retiredCount} existing question(s) in ${[...modulesCovered].sort().join(", ")}`);
   console.log(`\n  imported ${drafts.length} questions`);
 }
 
