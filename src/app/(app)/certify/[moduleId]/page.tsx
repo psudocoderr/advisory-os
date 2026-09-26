@@ -1,66 +1,79 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ModuleCode } from "@prisma/client";
 import { requireSession } from "@/lib/auth";
+import { IRT } from "@/lib/irt";
+import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
 import { prisma } from "@/lib/prisma";
+import { MINIMUM_BANK_SIZE } from "@/lib/question-bank";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
+import { ChapterStateIcon } from "@/components/knowledge";
 import { StartTestButton } from "@/components/start-test-button";
 
-const details: Record<ModuleCode, { title: string; body: string }> = {
-  M1: {
-    title: "KYC & Compliance",
-    body: "Adaptive testing across identity verification, proof protocol, and KRA/PAN handling."
-  },
-  M2: { title: "Client Onboarding", body: "Readiness checks, onboarding controls, and first-review scheduling." },
-  M3: { title: "Investment Operations", body: "SIP, ELSS, lump sum, and operational follow-up controls." },
-  M4: { title: "Portfolio Reviews", body: "AUM, XIRR, allocation drift, action capture, and next-review discipline." },
-  M5: {
-    title: "Full Advisory Certification",
-    body: "Composite adaptive testing across CRM, compliance, planning, review, and operating controls."
-  }
-};
-
-export default async function ModulePage({ params }: { params: Promise<{ moduleId: ModuleCode }> }) {
-  await requireSession();
+export default async function ModuleTestPage({ params }: { params: Promise<{ moduleId: string }> }) {
+  const session = await requireSession();
   const { moduleId } = await params;
-  if (!details[moduleId]) notFound();
-  const [questionCount, sopEntries] = await Promise.all([
-    prisma.questionItem.count({ where: { module: moduleId, isActive: true } }),
-    prisma.sopEntry.findMany({ where: { module: moduleId, isPublished: true }, orderBy: { title: "asc" } })
+  const trainingModule = await prisma.module.findUnique({ where: { id: moduleId } });
+  if (!trainingModule) notFound();
+
+  const [standing, questionCount] = await Promise.all([
+    loadTrackProgress({ id: trainingModule.trackId }, session.user),
+    prisma.questionItem.count({ where: { moduleId, isActive: true } })
   ]);
+  if (!standing) notFound();
+  const index = standing.track.modules.findIndex((module) => module.id === moduleId);
+  const loaded = standing.track.modules[index];
+  const moduleStanding = standing.progress[index];
+
+  const blocked = !moduleStanding.testUnlocked
+    ? "Complete every chapter to unlock"
+    : questionCount < MINIMUM_BANK_SIZE
+      ? "Not enough questions yet"
+      : null;
 
   return (
     <>
-      <PageHeader title={details[moduleId].title} description={details[moduleId].body} />
+      <PageHeader title={`${trainingModule.title}: module test`} description="An adaptive test. It awards a badge." />
       <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
         <Card className="p-5">
           <div className="grid gap-3 sm:grid-cols-3">
-            <Metric label="Question floor" value="10" />
-            <Metric label="Question cap" value="18" />
-            <Metric label="Pass theta" value="0.50" />
-          </div>
-          <div className="mt-5 rounded border border-line bg-wash p-4 text-sm leading-6 text-muted">
-            The session starts at theta 0.0 and selects the next unused item with the most information at the current
-            estimate. Correct answers stay on the server; the client only receives the question stem and options.
+            <Metric label="Questions" value={`${IRT.minQuestions}–${IRT.maxQuestions}`} />
+            <Metric label="Time" value={`${IRT.timeLimitMinutes} min`} />
+            <Metric label="Retry after fail" value={`${IRT.cooldownHours} h`} />
           </div>
           <div className="mt-5">
-            <StartTestButton moduleId={moduleId} disabled={questionCount < 10} />
+            <StartTestButton moduleId={moduleId} blocked={blocked} />
           </div>
         </Card>
         <Card className="p-4">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-semibold text-ink">Study links</h2>
-            <StatusBadge tone={questionCount >= 10 ? "teal" : "rose"}>{questionCount} items</StatusBadge>
+            <h2 className="font-semibold text-ink">Chapters</h2>
+            <StatusBadge tone={moduleStanding.testUnlocked ? "teal" : "slate"}>
+              {moduleStanding.chaptersDone}/{loaded.chapters.length}
+            </StatusBadge>
           </div>
-          <div className="space-y-2">
-            {sopEntries.map((entry) => (
-              <a
-                key={entry.id}
-                href={`/knowledge/${entry.slug}`}
-                className="block rounded border border-line px-3 py-2 text-sm font-semibold text-ink hover:border-teal"
-              >
-                {entry.title}
-              </a>
-            ))}
+          <div className="space-y-1">
+            {loaded.chapters.map((chapter, chapterIndex) => {
+              const state = moduleStanding.chapters[chapterIndex].state;
+              const row = (
+                <span className="flex items-center gap-2 rounded px-2 py-1.5 text-sm">
+                  <ChapterStateIcon state={state} size={14} />
+                  {chapter.title}
+                </span>
+              );
+              return state === "locked" ? (
+                <div key={chapter.id} className="text-muted">
+                  {row}
+                </div>
+              ) : (
+                <Link
+                  key={chapter.id}
+                  href={chapterHref(standing.track.slug, loaded.slug, chapter.slug)}
+                  className="block text-ink hover:text-teal"
+                >
+                  {row}
+                </Link>
+              );
+            })}
           </div>
         </Card>
       </div>

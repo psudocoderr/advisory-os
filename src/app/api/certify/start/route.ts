@@ -4,12 +4,11 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { estimateEap, isSessionExpired, IRT } from "@/lib/irt";
-import { finalizeSession } from "@/lib/certify-session";
+import { finalizeSession, questionBank } from "@/lib/certify-session";
+import { loadTrackProgress } from "@/lib/knowledge";
 import { MINIMUM_BANK_SIZE } from "@/lib/question-bank";
 
-const schema = z.object({
-  module: z.enum(["M1", "M2", "M3", "M4", "M5"])
-});
+const schema = z.object({ moduleId: z.string().min(1) });
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -18,10 +17,24 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "Invalid module" }, { status: 400 });
 
+  const trainingModule = await prisma.module.findUnique({ where: { id: parsed.data.moduleId } });
+  if (!trainingModule) return NextResponse.json({ error: "Module not found" }, { status: 404 });
+  const moduleId = trainingModule.id;
+
+  // The lock is enforced here, not only on the page: the test opens once every
+  // chapter in the module is complete and the module before it is badged.
+  const standing = await loadTrackProgress({ id: trainingModule.trackId }, session.user);
+  if (!standing?.progress.find((module) => module.id === moduleId)?.testUnlocked) {
+    return NextResponse.json(
+      { error: "Complete every chapter in this module, and the module before it, to unlock the test." },
+      { status: 403 }
+    );
+  }
+
   const activeAttempt = await prisma.testSession.findFirst({
     where: {
       userId: session.user.id,
-      module: parsed.data.module,
+      moduleId,
       status: "IN_PROGRESS"
     },
     orderBy: { startedAt: "desc" }
@@ -37,14 +50,11 @@ export async function POST(request: Request) {
         where: { sessionId: activeAttempt.id },
         select: { questionId: true, isCorrect: true }
       });
-      const bank = await prisma.questionItem.findMany({
-        where: { module: parsed.data.module, isActive: true }
-      });
+      const bank = await questionBank(activeAttempt);
       const estimate = estimateEap(responses, bank);
       await finalizeSession({
         sessionId: activeAttempt.id,
         userId: session.user.id,
-        module: activeAttempt.module!,
         theta: estimate.theta,
         se: estimate.se,
         answered: responses.length,
@@ -63,7 +73,7 @@ export async function POST(request: Request) {
   const latestFailure = await prisma.testSession.findFirst({
     where: {
       userId: session.user.id,
-      module: parsed.data.module,
+      moduleId,
       status: { in: ["FAILED", "TERMINATED"] },
       completedAt: { not: null }
     },
@@ -77,12 +87,12 @@ export async function POST(request: Request) {
     }
   }
 
-  const questionCount = await prisma.questionItem.count({ where: { module: parsed.data.module, isActive: true } });
+  const questionCount = await prisma.questionItem.count({ where: { moduleId, isActive: true } });
   if (questionCount < MINIMUM_BANK_SIZE) {
     return NextResponse.json(
       {
         error:
-          `${parsed.data.module} has ${questionCount} active question${questionCount === 1 ? "" : "s"}; ` +
+          `${trainingModule.title} has ${questionCount} active question${questionCount === 1 ? "" : "s"}; ` +
           `at least ${MINIMUM_BANK_SIZE} are needed to certify. Import more with 'npm run questions:import'.`
       },
       { status: 422 }
@@ -90,13 +100,14 @@ export async function POST(request: Request) {
   }
 
   const previousAttempts = await prisma.testSession.count({
-    where: { userId: session.user.id, module: parsed.data.module }
+    where: { userId: session.user.id, moduleId }
   });
 
   const testSession = await prisma.testSession.create({
     data: {
       userId: session.user.id,
-      module: parsed.data.module,
+      trackId: trainingModule.trackId,
+      moduleId,
       attemptNumber: previousAttempts + 1
     }
   });
@@ -107,7 +118,7 @@ export async function POST(request: Request) {
       action: "START",
       entity: "TestSession",
       entityId: testSession.id,
-      summary: `Started ${parsed.data.module} certification attempt`
+      summary: `Started ${trainingModule.title} certification attempt`
     }
   });
 

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { deadlineFor, estimateEap, isExpired, selectNextQuestion } from "@/lib/irt";
-import { finalizeSession, type FinishReason } from "@/lib/certify-session";
+import { finalizeSession, type FinishReason, questionBank } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -41,9 +41,7 @@ export async function POST(request: Request) {
   // Recompute from the stored responses rather than trusting anything the
   // client sends. The client decides *when* to finish; it never decides the
   // score.
-  const bank = await prisma.questionItem.findMany({
-    where: { module: testSession.module, isActive: true }
-  });
+  const bank = await questionBank(testSession);
 
   if (testSession.status === "IN_PROGRESS") {
     if (parsed.data.reason === "BANK_EXHAUSTED") {
@@ -72,7 +70,6 @@ export async function POST(request: Request) {
   const result = await finalizeSession({
     sessionId: testSession.id,
     userId: auth.user.id,
-    module: testSession.module!,
     theta: estimate.theta,
     se: estimate.se,
     answered: testSession.responses.length,

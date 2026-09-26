@@ -8,9 +8,6 @@
  * the ones that would have caught it.
  */
 
-export const MODULES = ["M1", "M2", "M3", "M4", "M5"] as const;
-export type Module = (typeof MODULES)[number];
-
 export const OPTION_KEYS = ["A", "B", "C", "D"] as const;
 export type OptionKey = (typeof OPTION_KEYS)[number];
 
@@ -29,8 +26,10 @@ export const TARGET_BANK_SIZE = 40;
 export const MINIMUM_BANK_SIZE = 10;
 
 export type QuestionDraft = {
+  /** Module slug, e.g. "m1". Resolved against the database on import. */
   module: string;
-  sopSlug: string;
+  /** Slug of the chapter the question tests, within that module. */
+  chapterSlug: string;
   content: string;
   options: { key: string; text: string }[];
   correctKey: string;
@@ -53,8 +52,8 @@ export function validateQuestion(q: QuestionDraft, where: string): Issue[] {
   const issues: Issue[] = [];
   const err = (message: string) => issues.push({ severity: "error", where, message });
 
-  if (!MODULES.includes(q.module as Module)) err(`module "${q.module}" is not one of ${MODULES.join(", ")}`);
-  if (!q.sopSlug.trim()) err("sop_slug is empty; every question must link to an SOP");
+  if (!q.module.trim()) err("module is empty");
+  if (!q.chapterSlug.trim()) err("chapter is empty; every question must link to the chapter it tests");
   if (q.content.trim().length < 10) err("content is missing or too short to be a question");
   if (!q.explanation.trim()) err("explanation is empty; it is shown when reviewing a wrong answer");
 
@@ -87,9 +86,13 @@ export function validateBank(
    * contribution and may legitimately carry three questions for one module.
    * Size is only meaningful against the bank the file will become part of.
    */
-  options: { checkSize?: boolean } = {}
+  options: {
+    checkSize?: boolean;
+    /** Every module that should have questions, to warn about empty ones. */
+    modules?: string[];
+  } = {}
 ): Issue[] {
-  const { checkSize = true } = options;
+  const { checkSize = true, modules = [] } = options;
   const issues: Issue[] = [];
   const add = (severity: Issue["severity"], message: string) => issues.push({ severity, where: label, message });
 
@@ -167,7 +170,7 @@ export function validateBank(
   }
 
   if (checkSize) {
-    for (const code of MODULES) {
+    for (const code of modules) {
       if (!byModule.has(code)) add("warning", `${code}: no questions supplied.`);
     }
   }

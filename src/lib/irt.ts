@@ -1,4 +1,4 @@
-import type { QuestionItem, ResponseLog } from "@prisma/client";
+import type { BadgeLevel, QuestionItem, ResponseLog } from "@prisma/client";
 
 export const IRT = {
   passTheta: 0.5,
@@ -107,12 +107,19 @@ export function shouldStop(answered: number, se: number) {
   return answered >= IRT.maxQuestions || (answered >= IRT.minQuestions && se <= IRT.seStop);
 }
 
-export function certificationLevel(theta: number) {
-  if (theta >= 1.5) return "Expert";
-  if (theta >= 1.0) return "Proficient";
-  if (theta >= IRT.passTheta) return "Foundation";
-  return "Not Certified";
+/** The badge a theta earns, or null below the pass mark. */
+export function certificationLevel(theta: number): BadgeLevel | null {
+  if (theta >= 1.5) return "EXPERT";
+  if (theta >= 1.0) return "PROFICIENT";
+  if (theta >= IRT.passTheta) return "SATISFACTORY";
+  return null;
 }
+
+export const LEVEL_LABEL: Record<BadgeLevel, string> = {
+  SATISFACTORY: "Satisfactory",
+  PROFICIENT: "Proficient",
+  EXPERT: "Expert"
+};
 
 function clamp(value: number) {
   return Math.max(IRT.thetaMin, Math.min(IRT.thetaMax, value));

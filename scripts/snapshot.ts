@@ -39,8 +39,10 @@ async function main() {
     meetingLogs: await prisma.meetingLog.count(),
     investmentPlans: await prisma.investmentPlan.count(),
     portfolioReviews: await prisma.portfolioReview.count(),
-    knowledgeCategories: await prisma.knowledgeCategory.count(),
-    sopEntries: await prisma.sopEntry.count(),
+    tracks: await prisma.track.count(),
+    modules: await prisma.module.count(),
+    chapters: await prisma.chapter.count(),
+    chapterCompletions: await prisma.chapterCompletion.count(),
     questionItems: await prisma.questionItem.count(),
     testSessions: await prisma.testSession.count(),
     responseLogs: await prisma.responseLog.count(),
@@ -53,7 +55,7 @@ async function main() {
   const sessions = await prisma.testSession.findMany({
     orderBy: { startedAt: "desc" },
     select: {
-      module: true,
+      trainingModule: { select: { slug: true } },
       status: true,
       attemptNumber: true,
       abilityEstimate: true,
@@ -67,7 +69,14 @@ async function main() {
   });
 
   const certifications = await prisma.certification.findMany({
-    select: { module: true, level: true, status: true, abilityScore: true, issuedAt: true, expiresAt: true }
+    select: {
+      trainingModule: { select: { slug: true } },
+      badgeLevel: true,
+      percentCorrect: true,
+      status: true,
+      abilityScore: true,
+      issuedAt: true
+    }
   });
 
   const snapshot: Record<string, unknown> = {
@@ -119,7 +128,7 @@ async function main() {
       "|---|---|---|---|---|---|---|---|---|---|",
       ...sessions.map(
         (s) =>
-          `| ${s.module} | ${s.user.email} | ${s.status} | ${s.attemptNumber} | ${s._count.responses} | ` +
+          `| ${s.trainingModule?.slug ?? "final"} | ${s.user.email} | ${s.status} | ${s.attemptNumber} | ${s._count.responses} | ` +
           `${s.abilityEstimate.toFixed(2)} | ${s.standardError === 99 ? "—" : s.standardError.toFixed(2)} | ` +
           `${s._count.integrityEvents} | ${s.startedAt.toISOString().slice(0, 16)} | ` +
           `${s.completedAt ? s.completedAt.toISOString().slice(0, 16) : "—"} |`
@@ -132,12 +141,12 @@ async function main() {
   lines.push("", "## Certifications held", "");
   if (certifications.length) {
     lines.push(
-      "| module | level | status | score | issued | expires |",
+      "| module | level | status | theta | % correct | issued |",
       "|---|---|---|---|---|---|",
       ...certifications.map(
         (c) =>
-          `| ${c.module} | ${c.level} | ${c.status} | ${c.abilityScore.toFixed(2)} | ` +
-          `${c.issuedAt.toISOString().slice(0, 10)} | ${c.expiresAt?.toISOString().slice(0, 10) ?? "never"} |`
+          `| ${c.trainingModule?.slug ?? "final"} | ${c.badgeLevel ?? "—"} | ${c.status} | ${c.abilityScore.toFixed(2)} | ` +
+          `${c.percentCorrect === null ? "—" : c.percentCorrect.toFixed(0)} | ${c.issuedAt.toISOString().slice(0, 10)} |`
       )
     );
   } else {

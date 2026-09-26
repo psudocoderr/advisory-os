@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
-import { candidateOnExamSurface, finalizeSession } from "@/lib/certify-session";
+import { candidateOnExamSurface, finalizeSession, questionBank } from "@/lib/certify-session";
 import { deadlineFor, estimateEap, isSessionExpired, selectNextQuestion } from "@/lib/irt";
 import { prisma } from "@/lib/prisma";
 
@@ -40,14 +40,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Session is already complete" }, { status: 400 });
   }
 
-  const bank = await prisma.questionItem.findMany({ where: { module: testSession.module, isActive: true } });
+  const bank = await questionBank(testSession);
 
   if (isSessionExpired(testSession.timerStartedAt)) {
     const estimate = estimateEap(testSession.responses, bank);
     const result = await finalizeSession({
       sessionId: testSession.id,
       userId: auth.user.id,
-      module: testSession.module!,
       theta: estimate.theta,
       se: estimate.se,
       answered: testSession.responses.length,
@@ -73,7 +72,6 @@ export async function POST(request: Request) {
     const result = await finalizeSession({
       sessionId: testSession.id,
       userId: auth.user.id,
-      module: testSession.module!,
       theta: estimate.theta,
       se: estimate.se,
       answered: testSession.responses.length,

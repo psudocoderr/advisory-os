@@ -1,60 +1,56 @@
 import { createQuestionItem, createUser, updateUserActive } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { compactInr, dateLabel, titleCase } from "@/lib/format";
+import { LEVEL_LABEL } from "@/lib/irt";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatCard, StatusBadge, TableScroll } from "@/components/ui";
 
 export default async function AdminPage() {
   await requireAdmin();
-  const now = new Date();
-  const soon = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-  const [users, prospects, clients, plans, certs, expiring, attempts, audit, questionPerformance, sops] =
-    await Promise.all([
-      prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
-      prisma.prospect.count(),
-      prisma.client.findMany({ select: { aum: true } }),
-      prisma.investmentPlan.count(),
-      prisma.certification.findMany({
-        where: { status: "ACTIVE" },
-        include: { user: true },
-        orderBy: { module: "asc" }
-      }),
-      prisma.certification.findMany({
-        where: { status: "ACTIVE", expiresAt: { gte: now, lte: soon } },
-        include: { user: true },
-        orderBy: { expiresAt: "asc" }
-      }),
-      prisma.testSession.findMany({ include: { user: true }, orderBy: { startedAt: "desc" }, take: 8 }),
-      prisma.auditLog.findMany({ include: { actor: true }, orderBy: { createdAt: "desc" }, take: 10 }),
-      prisma.questionItem.findMany({
-        include: { responses: true, linkedSop: true },
-        orderBy: { updatedAt: "desc" },
-        take: 10
-      }),
-      prisma.sopEntry.findMany({ where: { isPublished: true }, orderBy: [{ module: "asc" }, { title: "asc" }] })
-    ]);
+  const [users, prospects, clients, plans, certs, attempts, audit, questionPerformance, modules] = await Promise.all([
+    prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.prospect.count(),
+    prisma.client.findMany({ select: { aum: true } }),
+    prisma.investmentPlan.count(),
+    prisma.certification.findMany({ where: { status: "ACTIVE", moduleId: { not: null } } }),
+    prisma.testSession.findMany({
+      include: { user: true, trainingModule: { select: { title: true } }, track: { select: { title: true } } },
+      orderBy: { startedAt: "desc" },
+      take: 8
+    }),
+    prisma.auditLog.findMany({ include: { actor: true }, orderBy: { createdAt: "desc" }, take: 10 }),
+    prisma.questionItem.findMany({
+      include: { responses: true, trainingModule: true, chapter: true },
+      orderBy: { updatedAt: "desc" },
+      take: 10
+    }),
+    prisma.module.findMany({
+      where: { track: { isActive: true } },
+      orderBy: [{ track: { order: "asc" } }, { order: "asc" }],
+      include: { chapters: { orderBy: { order: "asc" }, select: { id: true, title: true } } }
+    })
+  ]);
 
   const aum = clients.reduce((sum, client) => sum + Number(client.aum), 0);
-  const modules = ["M1", "M2", "M3", "M4", "M5"] as const;
 
   return (
     <>
       <PageHeader
         title="Admin"
-        description="Team-level controls, certification visibility, audit activity, and item-bank performance."
+        description="Team-level controls, badge visibility, audit activity, and item-bank performance."
       />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Users" value={users.length} detail="Seeded team" />
         <StatCard label="Prospects" value={prospects} detail="All advisors" />
         <StatCard label="Clients" value={clients.length} detail={compactInr(aum)} />
         <StatCard label="Plans" value={plans} detail="Across team" />
-        <StatCard label="Certifications" value={certs.length} detail="Active credentials" />
+        <StatCard label="Badges" value={certs.length} detail="Active module badges" />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
         <Card className="overflow-hidden">
-          <SectionTitle title="Team certification status" />
+          <SectionTitle title="Team badges" />
           <TableScroll>
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead className="bg-wash text-xs uppercase tracking-wide text-muted">
@@ -62,11 +58,11 @@ export default async function AdminPage() {
                   <th className="px-4 py-3">Advisor</th>
                   <th className="px-4 py-3">Role</th>
                   <th className="px-4 py-3">Active</th>
-                  <th className="px-4 py-3">M1</th>
-                  <th className="px-4 py-3">M2</th>
-                  <th className="px-4 py-3">M3</th>
-                  <th className="px-4 py-3">M4</th>
-                  <th className="px-4 py-3">M5</th>
+                  {modules.map((module) => (
+                    <th key={module.id} className="px-4 py-3" title={module.title}>
+                      {module.order}. {module.title}
+                    </th>
+                  ))}
                   <th className="px-4 py-3">Access</th>
                 </tr>
               </thead>
@@ -81,11 +77,11 @@ export default async function AdminPage() {
                       </StatusBadge>
                     </td>
                     {modules.map((module) => {
-                      const cert = certs.find((item) => item.userId === user.id && item.module === module);
+                      const cert = certs.find((item) => item.userId === user.id && item.moduleId === module.id);
                       return (
-                        <td key={module} className="px-4 py-3">
-                          {cert ? (
-                            <StatusBadge tone="teal">{cert.level}</StatusBadge>
+                        <td key={module.id} className="px-4 py-3">
+                          {cert?.badgeLevel ? (
+                            <StatusBadge tone="teal">{LEVEL_LABEL[cert.badgeLevel]}</StatusBadge>
                           ) : (
                             <StatusBadge>Not taken</StatusBadge>
                           )}
@@ -132,35 +128,13 @@ export default async function AdminPage() {
         </Card>
 
         <Card>
-          <SectionTitle title="Expiry alerts" />
-          <div className="divide-y divide-line">
-            {expiring.length ? (
-              expiring.map((cert) => (
-                <div key={cert.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <div>
-                    <div className="font-semibold text-ink">{cert.user.name}</div>
-                    <div className="text-sm text-muted">
-                      {cert.module}
-                      {cert.expiresAt ? ` expires ${dateLabel(cert.expiresAt)}` : ""}
-                    </div>
-                  </div>
-                  <StatusBadge tone="amber">{cert.level}</StatusBadge>
-                </div>
-              ))
-            ) : (
-              <div className="px-4 py-6 text-sm text-muted">No certifications expiring in the next 30 days.</div>
-            )}
-          </div>
-        </Card>
-
-        <Card>
           <SectionTitle title="Attempt history" />
           <div className="divide-y divide-line">
             {attempts.map((attempt) => (
               <div key={attempt.id} className="flex items-center justify-between gap-3 px-4 py-3">
                 <div>
                   <div className="font-semibold text-ink">
-                    {attempt.user.name} • {attempt.module}
+                    {attempt.user.name} • {attempt.trainingModule?.title ?? attempt.track?.title}
                   </div>
                   <div className="text-sm text-muted">
                     Attempt {attempt.attemptNumber} • theta {attempt.abilityEstimate.toFixed(2)} • SE{" "}
@@ -200,19 +174,18 @@ export default async function AdminPage() {
         <form action={createQuestionItem} className="mt-4 grid gap-3 lg:grid-cols-2">
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <select className="field" name="module" defaultValue="M1">
+              <select className="field col-span-2" name="chapterId" required defaultValue="">
+                <option value="" disabled>
+                  Chapter this question tests
+                </option>
                 {modules.map((module) => (
-                  <option key={module} value={module}>
-                    {module}
-                  </option>
-                ))}
-              </select>
-              <select className="field" name="linkedSopId" required>
-                <option value="">Linked SOP</option>
-                {sops.map((sop) => (
-                  <option key={sop.id} value={sop.id}>
-                    {sop.module || "General"} - {sop.title}
-                  </option>
+                  <optgroup key={module.id} label={`${module.order}. ${module.title}`}>
+                    {module.chapters.map((chapter) => (
+                      <option key={chapter.id} value={chapter.id}>
+                        {chapter.title}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>
@@ -264,7 +237,7 @@ export default async function AdminPage() {
               <tr>
                 <th className="px-4 py-3">Question</th>
                 <th className="px-4 py-3">Module</th>
-                <th className="px-4 py-3">SOP</th>
+                <th className="px-4 py-3">Chapter</th>
                 <th className="px-4 py-3">Attempts</th>
                 <th className="px-4 py-3">% Correct</th>
                 <th className="px-4 py-3">Flag</th>
@@ -287,8 +260,8 @@ export default async function AdminPage() {
                 return (
                   <tr key={question.id}>
                     <td className="max-w-lg px-4 py-3">{question.content}</td>
-                    <td className="px-4 py-3">{question.module}</td>
-                    <td className="px-4 py-3">{question.linkedSop?.title}</td>
+                    <td className="px-4 py-3">{question.trainingModule?.title}</td>
+                    <td className="px-4 py-3">{question.chapter?.title}</td>
                     <td className="mono px-4 py-3">{attemptsCount}</td>
                     <td className="mono px-4 py-3">{attemptsCount ? `${correct}%` : "—"}</td>
                     <td className="px-4 py-3">

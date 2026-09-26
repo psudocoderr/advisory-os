@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { PrismaClient, Prisma, ModuleCode } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { assertDestructiveAllowed, findExcessData } from "../scripts/db-target.mjs";
 
 const prisma = new PrismaClient();
@@ -13,6 +13,10 @@ const daysFromNow = (days: number) => new Date(today.getTime() + days * 24 * 60 
  * not a database this seed produced.
  */
 const SEED_VOLUMES = { users: 2, clients: 3, prospects: 3 };
+
+/** Internal keys for the five demo modules; not stored anywhere. */
+type ModuleCode = "M1" | "M2" | "M3" | "M4" | "M5";
+type ModuleRef = { moduleId: string; chapterId: string };
 
 /**
  * Seed passwords must be supplied explicitly.
@@ -295,13 +299,19 @@ async function main() {
     ]
   });
 
-  const sopMap = await seedKnowledge();
-  await seedQuestions(admin.id, sopMap);
+  const { trackId, modules } = await seedTrack();
+  await seedQuestions(admin.id, modules);
 
+  // The advisor has finished module 1: its chapter is ticked and it carries a
+  // badge, so module 2 is open in the demo.
+  await prisma.chapterCompletion.create({
+    data: { userId: advisor.id, chapterId: modules.get("M1")!.chapterId, completedAt: daysAgo(23) }
+  });
   const session = await prisma.testSession.create({
     data: {
       userId: advisor.id,
-      module: "M1",
+      trackId,
+      moduleId: modules.get("M1")!.moduleId,
       abilityEstimate: 1.12,
       standardError: 0.28,
       certified: true,
@@ -312,12 +322,12 @@ async function main() {
   await prisma.certification.create({
     data: {
       userId: advisor.id,
-      module: "M1",
+      trackId,
+      moduleId: modules.get("M1")!.moduleId,
       sessionId: session.id,
       abilityScore: 1.12,
-      level: "Proficient",
+      badgeLevel: "PROFICIENT",
       issuedAt: daysAgo(22),
-      expiresAt: daysFromNow(343),
       status: "ACTIVE"
     }
   });
@@ -330,280 +340,67 @@ async function main() {
   });
 }
 
-async function seedKnowledge() {
-  const categories = await Promise.all([
-    prisma.knowledgeCategory.create({
+/**
+ * Track 1 with its five demo modules, one chapter each. Real chapter content
+ * comes from the client; these exist so the reader, the locks and the demo
+ * questions have something to hang off.
+ */
+async function seedTrack() {
+  const track = await prisma.track.create({
+    data: { slug: "operational-excellence", title: "Operational-Excellence", order: 1 }
+  });
+
+  const titles: [ModuleCode, string][] = [
+    ["M1", "KYC & Compliance"],
+    ["M2", "Client Onboarding"],
+    ["M3", "Investment Operations"],
+    ["M4", "Portfolio Reviews"],
+    ["M5", "Full Advisory Certification"]
+  ];
+
+  const modules = new Map<ModuleCode, ModuleRef>();
+  for (const [index, [code, title]] of titles.entries()) {
+    const created = await prisma.module.create({
       data: {
-        title: "Week 1: Regulatory & Identity Compliance (Days 1–7)",
-        description:
-          "AMFI/SEBI regulatory rules, NISM Series V-A, EUIN/ARN registration, C-KYC, KRA, and FATCA/CRS compliance.",
-        order: 1
-      }
-    }),
-    prisma.knowledgeCategory.create({
-      data: {
-        title: "Week 2: Client Onboarding & Mandates (Days 8–14)",
-        description:
-          "Account classification, bank penny-drop, e-NACH mandate registration, Risk Profiling, and Nomination setup.",
-        order: 2
-      }
-    }),
-    prisma.knowledgeCategory.create({
-      data: {
-        title: "Week 3: Platform Operations & Transactions (Days 15–21)",
-        description:
-          "BSE StAR MF & NSE NMF II order routing, CAMS & KFintech RTA processing, ELSS cut-off timing, and transaction reconciliation.",
-        order: 3
-      }
-    }),
-    prisma.knowledgeCategory.create({
-      data: {
-        title: "Week 4: Portfolio Reviews & Rebalancing (Days 22–28)",
-        description:
-          "Portfolio XIRR computation, allocation drift analysis, annual review execution, consent capture, and practice audit hygiene.",
-        order: 4
-      }
-    }),
-    prisma.knowledgeCategory.create({
-      data: {
-        title: "Master Practice: Composite Advisory Mastery (Days 29–30)",
-        description:
-          "End-to-end operational execution, audit trail logging, and master certification across all MFD practice workflows.",
-        order: 5
-      }
-    })
-  ]);
+        trackId: track.id,
+        slug: code.toLowerCase(),
+        title,
+        order: index + 1,
+        chapters: {
+          create: {
+            slug: "introduction",
+            title: "Introduction",
+            order: 1,
+            isPublished: true,
+            body: demoChapter(title)
+          }
+        }
+      },
+      include: { chapters: true }
+    });
+    modules.set(code, { moduleId: created.id, chapterId: created.chapters[0].id });
+  }
 
-  const entries = await Promise.all([
-    // Week 1 SOPs (M1)
-    prisma.sopEntry.create({
-      data: sop(
-        categories[0].id,
-        "M1",
-        "Day 1–2: NISM V-A Certification & EUIN Tagging",
-        "day-1-2-nism-euin-registration",
-        [
-          "Verify NISM Series V-A certification validity and registration on the AMFI portal.",
-          "Obtain valid AMFI Registration Number (ARN) and Employee Unique Identification Number (EUIN).",
-          "Tag EUIN on every transaction slip and digital order form to prevent mis-selling penalties.",
-          "Maintain EUIN renewal tracker 60 days prior to 3-year expiration."
-        ],
-        "Days 1–2 • AMFI & Regulatory Rules"
-      )
-    }),
-    prisma.sopEntry.create({
-      data: sop(
-        categories[0].id,
-        "M1",
-        "Day 3–4: PAN Validation & KRA/C-KYC Verification",
-        "day-3-4-pan-kra-ckyc-verification",
-        [
-          "Fetch Income Tax portal record to confirm PAN status and exact legal name match.",
-          "Query CAMS KRA, NDML KRA, and CVL KRA interfaces using client PAN.",
-          "Confirm C-KYC status (Verified, Validated, Pending, or Expired) and IPV (In-Person Verification) timestamp.",
-          "If KRA record is invalid or missing, initiate digital C-KYC onboarding with Aadhaar e-KYC."
-        ],
-        "Days 3–4 • KRA & Identity Proof"
-      )
-    }),
-    prisma.sopEntry.create({
-      data: sop(
-        categories[0].id,
-        "M1",
-        "Day 5–7: FATCA/CRS & Identity Proof Protocol",
-        "day-5-7-fatca-disparity-protocol",
-        [
-          "Obtain FATCA/CRS self-declaration for all individual and non-individual investors.",
-          "Screen client against Politically Exposed Person (PEP) list and high-risk jurisdictions.",
-          "If name on PAN diverges from Bank Statement or Aadhaar, execute Proof Protocol (Marriage cert, Gazette notification, or bank attestation).",
-          "Upload verified compliance dossier into CRM prior to initiating investment plans."
-        ],
-        "Days 5–7 • Compliance & Proof Protocol"
-      )
-    }),
-
-    // Week 2 SOPs (M2)
-    prisma.sopEntry.create({
-      data: sop(
-        categories[1].id,
-        "M2",
-        "Day 8–10: Account Setup, Penny-Drop & Mandate Registration",
-        "day-8-10-account-setup-mandates",
-        [
-          "Classify investor type: Individual, Joint (Anyone or Survivor), HUF, Minor, or NRI.",
-          "Execute automated Penny-Drop verification to confirm bank account title matches PAN record.",
-          "Register e-NACH / UPI AutoPay mandate with client's primary bank for seamless SIP execution.",
-          "Verify mandate approval status (Active) on BSE StAR / NSE NMF II before placing recurring SIP orders."
-        ],
-        "Days 8–10 • Account & Bank Setup"
-      )
-    }),
-    prisma.sopEntry.create({
-      data: sop(
-        categories[1].id,
-        "M2",
-        "Day 11–12: Investor Risk Profiling & Asset Allocation",
-        "day-11-12-risk-profiling-allocation",
-        [
-          "Administer 10-question SEBI-compliant Risk Profiling questionnaire in CRM.",
-          "Categorize investor risk capacity: Conservative, Moderate, Growth, or Aggressive.",
-          "Map investment goals (Retirement, Tax Saving 80C, Children's Education) to target asset allocation.",
-          "Document asset allocation rationale and store signed risk profile consent in CRM."
-        ],
-        "Days 11–12 • Risk Profiling & Suitability"
-      )
-    }),
-    prisma.sopEntry.create({
-      data: sop(
-        categories[1].id,
-        "M2",
-        "Day 13–14: Nomination Setup & First Review Cadence",
-        "day-13-14-nomination-first-review",
-        [
-          "Enforce mandatory nomination (up to 3 nominees with percentage allocation) or formal opt-out declaration.",
-          "For minor investors, capture guardian PAN, relationship proof, and minor DOB certificate.",
-          "Create initial active Client record in CRM with verified KYC and linked investment mandates.",
-          "Schedule first 90-day onboarding review in CRM calendar before concluding setup."
-        ],
-        "Days 13–14 • Nomination & Review Setup"
-      )
-    }),
-
-    // Week 3 SOPs (M3)
-    prisma.sopEntry.create({
-      data: sop(
-        categories[2].id,
-        "M3",
-        "Day 15–17: BSE StAR MF & NSE NMF II Order Routing",
-        "day-15-17-bse-nse-order-routing",
-        [
-          "Login to MFD execution platform (BSE StAR MF / NSE NMF II / MFU).",
-          "Select transaction type: Lump Sum Purchase, SIP Registration, Switch, STP, or SWP.",
-          "Verify EUIN tagging, scheme code, folio number, and payment mode (Net Banking / UPI / Mandate).",
-          "Send digital payment link / OTP authorization to client and track confirmation before cut-off time (3:00 PM)."
-        ],
-        "Days 15–17 • Execution Platform Ops"
-      )
-    }),
-    prisma.sopEntry.create({
-      data: sop(
-        categories[2].id,
-        "M3",
-        "Day 18–19: CAMS & KFintech RTA Operations & NACH Rejections",
-        "day-18-19-cams-kfintech-rta-nach",
-        [
-          "Download daily transaction feeds (WBR2 / WBR9) from CAMS and KFintech portals.",
-          "Reconcile SIP mandate debit failures (insufficient funds, account closed) within 24 hours.",
-          "Process folio consolidation requests to merge duplicate folios under single PAN.",
-          "Handle email/mobile update requests via RTA change forms with OTM validation."
-        ],
-        "Days 18–19 • RTA & Mandate Reconciliation"
-      )
-    }),
-    prisma.sopEntry.create({
-      data: sop(
-        categories[2].id,
-        "M3",
-        "Day 20–21: ELSS Tax Cut-Offs & Transaction Reconciliation",
-        "day-20-21-elss-transaction-recon",
-        [
-          "Manage March 31 tax-saving ELSS deadlines with strict 2:30 PM payment cut-off protocols.",
-          "Verify NAV allotment rules: Liquid/Overnight (T+1 realization) vs Equity/Debt (T+1/T+2 realization).",
-          "Cross-verify client bank debit entries against AMC reverse feed confirmations.",
-          "Update investment plan status in CRM from 'SENT' to 'ACCEPTED' or 'ACTIVE'."
-        ],
-        "Days 20–21 • ELSS & NAV Allotment Ops"
-      )
-    }),
-
-    // Week 4 SOPs (M4)
-    prisma.sopEntry.create({
-      data: sop(
-        categories[3].id,
-        "M4",
-        "Day 22–24: Portfolio XIRR & Allocation Drift Analysis",
-        "day-22-24-xirr-drift-analysis",
-        [
-          "Compute portfolio-level and scheme-level XIRR returns using consolidated CAS feeds.",
-          "Compare current portfolio asset allocation against original documented target profile.",
-          "Identify allocation drift exceeding +/- 5% threshold due to market movements.",
-          "Draft rebalancing proposal (Equity to Debt switch or fresh SIP redirection) in CRM."
-        ],
-        "Days 22–24 • XIRR & Drift Analysis"
-      )
-    }),
-    prisma.sopEntry.create({
-      data: sop(
-        categories[3].id,
-        "M4",
-        "Day 25–27: Annual Review Execution & Client Consent Capture",
-        "day-25-27-annual-review-consent",
-        [
-          "Prepare comprehensive Portfolio Review deck showing AUM growth, XIRR, and goal progress.",
-          "Conduct review meeting with client; document advisory recommendations and rebalancing decisions.",
-          "Capture written/digital client consent prior to executing any portfolio switches or redemptions.",
-          "Sync updated review AUM directly into the master CRM client record."
-        ],
-        "Days 25–27 • Review & Consent Capture"
-      )
-    }),
-    prisma.sopEntry.create({
-      data: sop(
-        categories[3].id,
-        "M4",
-        "Day 28: MFD Practice Auditability & Compliance Hygiene",
-        "day-28-mfd-audit-compliance-hygiene",
-        [
-          "Conduct monthly audit log review to verify all client interactions have timestamped notes.",
-          "Inspect upcoming portfolio review schedule for the next 30 days to ensure zero missed reviews.",
-          "Verify PAN and phone number masking compliance across all practice report exports.",
-          "Review team certification status in Admin panel to ensure all active advisors hold valid M1–M5 credentials."
-        ],
-        "Days 28 • Practice Audit Hygiene"
-      )
-    }),
-
-    // Master Practice SOP (M5)
-    prisma.sopEntry.create({
-      data: sop(
-        categories[4].id,
-        "M5",
-        "Day 29–30: End-to-End MFD Operational Mastery",
-        "day-29-30-end-to-end-mfd-excellence",
-        [
-          "Execute full lifecycle workflow: Prospect Qualification -> KYC Verification -> Mandate Setup -> Plan Proposal -> Order Execution -> Review Cadence.",
-          "Demonstrate complete mastery over BSE StAR MF, CAMS/KFintech feeds, and CRM audit compliance.",
-          "Achieve certification pass score ($\theta \\ge 0.50$) on Module M5 Master Advisory Test.",
-          "Maintain operational excellence guidelines across all client and compliance touchpoints."
-        ],
-        "Days 29–30 • Master Advisory Practice"
-      )
-    })
-  ]);
-
-  return new Map(entries.map((entry) => [entry.module || "M1", entry.id] as [ModuleCode, string]));
+  return { trackId: track.id, modules };
 }
 
-function sop(categoryId: string, module: ModuleCode, title: string, slug: string, steps: string[], dayTag?: string) {
-  return {
-    categoryId,
-    module,
-    title,
-    slug,
-    what: `${title} provides an operational checklist for MFD freshers to ensure 100% compliance and execution accuracy.`,
-    when: dayTag ? `Execute during ${dayTag}.` : "Execute whenever the relevant MFD operational trigger occurs.",
-    steps,
-    outcomes: ["Clean regulatory audit trail", "Zero transaction rejection rate", "High client trust & retention"],
-    commonErrors: [
-      "Missing EUIN tagging on orders",
-      "Leaving follow-up dates unassigned",
-      "Proceeding with unverified bank accounts"
-    ],
-    references: ["AMFI MFD Operational Manual", "SEBI Mutual Fund Regulations 1996", "PRD 30-Day Training System"]
-  };
+/** Placeholder text that exercises the formatting a real chapter will use. */
+function demoChapter(title: string) {
+  return [
+    `This is placeholder text for **${title}**. The real chapter content will replace it.`,
+    "## What this chapter covers",
+    "- The purpose of the process and when it applies",
+    "- The steps, in order",
+    "- Common mistakes, and how to avoid them",
+    "> Read each chapter to the end, then mark it complete to unlock the next one.",
+    "| Step | Owner | When |",
+    "|---|---|---|",
+    "| Collect documents | Advisor | Before onboarding |",
+    "| Verify records | Operations | Same day |"
+  ].join("\n\n");
 }
 
-async function seedQuestions(adminId: string, sopMap: Map<ModuleCode, string>) {
+async function seedQuestions(adminId: string, modules: Map<ModuleCode, ModuleRef>) {
   const stems: Record<ModuleCode, string[]> = {
     M1: [
       "Which record is treated as the first source of truth for PAN-linked identity?",
@@ -706,7 +503,7 @@ async function seedQuestions(adminId: string, sopMap: Map<ModuleCode, string>) {
     stems[module].map((content, index) => {
       const { options, correctKey } = buildOptions(module, index, stems[module].length);
       return {
-        module,
+        ...modules.get(module)!,
         content,
         options,
         correctKey,
@@ -714,7 +511,6 @@ async function seedQuestions(adminId: string, sopMap: Map<ModuleCode, string>) {
         difficulty: -1.8 + (index % 9) * 0.45,
         discrimination: 0.9 + (index % 4) * 0.25,
         guessing: 0.25,
-        linkedSopId: sopMap.get(module)!,
         createdById: adminId,
         isActive: true
       };
@@ -805,6 +601,11 @@ async function clear() {
   await prisma.responseLog.deleteMany();
   await prisma.testSession.deleteMany();
   await prisma.questionItem.deleteMany();
+  await prisma.chapterCompletion.deleteMany();
+  await prisma.chapter.deleteMany();
+  await prisma.module.deleteMany();
+  await prisma.track.deleteMany();
+  // Legacy tables, dropped in the contract release.
   await prisma.sopEntry.deleteMany();
   await prisma.knowledgeCategory.deleteMany();
   await prisma.portfolioReview.deleteMany();
