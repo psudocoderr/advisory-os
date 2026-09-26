@@ -110,6 +110,14 @@ enum CertificationStatus {
   REVOKED
 }
 
+/// Level on a module badge or track certificate. Replaces the free-text
+/// `Certification.level`, whose "Foundation" band is renamed Satisfactory.
+enum BadgeLevel {
+  SATISFACTORY
+  PROFICIENT
+  EXPERT
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -120,13 +128,14 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  assignedProspects Prospect[]      @relation("ProspectAssignment")
-  assignedClients   Client[]        @relation("ClientAssignment")
-  meetings          MeetingLog[]    @relation("MeetingOwner")
-  auditLogs         AuditLog[]      @relation("AuditActor")
-  questions         QuestionItem[]  @relation("QuestionAuthor")
-  testSessions      TestSession[]
-  certifications    Certification[]
+  assignedProspects  Prospect[]          @relation("ProspectAssignment")
+  assignedClients    Client[]            @relation("ClientAssignment")
+  meetings           MeetingLog[]        @relation("MeetingOwner")
+  auditLogs          AuditLog[]          @relation("AuditActor")
+  questions          QuestionItem[]      @relation("QuestionAuthor")
+  testSessions       TestSession[]
+  certifications     Certification[]
+  chapterCompletions ChapterCompletion[]
 
   @@map("users")
 }
@@ -252,6 +261,82 @@ model PortfolioReview {
   @@map("portfolio_reviews")
 }
 
+/// A learning path, e.g. Operational-Excellence. Modules, chapters and tests
+/// all hang off a track, so a second track is a new row, not a migration.
+model Track {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String   @default("")
+  order       Int      @unique
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  modules        Module[]
+  testSessions   TestSession[]
+  certifications Certification[]
+
+  @@map("tracks")
+}
+
+/// A unit within a track, completed in order and closed by an adaptive test
+/// that awards a badge. Replaces the fixed ModuleCode enum (M1-M5).
+model Module {
+  id          String   @id @default(cuid())
+  trackId     String
+  slug        String
+  title       String
+  description String   @default("")
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  track          Track           @relation(fields: [trackId], references: [id], onDelete: Restrict)
+  chapters       Chapter[]
+  questions      QuestionItem[]
+  testSessions   TestSession[]
+  certifications Certification[]
+
+  @@unique([trackId, order])
+  @@unique([trackId, slug])
+  @@map("modules")
+}
+
+/// One reading unit. `body` is markdown, rendered with raw HTML disabled.
+model Chapter {
+  id          String   @id @default(cuid())
+  moduleId    String
+  slug        String
+  title       String
+  body        String   @default("")
+  order       Int
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  module      Module              @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  completions ChapterCompletion[]
+  questions   QuestionItem[]
+
+  @@unique([moduleId, order])
+  @@unique([moduleId, slug])
+  @@map("chapters")
+}
+
+/// A trainee marked a chapter complete: the tick on the chapter.
+model ChapterCompletion {
+  userId      String
+  chapterId   String
+  completedAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@id([userId, chapterId])
+  @@map("chapter_completions")
+}
+
 model KnowledgeCategory {
   id          String   @id @default(cuid())
   title       String
@@ -290,33 +375,46 @@ model SopEntry {
 }
 
 model QuestionItem {
-  id             String     @id @default(cuid())
-  module         ModuleCode
+  id             String      @id @default(cuid())
+  /// Legacy, replaced by moduleId. Nullable so new code need not write it;
+  /// dropped in the contract release.
+  module         ModuleCode?
+  moduleId       String?
+  chapterId      String?
   content        String
   options        Json
   correctKey     String
   explanation    String
-  difficulty     Float      @default(0)
-  discrimination Float      @default(1)
-  guessing       Float      @default(0.25)
-  linkedSopId    String
+  difficulty     Float       @default(0)
+  discrimination Float       @default(1)
+  guessing       Float       @default(0.25)
+  /// Legacy, replaced by chapterId. Dropped in the contract release.
+  linkedSopId    String?
   createdById    String
-  isActive       Boolean    @default(true)
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
-  linkedSop SopEntry      @relation(fields: [linkedSopId], references: [id])
-  createdBy User          @relation("QuestionAuthor", fields: [createdById], references: [id])
-  responses ResponseLog[]
+  linkedSop      SopEntry?     @relation(fields: [linkedSopId], references: [id], onDelete: Restrict)
+  trainingModule Module?       @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  chapter        Chapter?      @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  createdBy      User          @relation("QuestionAuthor", fields: [createdById], references: [id])
+  responses      ResponseLog[]
 
   @@index([module])
+  @@index([moduleId])
   @@map("question_items")
 }
 
 model TestSession {
   id              String            @id @default(cuid())
   userId          String
-  module          ModuleCode
+  /// Legacy, replaced by moduleId. Nullable so new code need not write it;
+  /// dropped in the contract release.
+  module          ModuleCode?
+  trackId         String?
+  /// Null on a final exam, which covers the whole track.
+  moduleId        String?
   startedAt       DateTime          @default(now())
   /// When the first question was released and the clock started. Null until
   /// the candidate has entered fullscreen: time spent getting there is not
@@ -332,11 +430,14 @@ model TestSession {
   updatedAt       DateTime          @updatedAt
 
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  track           Track?           @relation(fields: [trackId], references: [id], onDelete: Restrict)
+  trainingModule  Module?          @relation(fields: [moduleId], references: [id], onDelete: Restrict)
   responses       ResponseLog[]
   certification   Certification?
   integrityEvents IntegrityEvent[]
 
   @@index([userId, module])
+  @@index([userId, moduleId])
   @@map("test_sessions")
 }
 
@@ -376,20 +477,33 @@ model IntegrityEvent {
   @@map("integrity_events")
 }
 
+/// A module badge (moduleId set) or a track certificate (moduleId null).
 model Certification {
-  id           String              @id @default(cuid())
-  userId       String
-  module       ModuleCode
-  sessionId    String              @unique
-  abilityScore Float
-  level        String
-  issuedAt     DateTime            @default(now())
-  expiresAt    DateTime
-  status       CertificationStatus @default(ACTIVE)
+  id             String              @id @default(cuid())
+  userId         String
+  /// Legacy, replaced by moduleId. Dropped in the contract release.
+  module         ModuleCode?
+  trackId        String?
+  moduleId       String?
+  sessionId      String              @unique
+  abilityScore   Float
+  /// Share of answers correct in the deciding session, 0-100. Each level has
+  /// a floor on it as well as on theta.
+  percentCorrect Float?
+  badgeLevel     BadgeLevel?
+  /// Legacy free-text level, replaced by badgeLevel. Dropped in the contract release.
+  level          String?
+  issuedAt       DateTime            @default(now())
+  /// Legacy. Badges no longer expire. Dropped in the contract release.
+  expiresAt      DateTime?
+  status         CertificationStatus @default(ACTIVE)
 
-  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  session TestSession @relation(fields: [sessionId], references: [id])
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session        TestSession @relation(fields: [sessionId], references: [id])
+  track          Track?      @relation(fields: [trackId], references: [id], onDelete: Restrict)
+  trainingModule Module?     @relation(fields: [moduleId], references: [id], onDelete: Restrict)
 
   @@unique([userId, module, status])
+  @@unique([userId, moduleId, status])
   @@map("certifications")
 }

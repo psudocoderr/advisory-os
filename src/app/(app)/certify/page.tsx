@@ -79,7 +79,8 @@ export default async function CertifyPage() {
                   {cert ? (
                     <span>
                       {" "}
-                      • {cert.level}, expires {dateLabel(cert.expiresAt)}
+                      • {cert.level}
+                      {cert.expiresAt ? `, expires ${dateLabel(cert.expiresAt)}` : ""}
                     </span>
                   ) : (
                     <span> • Not certified</span>

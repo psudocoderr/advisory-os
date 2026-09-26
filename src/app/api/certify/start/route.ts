@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       await finalizeSession({
         sessionId: activeAttempt.id,
         userId: session.user.id,
-        module: activeAttempt.module,
+        module: activeAttempt.module!,
         theta: estimate.theta,
         se: estimate.se,
         answered: responses.length,
