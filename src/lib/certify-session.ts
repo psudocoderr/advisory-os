@@ -1,4 +1,4 @@
-import { certificationLevel, IRT, LEVEL_LABEL } from "@/lib/irt";
+import { badgeLevel as levelFor, IRT, LEVEL_LABEL, outranks } from "@/lib/irt";
 import { chapterHref } from "@/lib/knowledge";
 import { FULLSCREEN_KINDS, isOnExamSurface, type IntegrityKind } from "@/lib/integrity";
 import { prisma } from "@/lib/prisma";
@@ -144,6 +144,7 @@ export async function finalizeSession(params: {
   });
   if (!current) throw new Error("Session not found");
   const label = current.trainingModule?.title ?? current.track?.title ?? "test";
+  const percentCorrect = await sessionPercentCorrect(sessionId);
 
   // Idempotent. A timeout racing a final answer must not certify twice.
   if (current.status !== "IN_PROGRESS") {
@@ -153,14 +154,14 @@ export async function finalizeSession(params: {
       terminated: current.status === "TERMINATED",
       theta: current.abilityEstimate,
       se: current.standardError,
-      level: levelLabel(current.certified ? certificationLevel(current.abilityEstimate) : null),
+      level: levelLabel(current.certified ? levelFor(current.abilityEstimate, percentCorrect) : null),
       reason,
       answered,
       remediation: current.certified ? [] : await weakestChapters(sessionId)
     };
   }
 
-  const badgeLevel = abandoned || terminated ? null : certificationLevel(theta);
+  const badgeLevel = abandoned || terminated ? null : levelFor(theta, percentCorrect);
   const passed = badgeLevel !== null;
   const level = terminated ? "Terminated" : abandoned ? "Not attempted" : levelLabel(badgeLevel);
 
@@ -176,18 +177,18 @@ export async function finalizeSession(params: {
   });
 
   if (passed) {
-    const responses = await prisma.responseLog.findMany({ where: { sessionId }, select: { isCorrect: true } });
-    const percentCorrect = responses.length
-      ? (100 * responses.filter((response) => response.isCorrect).length) / responses.length
-      : 0;
     const data = { sessionId, abilityScore: theta, badgeLevel, percentCorrect, issuedAt: new Date() };
 
     const existing = await prisma.certification.findFirst({
       where: { userId, trackId: current.trackId, moduleId: current.moduleId, status: "ACTIVE" }
     });
 
+    // The best level stands: a retake that scores lower passes, but leaves
+    // the badge already held untouched.
     if (existing) {
-      await prisma.certification.update({ where: { id: existing.id }, data });
+      if (outranks(badgeLevel, existing.badgeLevel)) {
+        await prisma.certification.update({ where: { id: existing.id }, data });
+      }
     } else {
       await prisma.certification.create({
         data: { ...data, userId, trackId: current.trackId, moduleId: current.moduleId }
@@ -205,8 +206,8 @@ export async function finalizeSession(params: {
         ? `TERMINATED ${label} certification after ${answered} question${answered === 1 ? "" : "s"}: repeated integrity violations. Flagged for review.`
         : abandoned
           ? `Abandoned ${label} certification after ${answered} question${answered === 1 ? "" : "s"} (${REASON_NOTE[reason]}); not counted as an attempt`
-          : `${passed ? "Passed" : "Failed"} ${label} certification at theta ${theta.toFixed(2)} ` +
-            `after ${answered} questions (${REASON_NOTE[reason]})`
+          : `${passed ? `Passed (${levelLabel(badgeLevel)})` : "Failed"} ${label} certification at theta ` +
+            `${theta.toFixed(2)}, ${percentCorrect.toFixed(0)}% correct, after ${answered} questions (${REASON_NOTE[reason]})`
     }
   });
 
@@ -223,6 +224,12 @@ export async function finalizeSession(params: {
   };
 }
 
-function levelLabel(level: ReturnType<typeof certificationLevel>) {
+/** Share of a session's answers that were correct, 0-100. */
+export async function sessionPercentCorrect(sessionId: string) {
+  const responses = await prisma.responseLog.findMany({ where: { sessionId }, select: { isCorrect: true } });
+  return responses.length ? (100 * responses.filter((response) => response.isCorrect).length) / responses.length : 0;
+}
+
+function levelLabel(level: ReturnType<typeof levelFor>) {
   return level ? LEVEL_LABEL[level] : "Not certified";
 }
