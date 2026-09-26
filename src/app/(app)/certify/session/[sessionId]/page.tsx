@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
-import { deadlineFor, LEVEL_LABEL, selectNextQuestion } from "@/lib/irt";
-import { questionBank, weakestChapters } from "@/lib/certify-session";
+import { badgeLevel, deadlineFor, LEVEL_LABEL, selectNextQuestion } from "@/lib/irt";
+import { questionBank, sessionPercentCorrect, weakestChapters } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import { TestSessionClient } from "@/components/test-session-client";
@@ -14,8 +14,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
     include: {
       trainingModule: { select: { title: true } },
       track: { select: { title: true } },
-      responses: { select: { questionId: true } },
-      certification: true
+      responses: { select: { questionId: true } }
     }
   });
   if (!session || session.userId !== auth.user.id) notFound();
@@ -23,6 +22,10 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
 
   if (session.status !== "IN_PROGRESS") {
     const remediation = session.certified ? [] : await weakestChapters(session.id);
+    // From the attempt itself, not the badge row: a retake that scores lower
+    // than the badge already held passes without replacing it.
+    const percentCorrect = await sessionPercentCorrect(session.id);
+    const level = badgeLevel(session.abilityEstimate, percentCorrect);
     return (
       <>
         <PageHeader title={`${label}: result`} description="Completed adaptive certification attempt." />
@@ -34,7 +37,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
           </div>
           <p className="mt-4 text-sm leading-6 text-muted">
             {session.certified
-              ? `Badge awarded at ${session.certification?.badgeLevel ? LEVEL_LABEL[session.certification.badgeLevel] : "Satisfactory"} level.`
+              ? `Passed at ${level ? LEVEL_LABEL[level] : "—"} level, ${percentCorrect.toFixed(0)}% correct. The best level you have reached stands.`
               : "No badge this time. Review these chapters before retrying after the cooldown window."}
           </p>
           {!session.certified && remediation.length ? (

@@ -107,12 +107,43 @@ export function shouldStop(answered: number, se: number) {
   return answered >= IRT.maxQuestions || (answered >= IRT.minQuestions && se <= IRT.seStop);
 }
 
-/** The badge a theta earns, or null below the pass mark. */
+/** The level a theta reaches on its own, or null below the pass mark. */
 export function certificationLevel(theta: number): BadgeLevel | null {
   if (theta >= 1.5) return "EXPERT";
   if (theta >= 1.0) return "PROFICIENT";
   if (theta >= IRT.passTheta) return "SATISFACTORY";
   return null;
+}
+
+const LEVELS: BadgeLevel[] = ["SATISFACTORY", "PROFICIENT", "EXPERT"];
+
+/**
+ * Share of answers each level also needs correct, 0-100. The client may tune
+ * these.
+ *
+ * A floor, not a second score. An adaptive test gives each candidate
+ * questions near their own ability, so everyone's percent correct drifts to
+ * roughly the same range and cannot rank people; theta does that. The floor
+ * only stops a lucky theta from carrying a badge alongside a poor hit rate.
+ */
+export const LEVEL_FLOOR: Record<BadgeLevel, number> = { SATISFACTORY: 50, PROFICIENT: 60, EXPERT: 70 };
+
+/**
+ * The badge an attempt earns: the highest level whose theta band and percent
+ * floor are both met, or null for no badge.
+ */
+export function badgeLevel(theta: number, percentCorrect: number): BadgeLevel | null {
+  const band = certificationLevel(theta);
+  if (!band) return null;
+  for (let index = LEVELS.indexOf(band); index >= 0; index -= 1) {
+    if (percentCorrect >= LEVEL_FLOOR[LEVELS[index]]) return LEVELS[index];
+  }
+  return null;
+}
+
+/** Whether `candidate` is a better badge than `held`. The best level stands. */
+export function outranks(candidate: BadgeLevel, held: BadgeLevel | null): boolean {
+  return held === null || LEVELS.indexOf(candidate) > LEVELS.indexOf(held);
 }
 
 export const LEVEL_LABEL: Record<BadgeLevel, string> = {

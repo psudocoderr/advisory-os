@@ -66,22 +66,24 @@ export async function POST(request: Request) {
     }
   }
 
-  // TERMINATED counts toward the cooldown as much as FAILED. Without it,
-  // someone removed for repeated integrity violations could start again
-  // immediately, which is the opposite of the intended consequence.
-  // ABANDONED is excluded on purpose: walking away is not an attempt.
-  const latestFailure = await prisma.testSession.findFirst({
+  // Every finished attempt starts the cooldown. TERMINATED counts as much as
+  // FAILED: someone removed for repeated integrity violations must not start
+  // again immediately. PASSED counts too, since a retake can raise a badge:
+  // without it, a trainee could resit back to back on a small bank until the
+  // questions were memorised. ABANDONED is excluded: walking away is not an
+  // attempt.
+  const latestAttempt = await prisma.testSession.findFirst({
     where: {
       userId: session.user.id,
       moduleId,
-      status: { in: ["FAILED", "TERMINATED"] },
+      status: { in: ["FAILED", "TERMINATED", "PASSED"] },
       completedAt: { not: null }
     },
     orderBy: { completedAt: "desc" }
   });
 
-  if (latestFailure?.completedAt) {
-    const retryAt = new Date(latestFailure.completedAt.getTime() + IRT.cooldownHours * 60 * 60 * 1000);
+  if (latestAttempt?.completedAt) {
+    const retryAt = new Date(latestAttempt.completedAt.getTime() + IRT.cooldownHours * 60 * 60 * 1000);
     if (retryAt > new Date()) {
       return NextResponse.json({ error: `Retry available after ${retryAt.toLocaleString("en-IN")}` }, { status: 429 });
     }

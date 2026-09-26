@@ -4,8 +4,11 @@ import {
   deadlineFor,
   isExpired,
   isSessionExpired,
+  badgeLevel,
   certificationLevel,
   estimateEap,
+  LEVEL_FLOOR,
+  outranks,
   information,
   probability,
   selectNextQuestion,
@@ -181,6 +184,48 @@ describe("certificationLevel", () => {
     // must not. These two constants drift apart easily.
     expect(certificationLevel(IRT.passTheta)).not.toBeNull();
     expect(certificationLevel(IRT.passTheta - 0.0001)).toBeNull();
+  });
+});
+
+describe("badgeLevel", () => {
+  it("awards the theta band when its percent floor is met", () => {
+    expect(badgeLevel(1.6, LEVEL_FLOOR.EXPERT)).toBe("EXPERT");
+    expect(badgeLevel(1.2, LEVEL_FLOOR.PROFICIENT)).toBe("PROFICIENT");
+    expect(badgeLevel(IRT.passTheta, LEVEL_FLOOR.SATISFACTORY)).toBe("SATISFACTORY");
+  });
+
+  it("drops a band when the percent floor is missed", () => {
+    expect(badgeLevel(1.6, LEVEL_FLOOR.EXPERT - 1)).toBe("PROFICIENT");
+    expect(badgeLevel(1.2, LEVEL_FLOOR.PROFICIENT - 1)).toBe("SATISFACTORY");
+  });
+
+  it("keeps dropping until a floor is met, rather than stopping one band down", () => {
+    // Expert theta at 55%: Proficient needs 60 too, so the badge is Satisfactory.
+    expect(badgeLevel(1.6, 55)).toBe("SATISFACTORY");
+  });
+
+  it("awards nothing when even the lowest floor is missed", () => {
+    expect(badgeLevel(1.6, LEVEL_FLOOR.SATISFACTORY - 1)).toBeNull();
+  });
+
+  it("awards nothing below the pass theta, whatever the percent", () => {
+    expect(badgeLevel(IRT.passTheta - 0.01, 100)).toBeNull();
+  });
+
+  it("never awards more than the theta band", () => {
+    expect(badgeLevel(IRT.passTheta, 100)).toBe("SATISFACTORY");
+  });
+});
+
+describe("outranks", () => {
+  it("lets a higher level replace the one held", () => {
+    expect(outranks("EXPERT", "PROFICIENT")).toBe(true);
+    expect(outranks("PROFICIENT", null)).toBe(true);
+  });
+
+  it("keeps the level held against an equal or lower one", () => {
+    expect(outranks("PROFICIENT", "PROFICIENT")).toBe(false);
+    expect(outranks("SATISFACTORY", "EXPERT")).toBe(false);
   });
 });
 
