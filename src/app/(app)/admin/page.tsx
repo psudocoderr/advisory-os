@@ -142,7 +142,15 @@ export default async function AdminPage() {
                   </div>
                 </div>
                 <StatusBadge
-                  tone={attempt.status === "PASSED" ? "teal" : attempt.status === "FAILED" ? "rose" : "navy"}
+                  tone={
+                    attempt.status === "PASSED"
+                      ? "teal"
+                      : attempt.status === "FAILED"
+                        ? "rose"
+                        : attempt.status === "INCONCLUSIVE"
+                          ? "amber"
+                          : "navy"
+                  }
                 >
                   {titleCase(attempt.status)}
                 </StatusBadge>

@@ -141,6 +141,39 @@ export function badgeLevel(theta: number, percentCorrect: number): BadgeLevel | 
   return null;
 }
 
+/**
+ * How far, in standard errors, the estimate must clear a cut-off to count.
+ * 1 is about 84% one-sided confidence.
+ */
+export const CONFIDENCE_Z = 1;
+
+export type Decision = { outcome: "PASS"; level: BadgeLevel } | { outcome: "FAIL" } | { outcome: "INCONCLUSIVE" };
+
+/**
+ * Pass, fail, or too close to call (flags.md D2).
+ *
+ * The test often ends before the estimate is tight: the bank runs out, or the
+ * question cap is reached. Rather than certify on whatever the estimate was,
+ * ask whether it is confidently on one side of the pass mark:
+ * - pass when even the pessimistic end (theta - Z*SE) clears it, at the
+ *   level that pessimistic end reaches, so a shaky result earns the lower
+ *   level;
+ * - fail when even the optimistic end (theta + Z*SE) does not, or when the
+ *   percent-correct floors rule out every level;
+ * - otherwise inconclusive: no badge and no failure on record.
+ *
+ * Requiring SE <= seStop instead was simulated and rejected: with typical
+ * items (discrimination around 1) no candidate reaches it within
+ * maxQuestions, even on a 40-item bank, so no one would ever pass.
+ */
+export function decide(theta: number, se: number, percentCorrect: number): Decision {
+  if (theta + CONFIDENCE_Z * se < IRT.passTheta) return { outcome: "FAIL" };
+  const pessimistic = theta - CONFIDENCE_Z * se;
+  if (pessimistic < IRT.passTheta) return { outcome: "INCONCLUSIVE" };
+  const level = badgeLevel(pessimistic, percentCorrect);
+  return level ? { outcome: "PASS", level } : { outcome: "FAIL" };
+}
+
 /** Whether `candidate` is a better badge than `held`. The best level stands. */
 export function outranks(candidate: BadgeLevel, held: BadgeLevel | null): boolean {
   return held === null || LEVELS.indexOf(candidate) > LEVELS.indexOf(held);

@@ -6,6 +6,8 @@ import {
   isSessionExpired,
   badgeLevel,
   certificationLevel,
+  CONFIDENCE_Z,
+  decide,
   estimateEap,
   LEVEL_FLOOR,
   outranks,
@@ -214,6 +216,43 @@ describe("badgeLevel", () => {
 
   it("never awards more than the theta band", () => {
     expect(badgeLevel(IRT.passTheta, 100)).toBe("SATISFACTORY");
+  });
+});
+
+describe("decide", () => {
+  const pass = IRT.passTheta;
+
+  it("passes when even the pessimistic estimate clears the mark", () => {
+    expect(decide(pass + CONFIDENCE_Z * 0.3 + 0.01, 0.3, 100).outcome).toBe("PASS");
+  });
+
+  it("fails when even the optimistic estimate falls short", () => {
+    expect(decide(pass - CONFIDENCE_Z * 0.3 - 0.01, 0.3, 100).outcome).toBe("FAIL");
+  });
+
+  it("calls it inconclusive when the interval straddles the mark", () => {
+    expect(decide(pass, 0.3, 100).outcome).toBe("INCONCLUSIVE");
+    expect(decide(pass + 0.2, 0.3, 100).outcome).toBe("INCONCLUSIVE");
+    expect(decide(pass - 0.2, 0.3, 100).outcome).toBe("INCONCLUSIVE");
+  });
+
+  it("awards the level the pessimistic estimate reaches, not the point estimate", () => {
+    // theta 1.65 alone is Expert; with SE 0.6 the pessimistic end is 1.05.
+    expect(decide(1.65, 0.6, 100)).toEqual({ outcome: "PASS", level: "PROFICIENT" });
+  });
+
+  it("still applies the percent floors", () => {
+    expect(decide(2.5, 0.2, 65)).toEqual({ outcome: "PASS", level: "PROFICIENT" });
+    expect(decide(2.5, 0.2, 40)).toEqual({ outcome: "FAIL" });
+  });
+
+  it("reproduces flags.md D2: the shaky Expert is no longer certified as Expert", () => {
+    // M1 PASSED  12 answers  theta 1.65  SE 0.58  ->  was certified "Expert"
+    expect(decide(1.65, 0.58, 100)).toEqual({ outcome: "PASS", level: "PROFICIENT" });
+  });
+
+  it("is inconclusive with no evidence at all", () => {
+    expect(decide(0, 99, 0).outcome).toBe("INCONCLUSIVE");
   });
 });
 
