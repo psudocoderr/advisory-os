@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createQuestionItem, createUser, updateUserActive } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { compactInr, dateLabel, titleCase } from "@/lib/format";
@@ -39,6 +40,14 @@ export default async function AdminPage() {
       <PageHeader
         title="Admin"
         description="Team-level controls, badge visibility, audit activity, and item-bank performance."
+        action={
+          <Link
+            href="/admin/knowledge"
+            className="rounded border border-line bg-panel px-3 py-2 text-sm font-semibold text-ink hover:bg-wash"
+          >
+            Knowledge editor
+          </Link>
+        }
       />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Users" value={users.length} detail="Seeded team" />
