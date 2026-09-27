@@ -140,6 +140,7 @@ model User {
   testSessions       TestSession[]
   certifications     Certification[]
   chapterCompletions ChapterCompletion[]
+  uploadedAssets     Asset[]             @relation("AssetUploader")
 
   @@map("users")
 }
@@ -322,10 +323,31 @@ model Chapter {
   module      Module              @relation(fields: [moduleId], references: [id], onDelete: Restrict)
   completions ChapterCompletion[]
   questions   QuestionItem[]
+  assets      Asset[]
 
   @@unique([moduleId, order])
   @@unique([moduleId, slug])
   @@map("chapters")
+}
+
+/// An image or PDF used in a chapter. The file lives in a private
+/// S3-compatible bucket under `key` (chosen by the server) and is served only
+/// through an auth-checked route.
+model Asset {
+  id           String   @id @default(cuid())
+  chapterId    String
+  key          String   @unique
+  filename     String
+  contentType  String
+  size         Int
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  chapter    Chapter @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  uploadedBy User    @relation("AssetUploader", fields: [uploadedById], references: [id])
+
+  @@index([chapterId])
+  @@map("assets")
 }
 
 /// A trainee marked a chapter complete: the tick on the chapter.
