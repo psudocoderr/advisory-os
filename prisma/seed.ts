@@ -605,9 +605,6 @@ async function clear() {
   await prisma.chapter.deleteMany();
   await prisma.module.deleteMany();
   await prisma.track.deleteMany();
-  // Legacy tables, dropped in the contract release.
-  await prisma.sopEntry.deleteMany();
-  await prisma.knowledgeCategory.deleteMany();
   await prisma.portfolioReview.deleteMany();
   await prisma.investmentPlan.deleteMany();
   await prisma.meetingLog.deleteMany();

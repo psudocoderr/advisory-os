@@ -375,6 +375,7 @@ model KnowledgeCategory {
 
   @@unique([order])
   @@map("knowledge_categories")
+  @@ignore
 }
 
 model SopEntry {
@@ -398,13 +399,14 @@ model SopEntry {
 
   @@index([module])
   @@map("sop_entries")
+  @@ignore
 }
 
 model QuestionItem {
   id             String      @id @default(cuid())
   /// Legacy, replaced by moduleId. Nullable so new code need not write it;
   /// dropped in the contract release.
-  module         ModuleCode?
+  module         ModuleCode? @ignore
   moduleId       String?
   chapterId      String?
   content        String
@@ -415,13 +417,13 @@ model QuestionItem {
   discrimination Float       @default(1)
   guessing       Float       @default(0.25)
   /// Legacy, replaced by chapterId. Dropped in the contract release.
-  linkedSopId    String?
+  linkedSopId    String?     @ignore
   createdById    String
   isActive       Boolean     @default(true)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  linkedSop      SopEntry?     @relation(fields: [linkedSopId], references: [id], onDelete: Restrict)
+  linkedSop      SopEntry?     @relation(fields: [linkedSopId], references: [id], onDelete: Restrict) @ignore
   trainingModule Module?       @relation(fields: [moduleId], references: [id], onDelete: Restrict)
   chapter        Chapter?      @relation(fields: [chapterId], references: [id], onDelete: Restrict)
   createdBy      User          @relation("QuestionAuthor", fields: [createdById], references: [id])
@@ -437,7 +439,7 @@ model TestSession {
   userId          String
   /// Legacy, replaced by moduleId. Nullable so new code need not write it;
   /// dropped in the contract release.
-  module          ModuleCode?
+  module          ModuleCode?       @ignore
   trackId         String?
   /// Null on a final exam, which covers the whole track.
   moduleId        String?
@@ -508,7 +510,7 @@ model Certification {
   id             String              @id @default(cuid())
   userId         String
   /// Legacy, replaced by moduleId. Dropped in the contract release.
-  module         ModuleCode?
+  module         ModuleCode?         @ignore
   trackId        String?
   moduleId       String?
   sessionId      String              @unique
@@ -518,10 +520,10 @@ model Certification {
   percentCorrect Float?
   badgeLevel     BadgeLevel?
   /// Legacy free-text level, replaced by badgeLevel. Dropped in the contract release.
-  level          String?
+  level          String?             @ignore
   issuedAt       DateTime            @default(now())
   /// Legacy. Badges no longer expire. Dropped in the contract release.
-  expiresAt      DateTime?
+  expiresAt      DateTime?           @ignore
   status         CertificationStatus @default(ACTIVE)
 
   user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
