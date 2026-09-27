@@ -30,7 +30,7 @@
     "db:validate": "node scripts/with-env.mjs prisma validate"
   },
   "engines": {
-    "node": ">=22.0.0 <23",
+    "node": ">=24.0.0 <25",
     "npm": ">=10"
   },
   "dependencies": {
@@ -50,7 +50,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^22.20.4",
+    "@types/node": "^24.19.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^2.1.9",
@@ -68,5 +68,12 @@
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
+  },
+  "allowScripts": {
+    "esbuild": false,
+    "prisma": false,
+    "unrs-resolver": false,
+    "@prisma/client": false,
+    "@prisma/engines": false
   }
 }
