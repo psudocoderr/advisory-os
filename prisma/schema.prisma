@@ -531,5 +531,10 @@ model Certification {
 
   @@unique([userId, module, status])
   @@unique([userId, moduleId, status])
+  /// Also, in SQL only (Prisma cannot express a partial index):
+  /// certifications_track_certificate_key, unique (userId, trackId) WHERE
+  /// moduleId IS NULL AND status = 'ACTIVE'. The unique above does not cover
+  /// track certificates, because Postgres treats NULL moduleIds as distinct.
+  /// See migration 20260928120000_track_certificate_unique.
   @@map("certifications")
 }
