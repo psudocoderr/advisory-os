@@ -1,8 +1,13 @@
-name: Migrate production database
+name: Migrate databases (preview, then production)
 
 # Migrations are deliberately NOT part of the Vercel deploy. They run here,
 # gated behind a GitHub environment with required reviewers, so that applying a
 # schema change to a database holding real client data is an explicit act.
+#
+# The preview database (the Supabase project behind Vercel preview
+# deployments; fixtures only) is migrated first and without approval, so
+# previews keep working and the reviewer approves production only after the
+# same migrations have applied cleanly to a real Supabase database.
 #
 # See docs/engineering/runbook.md for the expand/migrate/contract policy that
 # makes it safe for this to run alongside a code deploy.
@@ -22,7 +27,61 @@ permissions:
   contents: read
 
 jobs:
+  preview:
+    name: prisma migrate deploy (preview)
+    runs-on: ubuntu-latest
+    # Holds PREVIEW_DIRECT_URL (secret) and PREVIEW_PROJECT_REF (variable).
+    # Restrict its deployment branches to main so no other branch can read it.
+    environment: preview-database
+    env:
+      DATABASE_URL: ${{ secrets.PREVIEW_DIRECT_URL }}
+      DIRECT_URL: ${{ secrets.PREVIEW_DIRECT_URL }}
+      PREVIEW_PROJECT_REF: ${{ vars.PREVIEW_PROJECT_REF }}
+    steps:
+      # Not configured yet: skip rather than block production migrations.
+      - name: Check configuration
+        id: config
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$PREVIEW_PROJECT_REF" ]; then
+            echo "::notice::Preview database not configured (PREVIEW_DIRECT_URL / PREVIEW_PROJECT_REF); skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # This job has no reviewers, so it must never reach production: refuse
+      # unless the URL's Supabase project is exactly the preview project.
+      - name: Refuse anything but the preview project
+        if: steps.config.outputs.skip != 'true'
+        run: |
+          node -e '
+            const u = new URL(process.env.DATABASE_URL);
+            const m = decodeURIComponent(u.username).match(/^postgres\.([a-z0-9]+)$/) || u.hostname.match(/^db\.([a-z0-9]+)\.supabase\.co$/);
+            if (!m || m[1] !== process.env.PREVIEW_PROJECT_REF) {
+              console.error("REFUSING: PREVIEW_DIRECT_URL is not the preview project (" + (m ? m[1].slice(0, 4) + "..." : "no project ref") + ")");
+              process.exit(1);
+            }
+            console.log("Target: preview project " + m[1].slice(0, 4) + "...");
+          '
+
+      - uses: actions/checkout@v7
+        if: steps.config.outputs.skip != 'true'
+      - uses: actions/setup-node@v7
+        if: steps.config.outputs.skip != 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+        if: steps.config.outputs.skip != 'true'
+      - name: Show pending migrations
+        if: steps.config.outputs.skip != 'true'
+        run: npx prisma migrate status || true
+      - name: Apply migrations
+        if: steps.config.outputs.skip != 'true'
+        run: npx prisma migrate deploy
+
   deploy-migrations:
+    # Production waits for preview: approve only after the same migrations
+    # applied cleanly there.
+    needs: preview
     name: prisma migrate deploy
     runs-on: ubuntu-latest
     environment: production
