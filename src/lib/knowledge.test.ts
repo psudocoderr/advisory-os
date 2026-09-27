@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 
-const { trackProgress } = await import("./knowledge");
+const { finalExamUnlocked, trackProgress } = await import("./knowledge");
 
 /**
  * The strict-sequence rule. Every lock in the knowledge section and the gate
@@ -61,5 +61,20 @@ describe("trackProgress", () => {
     const result = trackProgress(modules, new Set(), new Set(), true);
     expect(states(result)).toEqual([["open", "open"], ["open"]]);
     expect(result.every((m) => m.testUnlocked)).toBe(true);
+  });
+});
+
+describe("finalExamUnlocked", () => {
+  it("opens only once every module is badged", () => {
+    expect(finalExamUnlocked(trackProgress(modules, new Set(), new Set(["m1"])))).toBe(false);
+    expect(finalExamUnlocked(trackProgress(modules, new Set(), new Set(["m1", "m2"])))).toBe(true);
+  });
+
+  it("stays shut on a track with no modules, even for an admin", () => {
+    expect(finalExamUnlocked([], true)).toBe(false);
+  });
+
+  it("is open to admins, who preview everything", () => {
+    expect(finalExamUnlocked(trackProgress(modules, new Set(), new Set(), true), true)).toBe(true);
   });
 });

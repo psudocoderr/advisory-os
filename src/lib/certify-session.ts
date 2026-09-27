@@ -1,4 +1,4 @@
-import { decide, IRT, LEVEL_LABEL, outranks, type Decision } from "@/lib/irt";
+import { decide, LEVEL_LABEL, outranks, rulesFor, type Decision } from "@/lib/irt";
 import { chapterHref } from "@/lib/knowledge";
 import { FULLSCREEN_KINDS, isOnExamSurface, type IntegrityKind } from "@/lib/integrity";
 import { prisma } from "@/lib/prisma";
@@ -123,17 +123,6 @@ export async function finalizeSession(params: {
   const { sessionId, userId, theta, se, answered, reason } = params;
 
   /**
-   * Running out of time after one question is abandonment, not failure.
-   *
-   * Treating it as FAILED trips the 24-hour retry cooldown in the start
-   * route, which meant walking away from a test locked you out of the module
-   * for a day. ABANDONED already existed in TestSessionStatus and was unused;
-   * the cooldown query only matches FAILED, so this is excluded from it
-   * automatically.
-   */
-  const abandoned = reason === "TIMED_OUT" && answered < IRT.minQuestions;
-
-  /**
    * A terminated attempt never certifies, whatever the estimate says. Someone
    * removed for repeated violations has not demonstrated anything, and the
    * ability estimate at that point is not evidence of competence.
@@ -145,7 +134,19 @@ export async function finalizeSession(params: {
     include: { trainingModule: { select: { title: true } }, track: { select: { title: true } } }
   });
   if (!current) throw new Error("Session not found");
-  const label = current.trainingModule?.title ?? current.track?.title ?? "test";
+
+  /**
+   * Running out of time after one question is abandonment, not failure.
+   *
+   * Treating it as FAILED trips the 24-hour retry cooldown in the start
+   * route, which meant walking away from a test locked you out of the module
+   * for a day. ABANDONED already existed in TestSessionStatus and was unused;
+   * the cooldown query only matches FAILED, so this is excluded from it
+   * automatically.
+   */
+  const abandoned = reason === "TIMED_OUT" && answered < rulesFor(current).minQuestions;
+
+  const label = current.trainingModule?.title ?? `${current.track?.title ?? "track"} final exam`;
   const percentCorrect = await sessionPercentCorrect(sessionId);
 
   // Idempotent. A timeout racing a final answer must not certify twice.

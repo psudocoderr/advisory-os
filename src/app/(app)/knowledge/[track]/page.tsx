@@ -12,7 +12,7 @@ export default async function TrackPage({ params }: { params: Promise<{ track: s
   const { track: slug } = await params;
   const standing = await loadTrackProgress({ slug }, session.user);
   if (!standing) notFound();
-  const { track, progress, badgeLevels } = standing;
+  const { track, progress, badgeLevels, finalUnlocked, certificateLevel } = standing;
 
   const chaptersTotal = progress.reduce((sum, module) => sum + module.chapters.length, 0);
   const chaptersDone = progress.reduce((sum, module) => sum + module.chaptersDone, 0);
@@ -22,7 +22,7 @@ export default async function TrackPage({ params }: { params: Promise<{ track: s
     <>
       <PageHeader
         title={track.title}
-        description={`${chaptersDone} of ${chaptersTotal} chapters · ${badges} of ${track.modules.length} badges`}
+        description={`${chaptersDone} of ${chaptersTotal} chapters · ${badges} of ${track.modules.length} badges${certificateLevel ? " · certified" : ""}`}
       />
 
       <div className="space-y-4">
@@ -96,6 +96,27 @@ export default async function TrackPage({ params }: { params: Promise<{ track: s
             </Card>
           );
         })}
+        <Card className={finalUnlocked ? "p-5" : "p-5 opacity-70"}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded bg-navy text-white">
+                <Award size={16} />
+              </span>
+              <h2 className="font-bold text-ink">Final exam</h2>
+              {certificateLevel ? <StatusBadge tone="teal">{LEVEL_LABEL[certificateLevel]}</StatusBadge> : null}
+            </div>
+            {finalUnlocked ? (
+              <Link href={`/certify/final/${track.id}`} className="text-sm font-semibold text-teal hover:underline">
+                {certificateLevel ? "Retake" : "Take the final exam"}
+              </Link>
+            ) : (
+              <span className="flex items-center gap-1.5 text-sm text-muted">
+                <Lock size={14} aria-label="Locked" />
+                Earn every module badge
+              </span>
+            )}
+          </div>
+        </Card>
       </div>
     </>
   );

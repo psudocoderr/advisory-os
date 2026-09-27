@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
-import { deadlineFor, estimateEap, isExpired, selectNextQuestion } from "@/lib/irt";
+import { deadlineFor, estimateEap, isExpired, rulesFor, selectNextQuestion } from "@/lib/irt";
 import { finalizeSession, type FinishReason, questionBank } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
 
@@ -48,7 +48,8 @@ export async function POST(request: Request) {
       const next = selectNextQuestion(
         testSession.abilityEstimate,
         bank,
-        testSession.responses.map((response) => response.questionId)
+        testSession.responses.map((response) => response.questionId),
+        !testSession.moduleId
       );
       if (next) return NextResponse.json({ error: "There are questions left in this test." }, { status: 409 });
     }
@@ -58,8 +59,9 @@ export async function POST(request: Request) {
       // the deadline itself. A browser whose clock runs ahead is told how
       // long is really left and asks again then.
       const started = testSession.timerStartedAt;
-      if (!started || !isExpired(started, new Date(), 0)) {
-        const remainingMs = started ? Math.max(0, deadlineFor(started).getTime() - Date.now()) : null;
+      const rules = rulesFor(testSession);
+      if (!started || !isExpired(started, new Date(), 0, rules)) {
+        const remainingMs = started ? Math.max(0, deadlineFor(started, rules).getTime() - Date.now()) : null;
         return NextResponse.json({ error: "Time has not run out yet.", remainingMs }, { status: 409 });
       }
     }

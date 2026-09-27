@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import { IRT } from "@/lib/irt";
 import { STRIKE_LIMIT, type IntegrityKind } from "@/lib/integrity";
 
 /**
@@ -22,6 +21,7 @@ import { STRIKE_LIMIT, type IntegrityKind } from "@/lib/integrity";
 export function useExamShell({
   sessionId,
   deadlineMs,
+  timeLimitMinutes,
   active,
   onExpire,
   onTerminate,
@@ -31,6 +31,7 @@ export function useExamShell({
   sessionId: string;
   /** Null until the first question is released and the clock starts. */
   deadlineMs: number | null;
+  timeLimitMinutes: number;
   active: boolean;
   onExpire: () => void;
   /**
@@ -50,7 +51,7 @@ export function useExamShell({
    */
   targetRef: RefObject<HTMLElement | null>;
 }) {
-  const fullLimitMs = IRT.timeLimitMinutes * 60 * 1000;
+  const fullLimitMs = timeLimitMinutes * 60 * 1000;
   const [remainingMs, setRemainingMs] = useState(() =>
     deadlineMs === null ? fullLimitMs : Math.max(0, deadlineMs - Date.now())
   );

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
-import { decide, deadlineFor, LEVEL_LABEL, selectNextQuestion } from "@/lib/irt";
+import { decide, deadlineFor, LEVEL_LABEL, rulesFor, selectNextQuestion } from "@/lib/irt";
 import { questionBank, sessionPercentCorrect, weakestChapters } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
@@ -18,7 +18,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
     }
   });
   if (!session || session.userId !== auth.user.id) notFound();
-  const label = session.trainingModule?.title ?? session.track?.title ?? "Test";
+  const label = session.trainingModule?.title ?? `${session.track?.title ?? "Track"} final exam`;
 
   if (session.status !== "IN_PROGRESS") {
     const remediation = session.certified ? [] : await weakestChapters(session.id);
@@ -67,8 +67,10 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
   const next = selectNextQuestion(
     session.abilityEstimate,
     bank,
-    session.responses.map((response) => response.questionId)
+    session.responses.map((response) => response.questionId),
+    !session.moduleId
   );
+  const rules = rulesFor(session);
   // An exhausted bank is a finished test, not a missing page. Returning 404
   // here is what made the old exhaustion bug unrecoverable: the start route
   // resumes an IN_PROGRESS session, and this page then refused to render it.
@@ -76,7 +78,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
   if (!next) {
     return (
       <>
-        <PageHeader title={`${label}: test`} description="Every available question in this module has been answered." />
+        <PageHeader title={`${label}: test`} description="Every available question in this test has been answered." />
         <TestSessionClient
           sessionId={session.id}
           module={label}
@@ -86,6 +88,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
             se: session.standardError
           }}
           deadlineMs={null}
+          timeLimitMinutes={rules.timeLimitMinutes}
           autoFinish="BANK_EXHAUSTED"
         />
       </>
@@ -108,7 +111,8 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
           theta: session.abilityEstimate,
           se: session.standardError
         }}
-        deadlineMs={session.timerStartedAt ? deadlineFor(session.timerStartedAt).getTime() : null}
+        deadlineMs={session.timerStartedAt ? deadlineFor(session.timerStartedAt, rules).getTime() : null}
+        timeLimitMinutes={rules.timeLimitMinutes}
       />
     </>
   );
