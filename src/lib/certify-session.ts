@@ -147,23 +147,27 @@ export async function finalizeSession(params: {
   const label = current.module?.title ?? `${current.track.title} final exam`;
   const percentCorrect = await sessionPercentCorrect(sessionId);
 
+  /** What an already-finished session recorded, reported instead of finishing it again. */
+  const storedResult = async (stored: {
+    status: string;
+    certified: boolean;
+    abilityEstimate: number;
+    standardError: number;
+  }): Promise<SessionResult> => ({
+    passed: stored.certified,
+    abandoned: stored.status === "ABANDONED",
+    terminated: stored.status === "TERMINATED",
+    inconclusive: stored.status === "INCONCLUSIVE",
+    theta: stored.abilityEstimate,
+    se: stored.standardError,
+    level: levelLabel(stored.certified ? decide(stored.abilityEstimate, stored.standardError, percentCorrect) : null),
+    reason,
+    answered,
+    remediation: stored.certified ? [] : await weakestChapters(sessionId)
+  });
+
   // Idempotent. A timeout racing a final answer must not certify twice.
-  if (current.status !== "IN_PROGRESS") {
-    return {
-      passed: current.certified,
-      abandoned: current.status === "ABANDONED",
-      terminated: current.status === "TERMINATED",
-      inconclusive: current.status === "INCONCLUSIVE",
-      theta: current.abilityEstimate,
-      se: current.standardError,
-      level: levelLabel(
-        current.certified ? decide(current.abilityEstimate, current.standardError, percentCorrect) : null
-      ),
-      reason,
-      answered,
-      remediation: current.certified ? [] : await weakestChapters(sessionId)
-    };
-  }
+  if (current.status !== "IN_PROGRESS") return storedResult(current);
 
   const decision = abandoned || terminated ? null : decide(theta, se, percentCorrect);
   const badgeLevel = decision?.outcome === "PASS" ? decision.level : null;
@@ -171,8 +175,12 @@ export async function finalizeSession(params: {
   const inconclusive = decision?.outcome === "INCONCLUSIVE";
   const level = terminated ? "Terminated" : abandoned ? "Not attempted" : levelLabel(decision);
 
-  await prisma.testSession.update({
-    where: { id: sessionId },
+  // Conditional on the session still being open. Two requests can both pass
+  // the check above (an answer that ends the test and a fourth integrity
+  // strike, say); only one of them may close it. The other issues no badge
+  // and writes no audit entry: it reports what the winner recorded.
+  const { count } = await prisma.testSession.updateMany({
+    where: { id: sessionId, status: "IN_PROGRESS" },
     data: {
       abilityEstimate: theta,
       standardError: se,
@@ -189,6 +197,7 @@ export async function finalizeSession(params: {
       completedAt: new Date()
     }
   });
+  if (count === 0) return storedResult(await prisma.testSession.findUniqueOrThrow({ where: { id: sessionId } }));
 
   if (badgeLevel) {
     const data = { sessionId, abilityScore: theta, badgeLevel, percentCorrect, issuedAt: new Date() };
