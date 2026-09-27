@@ -74,14 +74,6 @@ enum PlanStatus {
   CLOSED
 }
 
-enum ModuleCode {
-  M1
-  M2
-  M3
-  M4
-  M5
-}
-
 enum TestSessionStatus {
   IN_PROGRESS
   PASSED
@@ -286,7 +278,7 @@ model Track {
 }
 
 /// A unit within a track, completed in order and closed by an adaptive test
-/// that awards a badge. Replaces the fixed ModuleCode enum (M1-M5).
+/// that awards a badge. Replaced the fixed M1-M5 enum (dropped in the contract release).
 model Module {
   id          String   @id @default(cuid())
   trackId     String
@@ -363,73 +355,27 @@ model ChapterCompletion {
   @@map("chapter_completions")
 }
 
-model KnowledgeCategory {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  order       Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  entries SopEntry[]
-
-  @@unique([order])
-  @@map("knowledge_categories")
-  @@ignore
-}
-
-model SopEntry {
-  id           String      @id @default(cuid())
-  categoryId   String
-  module       ModuleCode?
-  title        String
-  slug         String      @unique
-  what         String
-  when         String
-  steps        Json
-  outcomes     Json
-  commonErrors Json
-  references   Json
-  isPublished  Boolean     @default(true)
-  updatedAt    DateTime    @updatedAt
-  createdAt    DateTime    @default(now())
-
-  category  KnowledgeCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  questions QuestionItem[]
-
-  @@index([module])
-  @@map("sop_entries")
-  @@ignore
-}
-
 model QuestionItem {
-  id             String      @id @default(cuid())
-  /// Legacy, replaced by moduleId. Nullable so new code need not write it;
-  /// dropped in the contract release.
-  module         ModuleCode? @ignore
-  moduleId       String?
-  chapterId      String?
+  id             String   @id @default(cuid())
+  moduleId       String
+  chapterId      String
   content        String
   options        Json
   correctKey     String
   explanation    String
-  difficulty     Float       @default(0)
-  discrimination Float       @default(1)
-  guessing       Float       @default(0.25)
-  /// Legacy, replaced by chapterId. Dropped in the contract release.
-  linkedSopId    String?     @ignore
+  difficulty     Float    @default(0)
+  discrimination Float    @default(1)
+  guessing       Float    @default(0.25)
   createdById    String
-  isActive       Boolean     @default(true)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  linkedSop      SopEntry?     @relation(fields: [linkedSopId], references: [id], onDelete: Restrict) @ignore
-  trainingModule Module?       @relation(fields: [moduleId], references: [id], onDelete: Restrict)
-  chapter        Chapter?      @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  trainingModule Module        @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  chapter        Chapter       @relation(fields: [chapterId], references: [id], onDelete: Restrict)
   createdBy      User          @relation("QuestionAuthor", fields: [createdById], references: [id])
   responses      ResponseLog[]
 
-  @@index([module])
   @@index([moduleId])
   @@map("question_items")
 }
@@ -437,10 +383,7 @@ model QuestionItem {
 model TestSession {
   id              String            @id @default(cuid())
   userId          String
-  /// Legacy, replaced by moduleId. Nullable so new code need not write it;
-  /// dropped in the contract release.
-  module          ModuleCode?       @ignore
-  trackId         String?
+  trackId         String
   /// Null on a final exam, which covers the whole track.
   moduleId        String?
   startedAt       DateTime          @default(now())
@@ -458,13 +401,12 @@ model TestSession {
   updatedAt       DateTime          @updatedAt
 
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  track           Track?           @relation(fields: [trackId], references: [id], onDelete: Restrict)
+  track           Track            @relation(fields: [trackId], references: [id], onDelete: Restrict)
   trainingModule  Module?          @relation(fields: [moduleId], references: [id], onDelete: Restrict)
   responses       ResponseLog[]
   certification   Certification?
   integrityEvents IntegrityEvent[]
 
-  @@index([userId, module])
   @@index([userId, moduleId])
   @@map("test_sessions")
 }
@@ -509,9 +451,7 @@ model IntegrityEvent {
 model Certification {
   id             String              @id @default(cuid())
   userId         String
-  /// Legacy, replaced by moduleId. Dropped in the contract release.
-  module         ModuleCode?         @ignore
-  trackId        String?
+  trackId        String
   moduleId       String?
   sessionId      String              @unique
   abilityScore   Float
@@ -519,19 +459,14 @@ model Certification {
   /// a floor on it as well as on theta.
   percentCorrect Float?
   badgeLevel     BadgeLevel?
-  /// Legacy free-text level, replaced by badgeLevel. Dropped in the contract release.
-  level          String?             @ignore
   issuedAt       DateTime            @default(now())
-  /// Legacy. Badges no longer expire. Dropped in the contract release.
-  expiresAt      DateTime?           @ignore
   status         CertificationStatus @default(ACTIVE)
 
   user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   session        TestSession @relation(fields: [sessionId], references: [id])
-  track          Track?      @relation(fields: [trackId], references: [id], onDelete: Restrict)
+  track          Track       @relation(fields: [trackId], references: [id], onDelete: Restrict)
   trainingModule Module?     @relation(fields: [moduleId], references: [id], onDelete: Restrict)
 
-  @@unique([userId, module, status])
   @@unique([userId, moduleId, status])
   /// Also, in SQL only (Prisma cannot express a partial index):
   /// certifications_track_certificate_key, unique (userId, trackId) WHERE
