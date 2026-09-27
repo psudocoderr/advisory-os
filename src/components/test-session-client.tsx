@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Card, StatusBadge } from "@/components/ui";
+import { Card, HowThisWorks, StatusBadge } from "@/components/ui";
 import { formatRemaining, useExamShell } from "@/components/exam-shell";
 
 type Question = {
@@ -259,6 +259,9 @@ export function TestSessionClient({
                 ? "Too close to call: no badge, and nothing on your record. Review these chapters and retake whenever you are ready."
                 : "Review these chapters before retrying after the cooldown window."}
         </p>
+        <div className="mt-2">
+          <HowThisWorks section="levels" />
+        </div>
         {!result.passed && result.remediation.length ? (
           <div className="mt-4 grid gap-2">
             {result.remediation.map((item) => (

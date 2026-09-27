@@ -21,6 +21,15 @@ export function PageHeader({
   );
 }
 
+/** A small link to a section of the trainee guide (/guide). */
+export function HowThisWorks({ section }: { section: string }) {
+  return (
+    <a href={`/guide#${section}`} className="text-xs font-semibold text-muted underline hover:text-teal">
+      How this works
+    </a>
+  );
+}
+
 export function Card({ children, className }: { children: React.ReactNode; className?: string }) {
   return <div className={clsx("rounded border border-line bg-panel shadow-soft", className)}>{children}</div>;
 }

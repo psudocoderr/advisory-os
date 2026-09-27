@@ -4,7 +4,7 @@ import { Award, Lock } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { LEVEL_LABEL } from "@/lib/irt";
 import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
-import { Card, PageHeader, StatusBadge } from "@/components/ui";
+import { Card, HowThisWorks, PageHeader, StatusBadge } from "@/components/ui";
 import { ChapterStateIcon } from "@/components/knowledge";
 
 export default async function TrackPage({ params }: { params: Promise<{ track: string }> }) {
@@ -23,6 +23,7 @@ export default async function TrackPage({ params }: { params: Promise<{ track: s
       <PageHeader
         title={track.title}
         description={`${chaptersDone} of ${chaptersTotal} chapters · ${badges} of ${track.modules.length} badges${certificateLevel ? " · certified" : ""}`}
+        action={<HowThisWorks section="track" />}
       />
 
       <div className="space-y-4">
