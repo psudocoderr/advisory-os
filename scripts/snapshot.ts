@@ -55,7 +55,7 @@ async function main() {
   const sessions = await prisma.testSession.findMany({
     orderBy: { startedAt: "desc" },
     select: {
-      trainingModule: { select: { slug: true } },
+      module: { select: { slug: true } },
       status: true,
       attemptNumber: true,
       abilityEstimate: true,
@@ -70,7 +70,7 @@ async function main() {
 
   const certifications = await prisma.certification.findMany({
     select: {
-      trainingModule: { select: { slug: true } },
+      module: { select: { slug: true } },
       badgeLevel: true,
       percentCorrect: true,
       status: true,
@@ -128,7 +128,7 @@ async function main() {
       "|---|---|---|---|---|---|---|---|---|---|",
       ...sessions.map(
         (s) =>
-          `| ${s.trainingModule?.slug ?? "final"} | ${s.user.email} | ${s.status} | ${s.attemptNumber} | ${s._count.responses} | ` +
+          `| ${s.module?.slug ?? "final"} | ${s.user.email} | ${s.status} | ${s.attemptNumber} | ${s._count.responses} | ` +
           `${s.abilityEstimate.toFixed(2)} | ${s.standardError === 99 ? "—" : s.standardError.toFixed(2)} | ` +
           `${s._count.integrityEvents} | ${s.startedAt.toISOString().slice(0, 16)} | ` +
           `${s.completedAt ? s.completedAt.toISOString().slice(0, 16) : "—"} |`
@@ -145,7 +145,7 @@ async function main() {
       "|---|---|---|---|---|---|",
       ...certifications.map(
         (c) =>
-          `| ${c.trainingModule?.slug ?? "final"} | ${c.badgeLevel ?? "—"} | ${c.status} | ${c.abilityScore.toFixed(2)} | ` +
+          `| ${c.module?.slug ?? "final"} | ${c.badgeLevel ?? "—"} | ${c.status} | ${c.abilityScore.toFixed(2)} | ` +
           `${c.percentCorrect === null ? "—" : c.percentCorrect.toFixed(0)} | ${c.issuedAt.toISOString().slice(0, 10)} |`
       )
     );

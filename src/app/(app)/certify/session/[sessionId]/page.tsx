@@ -12,13 +12,13 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
   const session = await prisma.testSession.findUnique({
     where: { id: sessionId },
     include: {
-      trainingModule: { select: { title: true } },
+      module: { select: { title: true } },
       track: { select: { title: true } },
       responses: { select: { questionId: true } }
     }
   });
   if (!session || session.userId !== auth.user.id) notFound();
-  const label = session.trainingModule?.title ?? `${session.track?.title ?? "Track"} final exam`;
+  const label = session.module?.title ?? `${session.track.title} final exam`;
 
   if (session.status !== "IN_PROGRESS") {
     const remediation = session.certified ? [] : await weakestChapters(session.id);

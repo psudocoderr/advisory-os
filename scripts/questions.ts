@@ -100,11 +100,11 @@ async function loadModules() {
 async function loadFromDatabase(): Promise<(QuestionDraft & { moduleId: string })[]> {
   const rows = await prisma.questionItem.findMany({
     where: { isActive: true },
-    include: { trainingModule: { select: { slug: true } }, chapter: { select: { slug: true } } }
+    include: { module: { select: { slug: true } }, chapter: { select: { slug: true } } }
   });
   return rows.map((r) => ({
     moduleId: r.moduleId,
-    module: r.trainingModule.slug,
+    module: r.module.slug,
     chapterSlug: r.chapter.slug,
     content: r.content,
     options: r.options as { key: string; text: string }[],

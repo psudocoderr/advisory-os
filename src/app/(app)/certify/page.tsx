@@ -15,7 +15,7 @@ export default async function CertifyPage() {
     prisma.certification.findMany({
       where: { status: "ACTIVE", ...(session.user.role === "ADMIN" ? {} : { userId: session.user.id }) },
       orderBy: { issuedAt: "desc" },
-      include: { user: true, trainingModule: true, track: true }
+      include: { user: true, module: true, track: true }
     }),
     prisma.questionItem.groupBy({ by: ["moduleId"], where: { isActive: true }, _count: true })
   ]);
@@ -110,7 +110,7 @@ export default async function CertifyPage() {
               <div key={cert.id} className="rounded border border-line bg-wash p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-semibold text-ink">
-                    {cert.trainingModule?.title ?? `${cert.track?.title ?? "Track"} certificate`}
+                    {cert.module?.title ?? `${cert.track.title} certificate`}
                   </span>
                   {cert.badgeLevel ? <StatusBadge tone="teal">{LEVEL_LABEL[cert.badgeLevel]}</StatusBadge> : null}
                 </div>

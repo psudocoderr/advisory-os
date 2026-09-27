@@ -15,7 +15,7 @@ export default async function FinalExamPage({ params }: { params: Promise<{ trac
   const { track, progress, badgeLevels, finalUnlocked, certificateLevel } = standing;
 
   const questionCount = await prisma.questionItem.count({
-    where: { isActive: true, trainingModule: { trackId: track.id } }
+    where: { isActive: true, module: { trackId: track.id } }
   });
   const blocked = !finalUnlocked
     ? "Earn every module badge to unlock"

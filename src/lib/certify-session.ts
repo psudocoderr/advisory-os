@@ -68,13 +68,10 @@ export async function candidateOnExamSurface(sessionId: string): Promise<boolean
  * The active questions a session draws from: its module's, or on a final
  * exam (no module) every module's in the track.
  */
-export function questionBank(session: { trackId: string | null; moduleId: string | null }) {
+export function questionBank(session: { trackId: string; moduleId: string | null }) {
   if (session.moduleId) return prisma.questionItem.findMany({ where: { moduleId: session.moduleId, isActive: true } });
-  // Never fall through to an unfiltered query: that is every question in
-  // every track.
-  if (!session.trackId) throw new Error("Test session has neither a module nor a track");
   return prisma.questionItem.findMany({
-    where: { trainingModule: { trackId: session.trackId }, isActive: true }
+    where: { module: { trackId: session.trackId }, isActive: true }
   });
 }
 
@@ -132,7 +129,7 @@ export async function finalizeSession(params: {
 
   const current = await prisma.testSession.findUnique({
     where: { id: sessionId },
-    include: { trainingModule: { select: { title: true } }, track: { select: { title: true } } }
+    include: { module: { select: { title: true } }, track: { select: { title: true } } }
   });
   if (!current) throw new Error("Session not found");
 
@@ -147,7 +144,7 @@ export async function finalizeSession(params: {
    */
   const abandoned = reason === "TIMED_OUT" && answered < rulesFor(current).minQuestions;
 
-  const label = current.trainingModule?.title ?? `${current.track?.title ?? "track"} final exam`;
+  const label = current.module?.title ?? `${current.track.title} final exam`;
   const percentCorrect = await sessionPercentCorrect(sessionId);
 
   // Idempotent. A timeout racing a final answer must not certify twice.
