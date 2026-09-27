@@ -5,7 +5,7 @@ import { IRT } from "@/lib/irt";
 import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
 import { prisma } from "@/lib/prisma";
 import { MINIMUM_BANK_SIZE } from "@/lib/question-bank";
-import { Card, PageHeader, StatusBadge } from "@/components/ui";
+import { Card, HowThisWorks, PageHeader, StatusBadge } from "@/components/ui";
 import { ChapterStateIcon } from "@/components/knowledge";
 import { StartTestButton } from "@/components/start-test-button";
 
@@ -32,7 +32,11 @@ export default async function ModuleTestPage({ params }: { params: Promise<{ mod
 
   return (
     <>
-      <PageHeader title={`${trainingModule.title}: module test`} description="An adaptive test. It awards a badge." />
+      <PageHeader
+        title={`${trainingModule.title}: module test`}
+        description="An adaptive test. It awards a badge."
+        action={<HowThisWorks section="tests" />}
+      />
       <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
         <Card className="p-5">
           <div className="grid gap-3 sm:grid-cols-3">

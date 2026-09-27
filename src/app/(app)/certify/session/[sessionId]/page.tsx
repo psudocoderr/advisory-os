@@ -3,7 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { decide, deadlineFor, LEVEL_LABEL, rulesFor, selectNextQuestion } from "@/lib/irt";
 import { questionBank, sessionPercentCorrect, weakestChapters } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
-import { Card, PageHeader, StatusBadge } from "@/components/ui";
+import { Card, HowThisWorks, PageHeader, StatusBadge } from "@/components/ui";
 import { TestSessionClient } from "@/components/test-session-client";
 
 export default async function TestSessionPage({ params }: { params: Promise<{ sessionId: string }> }) {
@@ -29,7 +29,11 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
     const level = decision.outcome === "PASS" ? decision.level : null;
     return (
       <>
-        <PageHeader title={`${label}: result`} description="Completed adaptive certification attempt." />
+        <PageHeader
+          title={`${label}: result`}
+          description="Completed adaptive certification attempt."
+          action={<HowThisWorks section="levels" />}
+        />
         <Card className="p-5">
           <div className="flex flex-wrap items-center gap-3">
             <StatusBadge tone={session.certified ? "teal" : session.status === "INCONCLUSIVE" ? "amber" : "rose"}>
@@ -97,7 +101,11 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
 
   return (
     <>
-      <PageHeader title={`${label}: test`} description="Answer each question. Answers are checked on the server." />
+      <PageHeader
+        title={`${label}: test`}
+        description="Answer each question. Answers are checked on the server."
+        action={<HowThisWorks section="tests" />}
+      />
       {/*
         No question here. It is fetched from /api/certify/question once the
         server has recorded the candidate entering fullscreen, so it never

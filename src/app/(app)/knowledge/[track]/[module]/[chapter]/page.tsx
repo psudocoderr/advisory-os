@@ -5,7 +5,7 @@ import { markChapterComplete } from "@/lib/actions";
 import { requireSession } from "@/lib/auth";
 import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
 import { prisma } from "@/lib/prisma";
-import { Card } from "@/components/ui";
+import { Card, HowThisWorks } from "@/components/ui";
 import { ChapterBody } from "@/components/chapter-body";
 import { ChapterStateIcon } from "@/components/knowledge";
 
@@ -50,6 +50,9 @@ export default async function ChapterPage({
           <ArrowLeft size={14} />
           {track.title}
         </Link>
+        <div className="mb-3">
+          <HowThisWorks section="chapters" />
+        </div>
         <Card className="p-3">
           <div className="px-2 pb-2 text-xs font-bold uppercase tracking-wide text-muted">
             {moduleIndex + 1}. {trainingModule.title}

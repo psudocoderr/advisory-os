@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { FINAL_EXAM, IRT, LEVEL_LABEL } from "@/lib/irt";
 import { loadTrackProgress } from "@/lib/knowledge";
 import { prisma } from "@/lib/prisma";
-import { Card, PageHeader, StatusBadge } from "@/components/ui";
+import { Card, HowThisWorks, PageHeader, StatusBadge } from "@/components/ui";
 import { StartTestButton } from "@/components/start-test-button";
 
 export default async function FinalExamPage({ params }: { params: Promise<{ trackId: string }> }) {
@@ -28,6 +28,7 @@ export default async function FinalExamPage({ params }: { params: Promise<{ trac
       <PageHeader
         title={`${track.title}: final exam`}
         description="An adaptive test across every module in the track. It awards the track certificate."
+        action={<HowThisWorks section="final-exam" />}
       />
       <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
         <Card className="p-5">
