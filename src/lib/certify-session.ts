@@ -1,6 +1,7 @@
 import { decide, LEVEL_LABEL, outranks, rulesFor, type Decision } from "@/lib/irt";
 import { chapterHref } from "@/lib/knowledge";
 import { FULLSCREEN_KINDS, isOnExamSurface, type IntegrityKind } from "@/lib/integrity";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -195,20 +196,32 @@ export async function finalizeSession(params: {
   if (badgeLevel) {
     const data = { sessionId, abilityScore: theta, badgeLevel, percentCorrect, issuedAt: new Date() };
 
-    const existing = await prisma.certification.findFirst({
-      where: { userId, trackId: current.trackId, moduleId: current.moduleId, status: "ACTIVE" }
-    });
+    const held = { userId, trackId: current.trackId, moduleId: current.moduleId, status: "ACTIVE" as const };
 
     // The best level stands: a retake that scores lower passes, but leaves
     // the badge already held untouched.
-    if (existing) {
+    const keepBest = async (existing: { id: string; badgeLevel: typeof badgeLevel | null }) => {
       if (outranks(badgeLevel, existing.badgeLevel)) {
         await prisma.certification.update({ where: { id: existing.id }, data });
       }
+    };
+
+    const existing = await prisma.certification.findFirst({ where: held });
+    if (existing) {
+      await keepBest(existing);
     } else {
-      await prisma.certification.create({
-        data: { ...data, userId, trackId: current.trackId, moduleId: current.moduleId }
-      });
+      try {
+        await prisma.certification.create({
+          data: { ...data, userId, trackId: current.trackId, moduleId: current.moduleId }
+        });
+      } catch (error) {
+        // Two attempts certified at once (e.g. a double-clicked Start left two
+        // sessions): the lookup above saw nothing for either, and a unique
+        // index refused the second row. Apply the best-level rule to the row
+        // that won instead of failing a finished test.
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+        await keepBest(await prisma.certification.findFirstOrThrow({ where: held }));
+      }
     }
   }
 
