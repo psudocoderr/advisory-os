@@ -21,9 +21,9 @@ change `scripts/db-target.mjs` to match.
 | **Contains real personal data** | no | no | **no, ever** | yes |
 | **Destructive seed** (`db:seed`) | allowed | allowed | allowed | **refused** — override only |
 | **`prisma db push`** | allowed | n/a | refused | refused |
-| **Schema changes applied by** | `migrate dev` | `migrate deploy` | `migrate deploy` | `migrate deploy`, reviewed |
+| **Schema changes applied by** | `migrate dev` | `migrate deploy` | `migrate deploy`, automatic (workflow, before production) | `migrate deploy`, reviewed |
 | **Search engine indexing** | n/a | n/a | `noindex` on every route | legal routes only |
-| **Secrets live in** | `.env.local` | GitHub Actions dummies | Vercel preview env | Vercel production env |
+| **Secrets live in** | `.env.local` | GitHub Actions dummies | Vercel preview env; migrations: GitHub env `preview-database` | Vercel production env; migrations: GitHub env `production` |
 
 ### Why preview must never point at production
 
@@ -305,17 +305,22 @@ monitor — see `system-design.md`.
 
 ## 6. Deployment
 
-**Before the toolchain pinning merges**, set the Vercel project's Node.js
-version to 22.x. `.npmrc` sets `engine-strict=true` and `package.json` declares
-`engines.node: >=22.0.0 <23`, so `npm ci` will fail the build outright on any
-other major version. That is deliberate — a silent Node mismatch between local
-and production is worse than a failed build — but it means the Vercel setting
-has to be changed first, not after.
+Runtime: Node 24 everywhere. `.nvmrc` (read by CI and the migration workflow)
+says 24, `package.json` declares `engines.node: >=24.0.0 <25`, and the Vercel
+project runs 24.x. `.npmrc` sets `engine-strict=true`, so `npm ci` fails outright
+on any other major version. That is deliberate — a silent Node mismatch between
+local and production is worse than a failed build. **When moving to a new major,
+change the Vercel setting first**, then `.nvmrc`, `engines.node` and
+`@types/node` together in one PR.
 
 Vercel deploys from Git: pushes to `main` go to production, pull requests get
 preview deployments. Migrations are **not** part of that deploy — they run
-through the `migrate-production` GitHub Actions workflow, scoped to a
-`production` environment with required reviewers.
+through the `migrate-production` GitHub Actions workflow ("Migrate databases
+(preview, then production)"). Its first job migrates the preview Supabase
+project with no approval, from the `preview-database` environment (deployable
+from `main` only; it refuses any project but `vars.PREVIEW_PROJECT_REF`). The
+production job runs only after that succeeds, in the `production` environment
+with required reviewers.
 
 Rollback: revert the Vercel deployment. Note that this rolls back *code only* —
 a migration already applied stays applied, which is the whole reason for the

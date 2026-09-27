@@ -22,14 +22,14 @@ is now validated, but real questions still have to be written. Run
 ## Stack
 
 Next.js 15 (App Router, React 19) · TypeScript · Tailwind · Prisma 5 ·
-PostgreSQL · NextAuth v4 (credentials, JWT) · Vitest · Node 22
+PostgreSQL · NextAuth v4 (credentials, JWT) · Vitest · Node 24
 
 No UI framework — components are hand-built in `src/components/ui.tsx` against
 the design tokens in `tailwind.config.ts`.
 
 ## Local setup
 
-Requires Node 22 (`.nvmrc`) and Docker for the local database.
+Requires Node 24 (`.nvmrc`) and Docker for the local database.
 
 ```bash
 cp .env.example .env.local     # then fill it in, see below
@@ -134,16 +134,24 @@ and `docs/legal/` are the committed exceptions.
 
 ## Deployment
 
-Vercel, from `main`. Set the project's Node version to 22 — `.npmrc` sets
+Vercel, from `main`, on Node 24.x (`engines.node` is `>=24 <25`). `.npmrc` sets
 `engine-strict=true`, so a mismatch fails the install rather than silently
 running on the wrong runtime.
+
+npm 11 blocks dependency install scripts unless `package.json` lists them in
+`allowScripts`. All of ours are denied on purpose: none is needed (the
+project's own `postinstall` runs `prisma generate`, which fetches the Prisma
+engine). If a future version genuinely needs its script the install fails
+loudly; review it, then `npm install-scripts approve <pkg>`.
 
 Migrations are **not** part of the deploy. They run through the
 `migrate-production` GitHub Actions workflow, because a schema change against
 real client data should be a deliberate act rather than a side effect of a
-push. The workflow targets a GitHub environment named `production`; adding
-required reviewers to that environment, in repository settings, is what
-actually makes it a gate. Schema changes follow expand/migrate/contract — see
+push. It migrates the preview database first, automatically (GitHub
+environment `preview-database`, deployable from `main` only; the job refuses
+any Supabase project but the preview one), then production, which targets the
+`production` environment. Required reviewers on that environment, in
+repository settings, are what make it a gate. Schema changes follow expand/migrate/contract — see
 the runbook.
 
 CI runs lint, types, formatting, tests, a production build, and a job that
