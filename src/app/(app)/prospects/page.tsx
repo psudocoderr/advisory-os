@@ -1,9 +1,10 @@
-import { createMeeting, createProspect, onboardProspect, updateProspectStage } from "@/lib/actions";
+import { createProspect, onboardProspect, updateProspectStage } from "@/lib/actions";
 import { requireSession, scopedUserFilter } from "@/lib/auth";
 import { dateLabel, maskPhone, titleCase } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
-import { CalendarPlus, UserCheck, UserPlus } from "lucide-react";
+import { UserCheck, UserPlus } from "lucide-react";
 import { FormDialog } from "@/components/form-dialog";
+import { LogMeetingDialog } from "@/components/log-meeting-dialog";
 import {
   Card,
   EmptyState,
@@ -88,33 +89,7 @@ export default async function ProspectsPage({
               <textarea className="field min-h-24" name="notes" placeholder="Running notes" />
               <SubmitButton>Add prospect</SubmitButton>
             </FormDialog>
-            <FormDialog
-              label="Quick meeting"
-              title="Quick meeting"
-              icon={<CalendarPlus size={15} />}
-              action={createMeeting}
-            >
-              <input type="hidden" name="kind" value="PROSPECT" />
-              <select className="field" name="prospectId" required>
-                <option value="">Select prospect</option>
-                {prospects.map((prospect) => (
-                  <option key={prospect.id} value={prospect.id}>
-                    {prospect.name}
-                  </option>
-                ))}
-              </select>
-              <input className="field" name="summary" placeholder="Summary" required />
-              <label className="label">
-                Meeting date
-                <input className="field" name="meetingDate" type="date" required />
-              </label>
-              <label className="label">
-                Follow-up
-                <input className="field" name="followUpDate" type="date" />
-              </label>
-              <textarea className="field min-h-20" name="notes" placeholder="Notes" />
-              <SubmitButton>Log meeting</SubmitButton>
-            </FormDialog>
+            <LogMeetingDialog label="Quick meeting" prospects={prospects} />
             <FormDialog
               label="Onboard prospect"
               title="Onboard prospect"

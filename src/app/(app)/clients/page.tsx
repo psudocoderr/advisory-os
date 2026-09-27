@@ -1,9 +1,10 @@
-import { createClient, createMeeting, updateClientKyc } from "@/lib/actions";
+import { createClient, updateClientKyc } from "@/lib/actions";
 import { requireSession, scopedUserFilter } from "@/lib/auth";
 import { compactInr, dateLabel, maskPan, maskPhone, titleCase } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
-import { CalendarPlus, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { FormDialog } from "@/components/form-dialog";
+import { LogMeetingDialog } from "@/components/log-meeting-dialog";
 import { Card, PageHeader, PanField, PhoneField, StatusBadge, SubmitButton, TableScroll } from "@/components/ui";
 
 export default async function ClientsPage({ searchParams }: { searchParams: Promise<{ q?: string; kyc?: string }> }) {
@@ -59,33 +60,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
               </label>
               <SubmitButton>Add client</SubmitButton>
             </FormDialog>
-            <FormDialog
-              label="Log client meeting"
-              title="Log client meeting"
-              icon={<CalendarPlus size={15} />}
-              action={createMeeting}
-            >
-              <input type="hidden" name="kind" value="CLIENT" />
-              <select className="field" name="clientId" required>
-                <option value="">Select client</option>
-                {clients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))}
-              </select>
-              <input className="field" name="summary" placeholder="Summary" required />
-              <label className="label">
-                Meeting date
-                <input className="field" name="meetingDate" type="date" required />
-              </label>
-              <label className="label">
-                Follow-up
-                <input className="field" name="followUpDate" type="date" />
-              </label>
-              <textarea className="field min-h-20" name="notes" placeholder="Notes" />
-              <SubmitButton>Log meeting</SubmitButton>
-            </FormDialog>
+            <LogMeetingDialog label="Log client meeting" clients={clients} />
           </div>
         }
       />

@@ -1,9 +1,10 @@
-import { Clock, PlusCircle, BookOpen, CheckCircle2 } from "lucide-react";
+import { Clock, BookOpen, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { requireSession, scopedUserFilter } from "@/lib/auth";
 import { compactInr, dateLabel, titleCase } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatCard, StatusBadge } from "@/components/ui";
+import { LogMeetingDialog } from "@/components/log-meeting-dialog";
 import { LEVEL_LABEL } from "@/lib/irt";
 import { loadTrackProgress, nextStep } from "@/lib/knowledge";
 
@@ -14,11 +15,16 @@ export default async function DashboardPage() {
   const now = new Date();
 
   const firstTrack = await prisma.track.findFirst({ where: { isActive: true }, orderBy: { order: "asc" } });
-  const [meetings, prospects, clients, plans, reviews, recent, upcoming, reviewDue, certs, standing] =
+  const [meetings, prospects, prospectNames, clients, plans, reviews, recent, upcoming, reviewDue, certs, standing] =
     await Promise.all([
       prisma.meetingLog.count({ where: meetingScope }),
       prisma.prospect.groupBy({ by: ["stage"], where: scope, _count: true }),
-      prisma.client.findMany({ where: scope, select: { aum: true, kycStatus: true } }),
+      prisma.prospect.findMany({ where: scope, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+      prisma.client.findMany({
+        where: scope,
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, aum: true, kycStatus: true }
+      }),
       prisma.investmentPlan.count({ where: { client: scope } }),
       prisma.portfolioReview.count({ where: { client: scope } }),
       prisma.meetingLog.findMany({
@@ -78,15 +84,7 @@ export default async function DashboardPage() {
             ? "Team-wide operating snapshot & fresher readiness tracker."
             : "Your client work, follow-ups, and training progress."
         }
-        action={
-          <Link
-            href="/prospects"
-            className="inline-flex items-center gap-2 rounded bg-navy px-3.5 py-2 text-sm font-semibold text-white hover:bg-teal transition-colors"
-          >
-            <PlusCircle size={16} />
-            Add activity
-          </Link>
-        }
+        action={<LogMeetingDialog label="Add activity" primary prospects={prospectNames} clients={clients} />}
       />
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
