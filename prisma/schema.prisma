@@ -371,10 +371,10 @@ model QuestionItem {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  trainingModule Module        @relation(fields: [moduleId], references: [id], onDelete: Restrict)
-  chapter        Chapter       @relation(fields: [chapterId], references: [id], onDelete: Restrict)
-  createdBy      User          @relation("QuestionAuthor", fields: [createdById], references: [id])
-  responses      ResponseLog[]
+  module    Module        @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  chapter   Chapter       @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  createdBy User          @relation("QuestionAuthor", fields: [createdById], references: [id])
+  responses ResponseLog[]
 
   @@index([moduleId])
   @@map("question_items")
@@ -402,7 +402,7 @@ model TestSession {
 
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   track           Track            @relation(fields: [trackId], references: [id], onDelete: Restrict)
-  trainingModule  Module?          @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  module          Module?          @relation(fields: [moduleId], references: [id], onDelete: Restrict)
   responses       ResponseLog[]
   certification   Certification?
   integrityEvents IntegrityEvent[]
@@ -462,10 +462,10 @@ model Certification {
   issuedAt       DateTime            @default(now())
   status         CertificationStatus @default(ACTIVE)
 
-  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  session        TestSession @relation(fields: [sessionId], references: [id])
-  track          Track       @relation(fields: [trackId], references: [id], onDelete: Restrict)
-  trainingModule Module?     @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session TestSession @relation(fields: [sessionId], references: [id])
+  track   Track       @relation(fields: [trackId], references: [id], onDelete: Restrict)
+  module  Module?     @relation(fields: [moduleId], references: [id], onDelete: Restrict)
 
   @@unique([userId, moduleId, status])
   /// Also, in SQL only (Prisma cannot express a partial index):

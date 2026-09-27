@@ -109,7 +109,7 @@ export async function POST(request: Request) {
 
   // A test needs at least its minimum length in questions to be answerable.
   const questionCount = await prisma.questionItem.count({
-    where: { isActive: true, ...(moduleId ? { moduleId } : { trainingModule: { trackId } }) }
+    where: { isActive: true, ...(moduleId ? { moduleId } : { module: { trackId } }) }
   });
   if (questionCount < rules.minQuestions) {
     return NextResponse.json(

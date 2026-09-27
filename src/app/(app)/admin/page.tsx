@@ -16,13 +16,13 @@ export default async function AdminPage() {
     prisma.investmentPlan.count(),
     prisma.certification.findMany({ where: { status: "ACTIVE", moduleId: { not: null } } }),
     prisma.testSession.findMany({
-      include: { user: true, trainingModule: { select: { title: true } }, track: { select: { title: true } } },
+      include: { user: true, module: { select: { title: true } }, track: { select: { title: true } } },
       orderBy: { startedAt: "desc" },
       take: 8
     }),
     prisma.auditLog.findMany({ include: { actor: true }, orderBy: { createdAt: "desc" }, take: 10 }),
     prisma.questionItem.findMany({
-      include: { responses: true, trainingModule: true, chapter: true },
+      include: { responses: true, module: true, chapter: true },
       orderBy: { updatedAt: "desc" },
       take: 10
     }),
@@ -151,7 +151,7 @@ export default async function AdminPage() {
               <div key={attempt.id} className="flex items-center justify-between gap-3 px-4 py-3">
                 <div>
                   <div className="font-semibold text-ink">
-                    {attempt.user.name} • {attempt.trainingModule?.title ?? attempt.track?.title}
+                    {attempt.user.name} • {attempt.module?.title ?? attempt.track.title}
                   </div>
                   <div className="text-sm text-muted">
                     Attempt {attempt.attemptNumber} • theta {attempt.abilityEstimate.toFixed(2)} • SE{" "}
@@ -285,8 +285,8 @@ export default async function AdminPage() {
                 return (
                   <tr key={question.id}>
                     <td className="max-w-lg px-4 py-3">{question.content}</td>
-                    <td className="px-4 py-3">{question.trainingModule?.title}</td>
-                    <td className="px-4 py-3">{question.chapter?.title}</td>
+                    <td className="px-4 py-3">{question.module.title}</td>
+                    <td className="px-4 py-3">{question.chapter.title}</td>
                     <td className="mono px-4 py-3">{attemptsCount}</td>
                     <td className="mono px-4 py-3">{attemptsCount ? `${correct}%` : "—"}</td>
                     <td className="px-4 py-3">

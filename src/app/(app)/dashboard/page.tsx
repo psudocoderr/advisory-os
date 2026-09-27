@@ -49,7 +49,7 @@ export default async function DashboardPage() {
         },
         orderBy: { issuedAt: "desc" },
         take: 5,
-        include: { user: true, trainingModule: { select: { title: true } }, track: { select: { title: true } } }
+        include: { user: true, module: { select: { title: true } }, track: { select: { title: true } } }
       }),
       firstTrack ? loadTrackProgress({ id: firstTrack.id }, session.user) : null
     ]);
@@ -245,9 +245,7 @@ export default async function DashboardPage() {
                 certs.map((cert) => (
                   <div key={cert.id} className="px-4 py-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-semibold text-ink">
-                        {cert.trainingModule?.title ?? cert.track?.title}
-                      </div>
+                      <div className="text-sm font-semibold text-ink">{cert.module?.title ?? cert.track.title}</div>
                       {cert.badgeLevel ? <StatusBadge tone="teal">{LEVEL_LABEL[cert.badgeLevel]}</StatusBadge> : null}
                     </div>
                     <div className="mt-1 text-xs text-muted">
