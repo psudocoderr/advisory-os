@@ -144,7 +144,16 @@ button {
 }
 
 .chapter-body li + li {
-  margin-top: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.chapter-body li::marker {
+  color: #64748b;
+}
+
+/* A heading's top margin separates it from what came before; first in the block, nothing did. */
+.chapter-body > :first-child {
+  margin-top: 0;
 }
 
 .chapter-body a {
