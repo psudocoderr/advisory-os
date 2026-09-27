@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { storageConfig } from "@/lib/storage";
 import { PageHeader } from "@/components/ui";
 import { ChapterEditor } from "@/components/chapter-editor";
 
@@ -11,7 +12,10 @@ export default async function EditChapterPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const chapter = await prisma.chapter.findUnique({
     where: { id },
-    include: { module: { select: { title: true, track: { select: { title: true } } } } }
+    include: {
+      module: { select: { title: true, track: { select: { title: true } } } },
+      assets: { orderBy: { createdAt: "desc" }, select: { id: true, filename: true, contentType: true } }
+    }
   });
   if (!chapter) notFound();
 
@@ -28,7 +32,7 @@ export default async function EditChapterPage({ params }: { params: Promise<{ id
         title={chapter.title}
         description={`${chapter.module.track.title} · ${chapter.module.title}. Markdown; raw HTML is shown as text, not run.`}
       />
-      <ChapterEditor chapter={chapter} />
+      <ChapterEditor chapter={chapter} assets={chapter.assets} uploadsEnabled={storageConfig() !== null} />
     </>
   );
 }
