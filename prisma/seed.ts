@@ -575,6 +575,8 @@ async function clear() {
   await prisma.testSession.deleteMany();
   await prisma.questionItem.deleteMany();
   await prisma.chapterCompletion.deleteMany();
+  // Rows only: files already in the bucket are not touched.
+  await prisma.asset.deleteMany();
   await prisma.chapter.deleteMany();
   await prisma.module.deleteMany();
   await prisma.track.deleteMany();
