@@ -41,7 +41,7 @@ export default async function ModuleTestPage({ params }: { params: Promise<{ mod
             <Metric label="Retry after fail" value={`${IRT.cooldownHours} h`} />
           </div>
           <div className="mt-5">
-            <StartTestButton moduleId={moduleId} blocked={blocked} />
+            <StartTestButton test={{ moduleId }} blocked={blocked} />
           </div>
         </Card>
         <Card className="p-4">

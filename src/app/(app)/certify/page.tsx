@@ -65,6 +65,36 @@ export default async function CertifyPage() {
                   </Card>
                 );
               })}
+              <Card className="p-4 lg:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-navy text-white">
+                      <Award size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-ink">Final exam</h3>
+                      <div className="mt-1 text-sm text-muted">
+                        {standing.certificateLevel
+                          ? `Certificate: ${LEVEL_LABEL[standing.certificateLevel]}`
+                          : "Awards the track certificate"}
+                      </div>
+                    </div>
+                  </div>
+                  {standing.finalUnlocked ? (
+                    <Link
+                      href={`/certify/final/${standing.track.id}`}
+                      className="rounded bg-navy px-3 py-2 text-sm font-semibold text-white"
+                    >
+                      {standing.certificateLevel ? "Retake" : "Start"}
+                    </Link>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-sm text-muted">
+                      <Lock size={14} />
+                      Earn every module badge
+                    </span>
+                  )}
+                </div>
+              </Card>
             </div>
           </div>
         ) : null
@@ -80,7 +110,7 @@ export default async function CertifyPage() {
               <div key={cert.id} className="rounded border border-line bg-wash p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-semibold text-ink">
-                    {cert.trainingModule?.title ?? cert.track?.title ?? "—"}
+                    {cert.trainingModule?.title ?? `${cert.track?.title ?? "Track"} certificate`}
                   </span>
                   {cert.badgeLevel ? <StatusBadge tone="teal">{LEVEL_LABEL[cert.badgeLevel]}</StatusBadge> : null}
                 </div>

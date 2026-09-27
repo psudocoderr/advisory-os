@@ -51,6 +51,14 @@ export function trackProgress(
   });
 }
 
+/**
+ * The final exam opens once every module in the track is badged. A track with
+ * no modules has nothing to examine.
+ */
+export function finalExamUnlocked(progress: ModuleProgress[], unlockAll = false): boolean {
+  return progress.length > 0 && (unlockAll || progress.every((module) => module.badged));
+}
+
 /** A track with its modules and published chapters, in order. */
 export function loadTrack(where: { slug: string } | { id: string }) {
   return prisma.track.findFirst({
@@ -81,20 +89,29 @@ export async function loadTrackProgress(where: { slug: string } | { id: string }
       where: { userId: user.id, chapterId: { in: chapterIds } },
       select: { chapterId: true }
     }),
+    // Module badges, plus the track certificate (the row with no module).
     prisma.certification.findMany({
-      where: { userId: user.id, trackId: track.id, moduleId: { not: null }, status: "ACTIVE" },
+      where: { userId: user.id, trackId: track.id, status: "ACTIVE" },
       select: { moduleId: true, badgeLevel: true }
     })
   ]);
+  const moduleBadges = badges.filter((row) => row.moduleId !== null);
+  const certificateLevel = badges.find((row) => row.moduleId === null)?.badgeLevel ?? null;
 
   const progress = trackProgress(
     track.modules,
     new Set(completions.map((row) => row.chapterId)),
-    new Set(badges.map((row) => row.moduleId!)),
+    new Set(moduleBadges.map((row) => row.moduleId!)),
     user.role === "ADMIN"
   );
-  const badgeLevels = new Map(badges.map((row) => [row.moduleId!, row.badgeLevel]));
-  return { track, progress, badgeLevels };
+  const badgeLevels = new Map(moduleBadges.map((row) => [row.moduleId!, row.badgeLevel]));
+  return {
+    track,
+    progress,
+    badgeLevels,
+    finalUnlocked: finalExamUnlocked(progress, user.role === "ADMIN"),
+    certificateLevel
+  };
 }
 
 export function chapterHref(trackSlug: string, moduleSlug: string, chapterSlug: string) {

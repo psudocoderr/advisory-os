@@ -3,8 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useTransition, useState } from "react";
 
-/** `blocked` is the reason the test cannot start yet, shown on the button. */
-export function StartTestButton({ moduleId, blocked }: { moduleId: string; blocked: string | null }) {
+/**
+ * `test` names a module test or a track's final exam. `blocked` is the reason
+ * it cannot start yet, shown on the button.
+ */
+export function StartTestButton({
+  test,
+  blocked
+}: {
+  test: { moduleId: string } | { trackId: string };
+  blocked: string | null;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -19,7 +28,7 @@ export function StartTestButton({ moduleId, blocked }: { moduleId: string; block
             const response = await fetch("/api/certify/start", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ moduleId })
+              body: JSON.stringify(test)
             });
             const payload = await response.json();
             if (!response.ok) {

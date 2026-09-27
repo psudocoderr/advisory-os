@@ -43,7 +43,8 @@ export function TestSessionClient({
   module,
   initialProgress,
   autoFinish,
-  deadlineMs
+  deadlineMs,
+  timeLimitMinutes
 }: {
   sessionId: string;
   module: string;
@@ -53,6 +54,8 @@ export function TestSessionClient({
    * first question has been released and the clock started.
    */
   deadlineMs: number | null;
+  /** This test's full duration: shown before the clock starts. */
+  timeLimitMinutes: number;
   /**
    * Set when the session cannot continue and must be closed on arrival --
    * currently only a bank that has run out. This is what recovers sessions
@@ -173,6 +176,7 @@ export function TestSessionClient({
   const exam = useExamShell({
     sessionId,
     deadlineMs: deadline,
+    timeLimitMinutes,
     active: !result && !autoFinish,
     onExpire: handleExpire,
     onTerminate: handleTerminate,

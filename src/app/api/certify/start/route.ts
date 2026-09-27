@@ -3,40 +3,58 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { estimateEap, isSessionExpired, IRT } from "@/lib/irt";
+import { estimateEap, isSessionExpired, IRT, rulesFor } from "@/lib/irt";
 import { finalizeSession, questionBank } from "@/lib/certify-session";
 import { loadTrackProgress } from "@/lib/knowledge";
-import { MINIMUM_BANK_SIZE } from "@/lib/question-bank";
 
-const schema = z.object({ moduleId: z.string().min(1) });
+/** A module test, or with `trackId` the track's final exam. */
+const schema = z.union([z.object({ moduleId: z.string().min(1) }), z.object({ trackId: z.string().min(1) })]);
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const parsed = schema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ error: "Invalid module" }, { status: 400 });
+  const parsed = schema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Invalid test" }, { status: 400 });
 
-  const trainingModule = await prisma.module.findUnique({ where: { id: parsed.data.moduleId } });
-  if (!trainingModule) return NextResponse.json({ error: "Module not found" }, { status: 404 });
-  const moduleId = trainingModule.id;
+  let trackId: string;
+  let moduleId: string | null;
+  let title: string;
+  if ("moduleId" in parsed.data) {
+    const trainingModule = await prisma.module.findUnique({ where: { id: parsed.data.moduleId } });
+    if (!trainingModule) return NextResponse.json({ error: "Module not found" }, { status: 404 });
+    [trackId, moduleId, title] = [trainingModule.trackId, trainingModule.id, trainingModule.title];
+  } else {
+    const track = await prisma.track.findUnique({ where: { id: parsed.data.trackId } });
+    if (!track) return NextResponse.json({ error: "Track not found" }, { status: 404 });
+    [trackId, moduleId, title] = [track.id, null, `${track.title} final exam`];
+  }
+  // Every query below is scoped to this one test: a module's, or the track's
+  // final exam (moduleId null). Never { moduleId: undefined }, which Prisma
+  // reads as "any module".
+  const scope = { trackId, moduleId };
+  const rules = rulesFor(scope);
 
-  // The lock is enforced here, not only on the page: the test opens once every
-  // chapter in the module is complete and the module before it is badged.
-  const standing = await loadTrackProgress({ id: trainingModule.trackId }, session.user);
-  if (!standing?.progress.find((module) => module.id === moduleId)?.testUnlocked) {
+  // The lock is enforced here, not only on the page. A module test opens once
+  // every chapter in the module is complete and the module before it is
+  // badged; the final exam once every module is badged.
+  const standing = await loadTrackProgress({ id: trackId }, session.user);
+  const unlocked = moduleId
+    ? standing?.progress.find((module) => module.id === moduleId)?.testUnlocked
+    : standing?.finalUnlocked;
+  if (!unlocked) {
     return NextResponse.json(
-      { error: "Complete every chapter in this module, and the module before it, to unlock the test." },
+      {
+        error: moduleId
+          ? "Complete every chapter in this module, and the module before it, to unlock the test."
+          : "Earn every module badge in this track to unlock the final exam."
+      },
       { status: 403 }
     );
   }
 
   const activeAttempt = await prisma.testSession.findFirst({
-    where: {
-      userId: session.user.id,
-      moduleId,
-      status: "IN_PROGRESS"
-    },
+    where: { userId: session.user.id, ...scope, status: "IN_PROGRESS" },
     orderBy: { startedAt: "desc" }
   });
   if (activeAttempt) {
@@ -45,7 +63,7 @@ export async function POST(request: Request) {
     // countdown showed 0:00 on arrival, the test closed itself before the
     // first question, and integrity events were rejected because the session
     // was no longer active. Close it out and start fresh instead.
-    if (isSessionExpired(activeAttempt.timerStartedAt)) {
+    if (isSessionExpired(activeAttempt.timerStartedAt, new Date(), rules)) {
       const responses = await prisma.responseLog.findMany({
         where: { sessionId: activeAttempt.id },
         select: { questionId: true, isCorrect: true }
@@ -75,7 +93,7 @@ export async function POST(request: Request) {
   const latestAttempt = await prisma.testSession.findFirst({
     where: {
       userId: session.user.id,
-      moduleId,
+      ...scope,
       status: { in: ["FAILED", "TERMINATED", "PASSED"] },
       completedAt: { not: null }
     },
@@ -89,29 +107,25 @@ export async function POST(request: Request) {
     }
   }
 
-  const questionCount = await prisma.questionItem.count({ where: { moduleId, isActive: true } });
-  if (questionCount < MINIMUM_BANK_SIZE) {
+  // A test needs at least its minimum length in questions to be answerable.
+  const questionCount = await prisma.questionItem.count({
+    where: { isActive: true, ...(moduleId ? { moduleId } : { trainingModule: { trackId } }) }
+  });
+  if (questionCount < rules.minQuestions) {
     return NextResponse.json(
       {
         error:
-          `${trainingModule.title} has ${questionCount} active question${questionCount === 1 ? "" : "s"}; ` +
-          `at least ${MINIMUM_BANK_SIZE} are needed to certify. Import more with 'npm run questions:import'.`
+          `${title} has ${questionCount} active question${questionCount === 1 ? "" : "s"}; ` +
+          `at least ${rules.minQuestions} are needed to certify. Import more with 'npm run questions:import'.`
       },
       { status: 422 }
     );
   }
 
-  const previousAttempts = await prisma.testSession.count({
-    where: { userId: session.user.id, moduleId }
-  });
+  const previousAttempts = await prisma.testSession.count({ where: { userId: session.user.id, ...scope } });
 
   const testSession = await prisma.testSession.create({
-    data: {
-      userId: session.user.id,
-      trackId: trainingModule.trackId,
-      moduleId,
-      attemptNumber: previousAttempts + 1
-    }
+    data: { userId: session.user.id, ...scope, attemptNumber: previousAttempts + 1 }
   });
 
   await prisma.auditLog.create({
@@ -120,7 +134,7 @@ export async function POST(request: Request) {
       action: "START",
       entity: "TestSession",
       entityId: testSession.id,
-      summary: `Started ${trainingModule.title} certification attempt`
+      summary: `Started ${title} certification attempt`
     }
   });
 

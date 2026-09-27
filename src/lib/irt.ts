@@ -11,12 +11,34 @@ export const IRT = {
   cooldownHours: 24
 };
 
+/** How long a test runs and when it stops. Module tests use IRT itself. */
+export type TestRules = Pick<typeof IRT, "minQuestions" | "maxQuestions" | "seStop" | "timeLimitMinutes">;
+
+/**
+ * The final exam: the same adaptive engine over every question in the track,
+ * spread evenly across its modules.
+ *
+ * Placeholders until the client confirms length and duration; change them
+ * here. The pass rule is the modules' one (decide below).
+ */
+export const FINAL_EXAM: TestRules = {
+  minQuestions: 20,
+  maxQuestions: 40,
+  seStop: 0.3,
+  timeLimitMinutes: 45
+};
+
+/** A session with no module is a final exam. */
+export function rulesFor(session: { moduleId: string | null }): TestRules {
+  return session.moduleId ? IRT : FINAL_EXAM;
+}
+
 type ResponseLike = Pick<ResponseLog, "questionId" | "isCorrect">;
 type QuestionLike = Pick<QuestionItem, "id" | "difficulty" | "discrimination" | "guessing">;
 
 /** When a session whose clock started at `startedAt` must end. */
-export function deadlineFor(startedAt: Date): Date {
-  return new Date(startedAt.getTime() + IRT.timeLimitMinutes * 60 * 1000);
+export function deadlineFor(startedAt: Date, rules: TestRules = IRT): Date {
+  return new Date(startedAt.getTime() + rules.timeLimitMinutes * 60 * 1000);
 }
 
 /**
@@ -29,8 +51,8 @@ export function deadlineFor(startedAt: Date): Date {
  * `skewMs` grants a small grace so an answer submitted a fraction of a second
  * before the deadline is not rejected by network latency alone.
  */
-export function isExpired(startedAt: Date, now: Date = new Date(), skewMs = 2000): boolean {
-  return now.getTime() > deadlineFor(startedAt).getTime() + skewMs;
+export function isExpired(startedAt: Date, now: Date = new Date(), skewMs = 2000, rules: TestRules = IRT): boolean {
+  return now.getTime() > deadlineFor(startedAt, rules).getTime() + skewMs;
 }
 
 /**
@@ -40,8 +62,8 @@ export function isExpired(startedAt: Date, now: Date = new Date(), skewMs = 2000
  * is created: time spent getting into fullscreen is not time spent answering.
  * A session whose clock has not started cannot have run out.
  */
-export function isSessionExpired(timerStartedAt: Date | null, now: Date = new Date()): boolean {
-  return timerStartedAt !== null && isExpired(timerStartedAt, now);
+export function isSessionExpired(timerStartedAt: Date | null, now: Date = new Date(), rules: TestRules = IRT): boolean {
+  return timerStartedAt !== null && isExpired(timerStartedAt, now, 2000, rules);
 }
 
 export function probability(theta: number, question: QuestionLike) {
@@ -90,11 +112,34 @@ export function estimateEap(responses: ResponseLike[], questions: QuestionLike[]
   };
 }
 
-export function selectNextQuestion<T extends QuestionLike>(theta: number, questions: T[], usedQuestionIds: string[]) {
+/**
+ * The most informative unused question.
+ *
+ * With `balance` (the final exam), only questions from the module with the
+ * fewest answered so far are candidates, so the exam covers every module
+ * evenly instead of homing in on whichever module has the most informative
+ * items. Deterministic either way: the answer route recomputes this to check
+ * which question is current.
+ */
+export function selectNextQuestion<T extends QuestionLike & { moduleId?: string | null }>(
+  theta: number,
+  questions: T[],
+  usedQuestionIds: string[],
+  balance = false
+) {
   const used = new Set(usedQuestionIds);
+  let candidates = questions.filter((question) => !used.has(question.id));
+  if (balance && candidates.length) {
+    const answered = new Map<string, number>();
+    for (const question of questions) {
+      const key = question.moduleId ?? "";
+      answered.set(key, (answered.get(key) ?? 0) + (used.has(question.id) ? 1 : 0));
+    }
+    const fewest = Math.min(...candidates.map((question) => answered.get(question.moduleId ?? "")!));
+    candidates = candidates.filter((question) => answered.get(question.moduleId ?? "") === fewest);
+  }
   return (
-    questions
-      .filter((question) => !used.has(question.id))
+    candidates
       // Ties broken by id so the same state always yields the same question.
       // The bank arrives in no guaranteed order, and a candidate who leaves and
       // re-enters fullscreen must be handed back the question they left, not a
@@ -103,8 +148,8 @@ export function selectNextQuestion<T extends QuestionLike>(theta: number, questi
   );
 }
 
-export function shouldStop(answered: number, se: number) {
-  return answered >= IRT.maxQuestions || (answered >= IRT.minQuestions && se <= IRT.seStop);
+export function shouldStop(answered: number, se: number, rules: TestRules = IRT) {
+  return answered >= rules.maxQuestions || (answered >= rules.minQuestions && se <= rules.seStop);
 }
 
 /** The level a theta reaches on its own, or null below the pass mark. */
