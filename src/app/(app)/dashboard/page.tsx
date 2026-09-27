@@ -5,7 +5,7 @@ import { compactInr, dateLabel, titleCase } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { Card, PageHeader, StatCard, StatusBadge } from "@/components/ui";
 import { LEVEL_LABEL } from "@/lib/irt";
-import { loadTrackProgress } from "@/lib/knowledge";
+import { loadTrackProgress, nextStep } from "@/lib/knowledge";
 
 export default async function DashboardPage() {
   const session = await requireSession();
@@ -65,6 +65,9 @@ export default async function DashboardPage() {
     ? standing.track.modules.map((module, index) => ({ ...module, progress: standing.progress[index] }))
     : [];
   const badgedCount = trainingModules.filter((module) => module.progress.badged).length;
+  const next = standing
+    ? nextStep(standing.track, standing.progress, standing.finalUnlocked, standing.certificateLevel)
+    : null;
 
   return (
     <>
@@ -106,13 +109,16 @@ export default async function DashboardPage() {
             <div className="flex items-center gap-3">
               <span className="text-xs font-semibold text-muted">
                 {badgedCount} of {trainingModules.length} badges
+                {standing.certificateLevel ? ` · Certificate: ${LEVEL_LABEL[standing.certificateLevel]}` : ""}
               </span>
-              <Link
-                href={`/knowledge/${standing.track.slug}`}
-                className="inline-flex items-center gap-1 text-xs font-bold text-teal hover:underline"
-              >
-                Continue →
-              </Link>
+              {next ? (
+                <Link
+                  href={next.href}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-teal hover:underline"
+                >
+                  {next.label} →
+                </Link>
+              ) : null}
             </div>
           </div>
 

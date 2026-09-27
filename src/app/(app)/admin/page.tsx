@@ -41,12 +41,20 @@ export default async function AdminPage() {
         title="Admin"
         description="Team-level controls, badge visibility, audit activity, and item-bank performance."
         action={
-          <Link
-            href="/admin/knowledge"
-            className="rounded border border-line bg-panel px-3 py-2 text-sm font-semibold text-ink hover:bg-wash"
-          >
-            Knowledge editor
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href="/admin/tracker"
+              className="rounded border border-line bg-panel px-3 py-2 text-sm font-semibold text-ink hover:bg-wash"
+            >
+              Trainee tracker
+            </Link>
+            <Link
+              href="/admin/knowledge"
+              className="rounded border border-line bg-panel px-3 py-2 text-sm font-semibold text-ink hover:bg-wash"
+            >
+              Knowledge editor
+            </Link>
+          </div>
         }
       />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
