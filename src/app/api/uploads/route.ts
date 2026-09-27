@@ -3,7 +3,14 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { MAX_UPLOAD_BYTES, objectKey, presignUpload, storageConfig, UPLOAD_TYPES, type UploadType } from "@/lib/storage";
+import {
+  MAX_UPLOAD_BYTES,
+  objectKey,
+  presignUpload,
+  storageConfig,
+  UPLOAD_TYPES,
+  type UploadType
+} from "@/lib/storage";
 
 const schema = z.object({
   chapterId: z.string().min(1),
