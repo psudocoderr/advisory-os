@@ -1,9 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { buildContentSecurityPolicy } from "@/lib/csp";
+import { storageOrigin } from "@/lib/storage";
 
 export function middleware(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID());
-  const csp = buildContentSecurityPolicy(nonce, { dev: process.env.NODE_ENV === "development" });
+  const csp = buildContentSecurityPolicy(nonce, {
+    dev: process.env.NODE_ENV === "development",
+    storageOrigin: storageOrigin()
+  });
 
   // Next.js reads the nonce from the request's CSP header and stamps it on the
   // scripts it renders, so the header has to be on the request as well as the

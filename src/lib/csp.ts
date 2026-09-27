@@ -9,9 +9,14 @@
  * do not cover style attributes, so tightening it would break rendering for
  * little gain.
  *
- * Everything the app loads is its own, so nothing external is allowed.
+ * Everything the app loads is its own. The one outside origin is the file
+ * bucket, and only as an upload target (connect-src); files are read back
+ * through the app.
  */
-export function buildContentSecurityPolicy(nonce: string, { dev = false }: { dev?: boolean } = {}): string {
+export function buildContentSecurityPolicy(
+  nonce: string,
+  { dev = false, storageOrigin = null }: { dev?: boolean; storageOrigin?: string | null } = {}
+): string {
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
     // Development needs eval for React's debugging and fast refresh.
@@ -19,7 +24,8 @@ export function buildContentSecurityPolicy(nonce: string, { dev = false }: { dev
     "style-src": ["'self'", "'unsafe-inline'"],
     "img-src": ["'self'", "data:", "blob:"],
     "font-src": ["'self'"],
-    "connect-src": ["'self'"],
+    // Admin uploads go straight from the browser to the file bucket.
+    "connect-src": ["'self'", ...(storageOrigin ? [storageOrigin] : [])],
     "object-src": ["'none'"],
     "base-uri": ["'self'"],
     "form-action": ["'self'"],
