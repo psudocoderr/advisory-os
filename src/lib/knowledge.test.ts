@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 
-const { finalExamUnlocked, trackProgress } = await import("./knowledge");
+const { finalExamUnlocked, nextStep, trackProgress } = await import("./knowledge");
 
 /**
  * The strict-sequence rule. Every lock in the knowledge section and the gate
@@ -76,5 +76,43 @@ describe("finalExamUnlocked", () => {
 
   it("is open to admins, who preview everything", () => {
     expect(finalExamUnlocked(trackProgress(modules, new Set(), new Set(), true), true)).toBe(true);
+  });
+});
+
+describe("nextStep", () => {
+  const outline = {
+    id: "t1",
+    slug: "ops",
+    modules: [
+      {
+        id: "m1",
+        title: "One",
+        slug: "one",
+        chapters: [
+          { title: "Intro", slug: "intro" },
+          { title: "Deep", slug: "deep" }
+        ]
+      },
+      { id: "m2", title: "Two", slug: "two", chapters: [{ title: "Next", slug: "next" }] }
+    ]
+  };
+  const step = (done: string[], badged: string[], certificate: "EXPERT" | null = null) => {
+    const progress = trackProgress(modules, new Set(done), new Set(badged));
+    return nextStep(outline, progress, finalExamUnlocked(progress), certificate);
+  };
+
+  it("points a new trainee at the first chapter", () => {
+    expect(step([], [])).toEqual({ label: 'Read "Intro"', href: "/knowledge/ops/one/intro" });
+  });
+
+  it("points at the next open chapter, then the module test", () => {
+    expect(step(["c1"], []).href).toBe("/knowledge/ops/one/deep");
+    expect(step(["c1", "c2"], [])).toEqual({ label: "Take the module 1 test", href: "/certify/m1" });
+  });
+
+  it("moves on to the next module once badged, then the final exam, then done", () => {
+    expect(step(["c1", "c2"], ["m1"]).href).toBe("/knowledge/ops/two/next");
+    expect(step([], ["m1", "m2"])).toEqual({ label: "Take the final exam", href: "/certify/final/t1" });
+    expect(step([], ["m1", "m2"], "EXPERT").label).toBe("Certified");
   });
 });

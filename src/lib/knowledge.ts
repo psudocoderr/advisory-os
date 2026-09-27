@@ -1,3 +1,4 @@
+import type { BadgeLevel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -112,6 +113,94 @@ export async function loadTrackProgress(where: { slug: string } | { id: string }
     finalUnlocked: finalExamUnlocked(progress, user.role === "ADMIN"),
     certificateLevel
   };
+}
+
+type TrackOutline = {
+  id: string;
+  slug: string;
+  modules: { id: string; title: string; slug: string; chapters: { title: string; slug: string }[] }[];
+};
+
+/**
+ * What a trainee should do next in a track, as a label and a link. Shared by
+ * the dashboard and the admin tracker so both say the same thing.
+ */
+export function nextStep(
+  track: TrackOutline,
+  progress: ModuleProgress[],
+  finalUnlocked: boolean,
+  certificateLevel: BadgeLevel | null
+): { label: string; href: string } {
+  if (certificateLevel) return { label: "Certified", href: `/knowledge/${track.slug}` };
+  if (finalUnlocked) return { label: "Take the final exam", href: `/certify/final/${track.id}` };
+  const index = progress.findIndex((module) => !module.badged);
+  const current = track.modules[index];
+  if (!current) return { label: "Nothing to do yet", href: `/knowledge/${track.slug}` };
+  if (progress[index].testUnlocked)
+    return { label: `Take the module ${index + 1} test`, href: `/certify/${current.id}` };
+  const chapterIndex = progress[index].chapters.findIndex((chapter) => chapter.state === "open");
+  const chapter = current.chapters[chapterIndex];
+  if (!chapter) return { label: `Module ${index + 1} has no chapters yet`, href: `/knowledge/${track.slug}` };
+  return { label: `Read "${chapter.title}"`, href: chapterHref(track.slug, current.slug, chapter.slug) };
+}
+
+/**
+ * Every active advisor's standing in a track, for the admin tracker. Five
+ * queries however many trainees there are; the rule itself is trackProgress.
+ */
+export async function loadTeamProgress(trackId: string) {
+  const track = await loadTrack({ id: trackId });
+  if (!track) return null;
+  const chapterIds = track.modules.flatMap((module) => module.chapters.map((chapter) => chapter.id));
+
+  const [users, completions, certifications, lastCompletion, lastAttempt] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: "ADVISOR", isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true }
+    }),
+    prisma.chapterCompletion.findMany({
+      where: { chapterId: { in: chapterIds } },
+      select: { userId: true, chapterId: true }
+    }),
+    prisma.certification.findMany({
+      where: { trackId: track.id, status: "ACTIVE" },
+      select: { userId: true, moduleId: true, badgeLevel: true }
+    }),
+    prisma.chapterCompletion.groupBy({
+      by: ["userId"],
+      where: { chapterId: { in: chapterIds } },
+      _max: { completedAt: true }
+    }),
+    prisma.testSession.groupBy({ by: ["userId"], where: { trackId: track.id }, _max: { startedAt: true } })
+  ]);
+
+  const rows = users.map((user) => {
+    const mine = certifications.filter((row) => row.userId === user.id);
+    const moduleBadges = mine.filter((row) => row.moduleId !== null);
+    const certificateLevel = mine.find((row) => row.moduleId === null)?.badgeLevel ?? null;
+    const progress = trackProgress(
+      track.modules,
+      new Set(completions.filter((row) => row.userId === user.id).map((row) => row.chapterId)),
+      new Set(moduleBadges.map((row) => row.moduleId!))
+    );
+    const lastActivity = [
+      lastCompletion.find((row) => row.userId === user.id)?._max.completedAt,
+      lastAttempt.find((row) => row.userId === user.id)?._max.startedAt
+    ]
+      .filter((date): date is Date => Boolean(date))
+      .sort((a, b) => b.getTime() - a.getTime())[0];
+    return {
+      user,
+      chaptersDone: progress.reduce((sum, module) => sum + module.chaptersDone, 0),
+      badgeLevels: new Map(moduleBadges.map((row) => [row.moduleId!, row.badgeLevel])),
+      certificateLevel,
+      next: nextStep(track, progress, finalExamUnlocked(progress), certificateLevel),
+      lastActivity: lastActivity ?? null
+    };
+  });
+
+  return { track, chaptersTotal: chapterIds.length, rows };
 }
 
 export function chapterHref(trackSlug: string, moduleSlug: string, chapterSlug: string) {
