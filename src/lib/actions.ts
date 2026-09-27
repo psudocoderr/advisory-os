@@ -68,9 +68,8 @@ const reviewSchema = z.object({
 });
 
 const meetingSchema = z.object({
-  kind: z.enum(["PROSPECT", "CLIENT", "PLAN", "REVIEW"]),
-  prospectId: z.string().optional(),
-  clientId: z.string().optional(),
+  /** Who the meeting was with: "prospect:<id>" or "client:<id>". */
+  party: z.string().regex(/^(prospect|client):[^:]+$/, "Choose who the meeting was with"),
   summary: z.string().min(3).max(180),
   notes: z.string().max(2000).default(""),
   meetingDate: z.string().transform((value) => new Date(value)),
@@ -302,29 +301,23 @@ export async function createMeeting(_prev: FormState, formData: FormData): Promi
   const result = meetingSchema.safeParse(Object.fromEntries(formData));
   if (!result.success) return formError(result.error);
   const parsed = result.data;
-  if (!parsed.prospectId && !parsed.clientId) return { error: "Meeting must be linked to a prospect or client" };
-  if (parsed.prospectId) {
-    const prospect = await prisma.prospect.findFirst({
-      where: { id: parsed.prospectId, ...(session.user.role === "ADMIN" ? {} : { assignedToId: session.user.id }) }
-    });
-    if (!prospect) return { error: "Prospect not found" };
-  }
-  if (parsed.clientId) {
-    const client = await prisma.client.findFirst({
-      where: { id: parsed.clientId, ...(session.user.role === "ADMIN" ? {} : { assignedToId: session.user.id }) }
-    });
-    if (!client) return { error: "Client not found" };
+  const [type, id] = parsed.party.split(":");
+  const where = { id, ...(session.user.role === "ADMIN" ? {} : { assignedToId: session.user.id }) };
+  if (
+    type === "prospect" ? !(await prisma.prospect.findFirst({ where })) : !(await prisma.client.findFirst({ where }))
+  ) {
+    return { error: type === "prospect" ? "Prospect not found" : "Client not found" };
   }
   const meeting = await prisma.meetingLog.create({
     data: {
-      kind: parsed.kind,
+      kind: type === "prospect" ? "PROSPECT" : "CLIENT",
       summary: parsed.summary,
       notes: parsed.notes,
       meetingDate: parsed.meetingDate,
       followUpDate: parsed.followUpDate,
       ownerId: session.user.id,
-      prospectId: parsed.prospectId || undefined,
-      clientId: parsed.clientId || undefined
+      prospectId: type === "prospect" ? id : undefined,
+      clientId: type === "client" ? id : undefined
     }
   });
   await log(session.user.id, "CREATE", "MeetingLog", parsed.summary, meeting.id);
