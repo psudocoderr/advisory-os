@@ -400,6 +400,203 @@ export async function markChapterComplete(formData: FormData) {
   revalidatePath(`/knowledge/${chapter.module.track.slug}`);
 }
 
+// --- Knowledge editor (admin) -------------------------------------------------
+
+const slugField = z
+  .string()
+  .trim()
+  .max(60)
+  .regex(/^([a-z0-9]+(-[a-z0-9]+)*)?$/, "Slug: lowercase letters, digits and single hyphens only")
+  .default("");
+
+const titledSchema = z.object({
+  title: z.string().trim().min(2).max(120),
+  slug: slugField,
+  description: z.string().trim().max(1000).default("")
+});
+
+const chapterSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().trim().min(2).max(120),
+  slug: slugField,
+  body: z.string().max(200_000),
+  isPublished: z.literal("on").optional()
+});
+
+/** Blank slug fields fall back to one made from the title. */
+function slugOr(slug: string, title: string) {
+  return (
+    slug ||
+    title
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) ||
+    "untitled"
+  );
+}
+
+/** Every page that shows track content, trainee and admin side. */
+function revalidateKnowledge() {
+  revalidatePath("/knowledge", "layout");
+  revalidatePath("/admin/knowledge", "layout");
+}
+
+/** A slug or order clash, or a row gone missing, worded for the editor. */
+function knowledgeConflict(error: unknown): FormState {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) throw error;
+  if (error.code === "P2025") return { error: "Not found; it may have been changed elsewhere. Reload the page." };
+  if (error.code !== "P2002") throw error;
+  return String(error.meta?.target ?? "").includes("slug")
+    ? { error: "That slug is already used here; choose another" }
+    : { error: "Someone else changed this list at the same time; reload and try again" };
+}
+
+export async function saveTrack(_prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requireAdmin();
+  const id = z
+    .string()
+    .optional()
+    .parse(formData.get("id") || undefined);
+  const result = titledSchema.safeParse(Object.fromEntries(formData));
+  if (!result.success) return formError(result.error);
+  const { title, description } = result.data;
+  const slug = slugOr(result.data.slug, title);
+  const isActive = formData.get("isActive") === "on";
+  try {
+    const track = id
+      ? await prisma.track.update({ where: { id }, data: { title, slug, description, isActive } })
+      : await prisma.track.create({
+          data: { title, slug, description, isActive, order: await nextOrder("track", {}) }
+        });
+    await log(session.user.id, id ? "UPDATE" : "CREATE", "Track", `${track.title} saved`, track.id);
+  } catch (error) {
+    return knowledgeConflict(error);
+  }
+  revalidateKnowledge();
+  return done();
+}
+
+export async function saveModule(_prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requireAdmin();
+  const id = z
+    .string()
+    .optional()
+    .parse(formData.get("id") || undefined);
+  const result = titledSchema.safeParse(Object.fromEntries(formData));
+  if (!result.success) return formError(result.error);
+  const { title, description } = result.data;
+  const slug = slugOr(result.data.slug, title);
+  try {
+    let saved;
+    if (id) {
+      saved = await prisma.module.update({ where: { id }, data: { title, slug, description } });
+    } else {
+      const trackId = z.string().min(1).parse(formData.get("trackId"));
+      if (!(await prisma.track.findUnique({ where: { id: trackId } }))) return { error: "Track not found" };
+      saved = await prisma.module.create({
+        data: { trackId, title, slug, description, order: await nextOrder("module", { trackId }) }
+      });
+    }
+    await log(session.user.id, id ? "UPDATE" : "CREATE", "Module", `${saved.title} saved`, saved.id);
+  } catch (error) {
+    return knowledgeConflict(error);
+  }
+  revalidateKnowledge();
+  return done();
+}
+
+/** New chapters start unpublished, so trainees never see a half-written one. */
+export async function createChapter(_prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requireAdmin();
+  const moduleId = z.string().min(1).parse(formData.get("moduleId"));
+  const result = titledSchema.omit({ description: true }).safeParse(Object.fromEntries(formData));
+  if (!result.success) return formError(result.error);
+  if (!(await prisma.module.findUnique({ where: { id: moduleId } }))) return { error: "Module not found" };
+  const { title } = result.data;
+  try {
+    const chapter = await prisma.chapter.create({
+      data: { moduleId, title, slug: slugOr(result.data.slug, title), order: await nextOrder("chapter", { moduleId }) }
+    });
+    await log(session.user.id, "CREATE", "Chapter", `${chapter.title} created`, chapter.id);
+  } catch (error) {
+    return knowledgeConflict(error);
+  }
+  revalidateKnowledge();
+  return done();
+}
+
+export async function saveChapter(_prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requireAdmin();
+  const result = chapterSchema.safeParse(Object.fromEntries(formData));
+  if (!result.success) return formError(result.error);
+  const { id, title, body } = result.data;
+  const isPublished = result.data.isPublished === "on";
+  try {
+    const chapter = await prisma.chapter.update({
+      where: { id },
+      data: { title, slug: slugOr(result.data.slug, title), body, isPublished }
+    });
+    await log(
+      session.user.id,
+      "UPDATE",
+      "Chapter",
+      `${chapter.title} saved (${isPublished ? "published" : "draft"})`,
+      chapter.id
+    );
+  } catch (error) {
+    return knowledgeConflict(error);
+  }
+  revalidateKnowledge();
+  return done();
+}
+
+/**
+ * Swaps an item with its neighbour. `order` is unique within the parent, so
+ * the moving row parks at -1 while the neighbour takes its place.
+ */
+export async function moveKnowledgeItem(formData: FormData) {
+  const session = await requireAdmin();
+  const kind = z.enum(["track", "module", "chapter"]).parse(formData.get("kind"));
+  const id = z.string().min(1).parse(formData.get("id"));
+  const direction = z.enum(["up", "down"]).parse(formData.get("direction"));
+
+  await prisma.$transaction(async (tx) => {
+    const model = tx[kind] as unknown as OrderedModel;
+    const row = await model.findUnique({ where: { id } });
+    if (!row) throw new Error("Not found");
+    const parent = kind === "module" ? { trackId: row.trackId } : kind === "chapter" ? { moduleId: row.moduleId } : {};
+    const other = await model.findFirst({
+      where: { ...parent, order: direction === "up" ? { lt: row.order } : { gt: row.order } },
+      orderBy: { order: direction === "up" ? "desc" : "asc" }
+    });
+    if (!other) return;
+    await model.update({ where: { id: row.id }, data: { order: -1 } });
+    await model.update({ where: { id: other.id }, data: { order: row.order } });
+    await model.update({ where: { id: row.id }, data: { order: other.order } });
+  });
+
+  await log(session.user.id, "UPDATE", kind[0].toUpperCase() + kind.slice(1), `Moved ${direction}`, id);
+  revalidateKnowledge();
+}
+
+/** Track, Module and Chapter share id, order and a parent link; enough for reordering. */
+type OrderedRow = { id: string; order: number; trackId?: string; moduleId?: string };
+type OrderedModel = {
+  findUnique(args: object): Promise<OrderedRow | null>;
+  findFirst(args: object): Promise<OrderedRow | null>;
+  update(args: object): Promise<unknown>;
+  aggregate(args: object): Promise<{ _max: { order: number | null } }>;
+};
+
+async function nextOrder(kind: "track" | "module" | "chapter", where: { trackId?: string; moduleId?: string }) {
+  const model = prisma[kind] as unknown as OrderedModel;
+  const max = await model.aggregate({ where, _max: { order: true } });
+  return (max._max.order ?? 0) + 1;
+}
+
 export async function createUser(formData: FormData) {
   const session = await requireAdmin();
   const parsed = userSchema.parse(Object.fromEntries(formData));
