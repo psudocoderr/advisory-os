@@ -299,38 +299,11 @@ async function main() {
     ]
   });
 
-  const { trackId, modules } = await seedTrack();
+  // No progress is seeded: every account starts with no ticks, sessions or
+  // badges, so nothing appears as earned that was not. (The demo advisor used
+  // to carry a fabricated Proficient badge with no answers behind it.)
+  const { modules } = await seedTrack();
   await seedQuestions(admin.id, modules);
-
-  // The advisor has finished module 1: its chapter is ticked and it carries a
-  // badge, so module 2 is open in the demo.
-  await prisma.chapterCompletion.create({
-    data: { userId: advisor.id, chapterId: modules.get("M1")!.chapterId, completedAt: daysAgo(23) }
-  });
-  const session = await prisma.testSession.create({
-    data: {
-      userId: advisor.id,
-      trackId,
-      moduleId: modules.get("M1")!.moduleId,
-      abilityEstimate: 1.12,
-      standardError: 0.28,
-      certified: true,
-      status: "PASSED",
-      completedAt: daysAgo(22)
-    }
-  });
-  await prisma.certification.create({
-    data: {
-      userId: advisor.id,
-      trackId,
-      moduleId: modules.get("M1")!.moduleId,
-      sessionId: session.id,
-      abilityScore: 1.12,
-      badgeLevel: "PROFICIENT",
-      issuedAt: daysAgo(22),
-      status: "ACTIVE"
-    }
-  });
 
   await prisma.auditLog.createMany({
     data: [
