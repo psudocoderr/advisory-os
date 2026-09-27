@@ -13,7 +13,9 @@ export default function LoginPage() {
         </div>
         <div className="grid max-w-3xl grid-cols-3 gap-3 text-sm text-white/72">
           <div className="rounded border border-white/15 p-4">CRM follow-ups and client context in one place.</div>
-          <div className="rounded border border-white/15 p-4">SOPs that stay linked to daily workflows.</div>
+          <div className="rounded border border-white/15 p-4">
+            Training tracks that walk advisors through each procedure.
+          </div>
           <div className="rounded border border-white/15 p-4">Adaptive certification for compliance confidence.</div>
         </div>
       </section>
