@@ -1,17 +1,12 @@
-import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { FlatCompat } from "@eslint/eslintrc";
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+import prettier from "eslint-config-prettier";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({ baseDirectory: __dirname });
-
-const eslintConfig = [
-  {
-    ignores: [".next/**", "node_modules/**", "coverage/**", "tsconfig.tsbuildinfo"]
-  },
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
+const eslintConfig = defineConfig([
+  globalIgnores([".next/**", "node_modules/**", "coverage/**", "tsconfig.tsbuildinfo", "next-env.d.ts"]),
+  ...nextVitals,
+  ...nextTs,
   {
     rules: {
       "no-restricted-syntax": [
@@ -24,7 +19,7 @@ const eslintConfig = [
     }
   },
   // Must stay last: turns off the stylistic rules Prettier owns.
-  ...compat.extends("prettier")
-];
+  prettier
+]);
 
 export default eslintConfig;

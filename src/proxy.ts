@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { buildContentSecurityPolicy } from "@/lib/csp";
 import { storageOrigin } from "@/lib/storage";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const nonce = btoa(crypto.randomUUID());
   const csp = buildContentSecurityPolicy(nonce, {
     dev: process.env.NODE_ENV === "development",

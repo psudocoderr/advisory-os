@@ -67,3 +67,4 @@ tsconfig.tsbuildinfo
 docs/*
 !docs/engineering/
 !docs/legal/
+next-env.d.ts

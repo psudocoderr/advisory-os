@@ -68,7 +68,8 @@ browser GET /prospects
 
 ### 2.2 The three things to take from that
 
-**Auth is in `AppShell`, not middleware.** There is no `middleware.ts`. Every
+**Auth is in `AppShell`, not the proxy.** `src/proxy.ts` (Next 16's name for
+middleware) only sets the CSP nonce; it does no auth. Every
 authenticated page is inside the `(app)` route group, whose layout renders
 `AppShell`, which calls `requireSession()`. That is the single chokepoint.
 
