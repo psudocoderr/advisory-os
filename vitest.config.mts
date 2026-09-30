@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     // Mirrors the "@/*" -> "./src/*" alias in tsconfig.json.
-    alias: { "@": resolve(__dirname, "./src") }
+    alias: { "@": resolve(import.meta.dirname, "./src") }
   },
   test: {
     // Node only. No jsdom until there is a component whose behaviour, rather
