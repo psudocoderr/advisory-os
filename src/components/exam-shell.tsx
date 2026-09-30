@@ -107,6 +107,9 @@ export function useExamShell({
   useEffect(() => {
     // The clock has not started until the first question is on screen.
     if (!active || deadlineMs === null) {
+      // Resets the display when the clock stops; exam logic is out of scope
+      // for the Next 16 upgrade, so this keeps the existing behaviour.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRemainingMs(fullLimitMs);
       return;
     }

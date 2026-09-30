@@ -105,6 +105,8 @@ export function TestSessionClient({
         // This browser's clock ran ahead of the server's. Ask again when the
         // server says time is really up.
         if (typeof payload.remainingMs === "number") {
+          // The retry runs from a timer, long after `finish` is declared.
+          // eslint-disable-next-line react-hooks/immutability
           window.setTimeout(() => void finish(reason), payload.remainingMs + 1000);
           return;
         }

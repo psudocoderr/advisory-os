@@ -122,7 +122,7 @@ trail, not prevention.
 ```
 prisma/           schema, migrations, seed fixtures
 scripts/          operational tooling (guards, snapshot, question bank, admin)
-src/app/(app)/    authenticated pages; auth is enforced in AppShell, not middleware
+src/app/(app)/    authenticated pages; auth is enforced in AppShell, not the proxy
 src/app/api/      auth, health, certification endpoints
 src/components/   hand-built UI, exam shell
 src/lib/          domain logic: auth, IRT, session lifecycle, question bank

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Providers } from "@/components/providers";
 import "./globals.css";
 
-// The CSP nonce set in src/middleware.ts is new on every request, so no page
+// The CSP nonce set in src/proxy.ts is new on every request, so no page
 // can be prerendered: a page built ahead of time would carry no nonce and its
 // scripts would be blocked.
 export const dynamic = "force-dynamic";
