@@ -1,48 +1,95 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-:root {
-  color-scheme: light;
-  --background: #f5f7fb;
-  --foreground: #172033;
+@theme {
+  --color-ink: #172033;
+  --color-muted: #64748b;
+  --color-line: #d8dee8;
+  --color-panel: #ffffff;
+  --color-wash: #f5f7fb;
+  --color-navy: #1d3557;
+  --color-teal: #0f766e;
+  --color-amber: #b7791f;
+  --color-rose: #b91c1c;
+  --color-mint: #e6f4f1;
+  --color-gold: #fff4d6;
+
+  --shadow-soft: 0 12px 30px rgba(23, 32, 51, 0.08);
+
+  --radius: 8px;
 }
 
-* {
-  box-sizing: border-box;
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
 }
 
-html,
-body {
-  margin: 0;
-  min-height: 100%;
-  background: var(--background);
-  color: var(--foreground);
-}
+/*
+ * Element defaults. In a layer so any utility still wins, as in v3: unlayered
+ * CSS beats every layer in v4, so `button { font: inherit }` would otherwise
+ * override text-sm/font-semibold on every button.
+ */
+@layer base {
+  :root {
+    color-scheme: light;
+    --background: #f5f7fb;
+    --foreground: #172033;
+  }
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
+  * {
+    box-sizing: border-box;
+  }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
+  html,
+  body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--background);
+    color: var(--foreground);
+  }
 
-button {
-  cursor: pointer;
-}
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+  }
 
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
 
-::-webkit-scrollbar-thumb {
-  background: #c6cfdd;
-  border-radius: 999px;
+  button {
+    cursor: pointer;
+  }
+
+  /* v4 defaults placeholders to the text colour at 50%; keep v3's lighter gray. */
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #c6cfdd;
+    border-radius: 999px;
+  }
 }
 
 .field {
@@ -81,9 +128,8 @@ button {
  * breathe on a large screen.
  */
 .exam-surface:fullscreen {
-  /* Literal, because `wash` is a Tailwind colour token in tailwind.config.ts,
-     not a CSS custom property -- var(--wash) would silently fall back. Keep
-     this in step with theme.extend.colors.wash. */
+  /* Literal, for consistency with the rest of this file. Keep
+     this in step with --color-wash in @theme above. */
   background: #f5f7fb;
   padding: 3rem 1.5rem;
   overflow-y: auto;

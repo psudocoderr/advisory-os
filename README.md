@@ -25,7 +25,7 @@ Next.js 15 (App Router, React 19) · TypeScript · Tailwind · Prisma 5 ·
 PostgreSQL · NextAuth v4 (credentials, JWT) · Vitest · Node 24
 
 No UI framework — components are hand-built in `src/components/ui.tsx` against
-the design tokens in `tailwind.config.ts`.
+the design tokens in the `@theme` block of `src/app/globals.css`.
 
 ## Local setup
 

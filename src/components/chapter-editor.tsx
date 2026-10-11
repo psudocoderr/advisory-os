@@ -124,11 +124,11 @@ export function ChapterEditor({
             value={body}
             onChange={(event) => setBody(event.target.value)}
             maxLength={200_000}
-            className={clsx("mono block min-h-[28rem] w-full resize-y p-4 text-sm outline-none", preview && "hidden")}
+            className={clsx("mono block min-h-112 w-full resize-y p-4 text-sm outline-hidden", preview && "hidden")}
             aria-label="Chapter body (markdown)"
           />
           {preview ? (
-            <div className="min-h-[28rem] p-6">
+            <div className="min-h-112 p-6">
               <ChapterBody markdown={body} />
             </div>
           ) : null}

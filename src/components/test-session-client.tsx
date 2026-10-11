@@ -354,7 +354,7 @@ export function TestSessionClient({
         ) : (
           <div className="relative">
             {/* A stand-in, not the question: the real one is not in the page. */}
-            <div aria-hidden className="select-none space-y-4 opacity-40 blur-sm">
+            <div aria-hidden className="select-none space-y-4 opacity-40 blur-xs">
               <div className="h-6 w-3/4 rounded bg-line" />
               {Array.from({ length: 4 }, (_, i) => (
                 <div key={i} className="h-12 rounded border border-line bg-wash" />
