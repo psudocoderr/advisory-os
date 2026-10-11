@@ -45,7 +45,11 @@ export default async function TrackerPage() {
               <tbody className="divide-y divide-line">
                 {rows.map((row) => (
                   <tr key={row.user.id}>
-                    <td className="px-4 py-3 font-semibold text-ink">{row.user.name}</td>
+                    <td className="px-4 py-3 font-semibold text-ink">
+                      <Link href={`/admin/tracker/${row.user.id}`} className="hover:text-teal">
+                        {row.user.name}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3">{row.next.label}</td>
                     <td className="mono px-4 py-3">
                       {row.chaptersDone}/{chaptersTotal}
