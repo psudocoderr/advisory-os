@@ -139,9 +139,7 @@ export async function POST(request: Request) {
     complete: false,
     question: sanitizeQuestion(next),
     progress: {
-      answered: answeredCount,
-      theta: estimate.theta,
-      se: estimate.se
+      answered: answeredCount
     }
   });
 }

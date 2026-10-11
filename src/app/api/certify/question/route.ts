@@ -105,9 +105,7 @@ export async function POST(request: Request) {
       options: (next.options as Option[]).map(({ key, text }) => ({ key, text }))
     },
     progress: {
-      answered: testSession.responses.length,
-      theta: testSession.abilityEstimate,
-      se: testSession.standardError
+      answered: testSession.responses.length
     },
     deadlineMs: deadlineFor(timerStartedAt, rules).getTime()
   });

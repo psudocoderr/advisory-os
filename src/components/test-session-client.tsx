@@ -13,8 +13,6 @@ type Question = {
 
 type Progress = {
   answered: number;
-  theta: number;
-  se: number;
 };
 
 type FinishReason = "STOP_RULE" | "BANK_EXHAUSTED" | "TIMED_OUT" | "INTEGRITY_TERMINATED";
@@ -23,8 +21,6 @@ type Result = {
   passed: boolean;
   terminated?: boolean;
   inconclusive?: boolean;
-  theta: number;
-  se: number;
   level: string;
   reason: FinishReason;
   answered: number;
@@ -245,8 +241,6 @@ export function TestSessionClient({
                   ? "Inconclusive"
                   : "Not certified"}
           </StatusBadge>
-          <StatusBadge tone="navy">Theta {result.theta.toFixed(2)}</StatusBadge>
-          <StatusBadge tone="amber">SE {result.se.toFixed(2)}</StatusBadge>
         </div>
         <h2 className="mt-4 text-xl font-semibold text-ink">{result.level}</h2>
         <p className="mt-1 text-sm text-muted">
@@ -303,8 +297,6 @@ export function TestSessionClient({
             {formatRemaining(exam.remainingMs)} {deadline === null ? "once you begin" : "left"}
           </StatusBadge>
           <StatusBadge tone="navy">Answered {progress.answered}</StatusBadge>
-          <StatusBadge tone="teal">Theta {progress.theta.toFixed(2)}</StatusBadge>
-          <StatusBadge tone="amber">SE {progress.se === 99 ? "..." : progress.se.toFixed(2)}</StatusBadge>
           {exam.strikes > 0 ? (
             <StatusBadge tone="rose">
               {exam.strikes} integrity event{exam.strikes === 1 ? "" : "s"}
