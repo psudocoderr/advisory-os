@@ -64,7 +64,15 @@ export default async function TraineeReportPage({ params }: { params: Promise<{ 
               <tbody className="divide-y divide-line">
                 {attempts.map((attempt) => (
                   <tr key={attempt.id}>
-                    <td className="px-4 py-3 font-semibold text-ink">{attempt.test}</td>
+                    <td className="px-4 py-3 font-semibold text-ink">
+                      {attempt.answered ? (
+                        <Link href={`/admin/tracker/${userId}/${attempt.id}`} className="hover:text-teal">
+                          {attempt.test}
+                        </Link>
+                      ) : (
+                        attempt.test
+                      )}
+                    </td>
                     <td className="mono px-4 py-3">{attempt.attemptNumber}</td>
                     <td className="px-4 py-3 text-muted">{dateLabel(attempt.date)}</td>
                     <td className="px-4 py-3">
