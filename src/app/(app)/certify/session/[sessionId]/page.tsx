@@ -39,8 +39,6 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
             <StatusBadge tone={session.certified ? "teal" : session.status === "INCONCLUSIVE" ? "amber" : "rose"}>
               {session.status}
             </StatusBadge>
-            <StatusBadge tone="navy">Theta {session.abilityEstimate.toFixed(2)}</StatusBadge>
-            <StatusBadge tone="amber">SE {session.standardError.toFixed(2)}</StatusBadge>
           </div>
           <p className="mt-4 text-sm leading-6 text-muted">
             {session.certified
@@ -86,11 +84,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
         <TestSessionClient
           sessionId={session.id}
           module={label}
-          initialProgress={{
-            answered: session.responses.length,
-            theta: session.abilityEstimate,
-            se: session.standardError
-          }}
+          initialProgress={{ answered: session.responses.length }}
           deadlineMs={null}
           timeLimitMinutes={rules.timeLimitMinutes}
           autoFinish="BANK_EXHAUSTED"
@@ -114,11 +108,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
       <TestSessionClient
         sessionId={session.id}
         module={label}
-        initialProgress={{
-          answered: session.responses.length,
-          theta: session.abilityEstimate,
-          se: session.standardError
-        }}
+        initialProgress={{ answered: session.responses.length }}
         deadlineMs={session.timerStartedAt ? deadlineFor(session.timerStartedAt, rules).getTime() : null}
         timeLimitMinutes={rules.timeLimitMinutes}
       />

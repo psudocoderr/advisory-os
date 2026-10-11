@@ -25,8 +25,6 @@ export type SessionResult = {
    * attempt. No certification, no failure on record, and no retry cooldown.
    */
   abandoned: boolean;
-  theta: number;
-  se: number;
   level: string;
   reason: FinishReason;
   answered: number;
@@ -158,8 +156,6 @@ export async function finalizeSession(params: {
     abandoned: stored.status === "ABANDONED",
     terminated: stored.status === "TERMINATED",
     inconclusive: stored.status === "INCONCLUSIVE",
-    theta: stored.abilityEstimate,
-    se: stored.standardError,
     level: levelLabel(stored.certified ? decide(stored.abilityEstimate, stored.standardError, percentCorrect) : null),
     reason,
     answered,
@@ -260,8 +256,6 @@ export async function finalizeSession(params: {
     abandoned,
     terminated,
     inconclusive,
-    theta,
-    se,
     level,
     reason,
     answered,
