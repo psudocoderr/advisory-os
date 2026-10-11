@@ -12,7 +12,7 @@ export default async function GuidePage() {
   await requireSession();
 
   return (
-    <div className="mx-auto max-w-[60rem]">
+    <div className="mx-auto max-w-240">
       <PageHeader
         title="How training works"
         description="Read the chapters, pass each module test, then the final exam."

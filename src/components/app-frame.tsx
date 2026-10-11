@@ -142,7 +142,7 @@ export function AppFrame({
         </div>
       </aside>
       <main className={clsx("transition-[padding] duration-200", collapsed ? "lg:pl-16" : "lg:pl-64")}>
-        <div className="sticky top-0 z-10 border-b border-line bg-panel/95 backdrop-blur lg:hidden">
+        <div className="sticky top-0 z-10 border-b border-line bg-panel/95 backdrop-blur-sm lg:hidden">
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded bg-navy text-white">
