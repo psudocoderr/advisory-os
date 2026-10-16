@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   DEDUPE_WINDOW_MS,
   STRIKE_KINDS,
+  INTEGRITY_KINDS,
   STRIKE_LIMIT,
+  isCappable,
   isOnExamSurface,
   isRedundantEvent,
   isStrike,
@@ -111,5 +113,23 @@ describe("isRedundantEvent", () => {
     expect(isRedundantEvent("TAB_HIDDEN", { ...base, latestSameKindAt: ago(DEDUPE_WINDOW_MS - 1) })).toBe(true);
     expect(isRedundantEvent("TAB_HIDDEN", { ...base, latestSameKindAt: ago(DEDUPE_WINDOW_MS + 1) })).toBe(false);
     expect(isRedundantEvent("TAB_HIDDEN", { ...base, latestSameKindAt: null })).toBe(false);
+  });
+});
+
+describe("isCappable", () => {
+  it("lets the cap drop anything before the clock starts", () => {
+    for (const kind of INTEGRITY_KINDS) expect(isCappable(kind, false)).toBe(true);
+  });
+
+  it("never drops a fullscreen or strike event once the clock runs (D8)", () => {
+    // A cap filled before the first question must not freeze the fullscreen
+    // state or hide strikes for the rest of the attempt.
+    expect(isCappable("FULLSCREEN_EXIT", true)).toBe(false);
+    expect(isCappable("FULLSCREEN_ENTER", true)).toBe(false);
+    for (const kind of STRIKE_KINDS) expect(isCappable(kind, true)).toBe(false);
+  });
+
+  it("still caps the informational blur once the clock runs", () => {
+    expect(isCappable("WINDOW_BLUR", true)).toBe(true);
   });
 });
