@@ -142,3 +142,63 @@ export function findExcessData(counts, volumes) {
     .filter((table) => (counts[table] ?? 0) > volumes[table])
     .map((table) => `${counts[table]} ${table} (seed creates ${volumes[table]})`);
 }
+
+/**
+ * Switches that bypass a guard. Honoured only when set in the shell for one
+ * command, never from .env or .env.local: a value left in a file would
+ * silently disarm the guard for every later command (flags O8).
+ */
+export const SHELL_ONLY_VARS = ["ALLOW_DESTRUCTIVE_SEED", "ALLOW_DEPLOYED_DB"];
+
+/**
+ * The environment scripts/with-env.mjs runs a command with. The shell wins
+ * over the files: before, .env.local overrode it, and since .env.local points
+ * at production on the owner's machine, `DATABASE_URL=<local> npm run db:...`
+ * still reached production (flags O8).
+ *
+ * @param {Record<string, string>} fileEnv   .env then .env.local, merged
+ * @param {Record<string, string | undefined>} shellEnv  process.env
+ */
+export function mergeEnv(fileEnv, shellEnv) {
+  const files = { ...fileEnv };
+  for (const name of SHELL_ONLY_VARS) delete files[name];
+  return { ...files, ...shellEnv };
+}
+
+/**
+ * Refuses a script whose database target is not allowed for what it does.
+ *
+ *   local-only  never a deployed database, no override (`prisma migrate dev`
+ *               offers to reset the database it is pointed at).
+ *   writes      a deployed database only with ALLOW_DEPLOYED_DB=1 set in the
+ *               shell for that one command.
+ *
+ * Checks DATABASE_URL and DIRECT_URL, since Prisma uses either. Returns the
+ * deployed hosts it let through, for a warning.
+ *
+ * @param {"local-only" | "writes"} mode
+ * @param {Record<string, string | undefined>} env  the merged environment
+ * @returns {string[]}
+ */
+export function assertScriptTargetAllowed(mode, env) {
+  const deployed = ["DATABASE_URL", "DIRECT_URL"]
+    .filter((name) => env[name])
+    .map((name) => ({ name, target: classifyDatabaseTarget(env[name]) }))
+    .filter(({ target }) => !isEphemeral(target));
+  if (deployed.length === 0) return [];
+
+  const hosts = deployed.map(({ name, target }) => `${name} -> ${target.host ?? "unparseable"}`).join(", ");
+  if (mode === "writes" && env.ALLOW_DEPLOYED_DB === "1")
+    return [...new Set(deployed.map(({ target }) => target.host ?? "?"))];
+
+  throw new Error(
+    mode === "local-only"
+      ? `Refusing: this command only runs against a local database (${hosts}).\n` +
+          `  It can reset the database it is pointed at. Point DATABASE_URL and\n` +
+          `  DIRECT_URL at a local database in the shell, which now overrides .env.local.`
+      : `Refusing: this command writes to a deployed database (${hosts}).\n` +
+          `  If that is intended, run it again with ALLOW_DEPLOYED_DB=1 set in the shell\n` +
+          `  for this one command (an env-file value is ignored). Migrations go through\n` +
+          `  the reviewed migrate-production workflow, not this.`
+  );
+}

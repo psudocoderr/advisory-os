@@ -366,7 +366,9 @@ the attempt record — and four of those end the test.
 ## 6. Operational tooling
 
 Scripts in `scripts/` run outside the app, through `with-env.mjs`, which loads
-`.env`/`.env.local` and execs the real command.
+`.env`/`.env.local` (the shell wins over both) and execs the real command. With
+`--local-only` or `--writes` it first refuses a deployed database, the latter
+unless `ALLOW_DEPLOYED_DB=1` is set in the shell (`assertScriptTargetAllowed`).
 
 | File | Purpose |
 |---|---|
