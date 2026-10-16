@@ -481,3 +481,16 @@ model Certification {
   /// See migration 20260928120000_track_certificate_unique.
   @@map("certifications")
 }
+
+/// Failed sign-ins, for throttling (src/lib/login-throttle.ts). `key` is a
+/// SHA-256 of the email or client IP, never the value itself. Rows older than
+/// a day are deleted as new failures are recorded.
+model LoginFailure {
+  id        String   @id @default(cuid())
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
+  @@index([createdAt])
+  @@map("login_failures")
+}
