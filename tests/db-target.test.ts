@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   assertDestructiveAllowed,
   assertPushAllowed,
+  assertScriptTargetAllowed,
   classifyDatabaseTarget,
   findExcessData,
-  isEphemeral
+  isEphemeral,
+  mergeEnv
 } from "../scripts/db-target.mjs";
 
 /**
@@ -139,5 +141,57 @@ describe("findExcessData", () => {
 
   it("treats a missing count as zero rather than crashing", () => {
     expect(findExcessData({}, volumes)).toEqual([]);
+  });
+});
+
+describe("mergeEnv (flags O8)", () => {
+  it("lets the shell override the env files", () => {
+    // Before: .env.local (production on the owner's machine) beat the shell.
+    expect(mergeEnv({ DATABASE_URL: SUPABASE }, { DATABASE_URL: LOCAL }).DATABASE_URL).toBe(LOCAL);
+  });
+
+  it("falls back to the files for anything the shell does not set", () => {
+    expect(mergeEnv({ NEXTAUTH_URL: "http://x" }, {}).NEXTAUTH_URL).toBe("http://x");
+  });
+
+  it("ignores guard overrides that come from a file", () => {
+    const env = mergeEnv({ ALLOW_DESTRUCTIVE_SEED: "1", ALLOW_DEPLOYED_DB: "1" }, {});
+    expect(env.ALLOW_DESTRUCTIVE_SEED).toBeUndefined();
+    expect(env.ALLOW_DEPLOYED_DB).toBeUndefined();
+  });
+
+  it("keeps guard overrides set in the shell", () => {
+    expect(mergeEnv({}, { ALLOW_DEPLOYED_DB: "1" }).ALLOW_DEPLOYED_DB).toBe("1");
+  });
+});
+
+describe("assertScriptTargetAllowed", () => {
+  it("lets either mode run against a local database", () => {
+    expect(assertScriptTargetAllowed("local-only", { DATABASE_URL: LOCAL, DIRECT_URL: COMPOSE })).toEqual([]);
+    expect(assertScriptTargetAllowed("writes", { DATABASE_URL: LOCAL })).toEqual([]);
+  });
+
+  it("refuses local-only commands on a deployed database, even with the override", () => {
+    expect(() => assertScriptTargetAllowed("local-only", { DATABASE_URL: SUPABASE })).toThrow(
+      /only runs against a local/
+    );
+    expect(() => assertScriptTargetAllowed("local-only", { DATABASE_URL: SUPABASE, ALLOW_DEPLOYED_DB: "1" })).toThrow(
+      /only runs against a local/
+    );
+  });
+
+  it("refuses writes to a deployed database unless the shell allows it", () => {
+    expect(() => assertScriptTargetAllowed("writes", { DATABASE_URL: SUPABASE })).toThrow(/ALLOW_DEPLOYED_DB=1/);
+    expect(assertScriptTargetAllowed("writes", { DATABASE_URL: SUPABASE, ALLOW_DEPLOYED_DB: "1" })).toHaveLength(1);
+  });
+
+  it("checks DIRECT_URL too, since migrations use it", () => {
+    expect(() => assertScriptTargetAllowed("writes", { DATABASE_URL: LOCAL, DIRECT_URL: SUPABASE })).toThrow(
+      /DIRECT_URL/
+    );
+  });
+
+  it("refuses an unparseable URL rather than guessing it is local", () => {
+    expect(() => assertScriptTargetAllowed("writes", { DATABASE_URL: "not a url" })).toThrow();
   });
 });

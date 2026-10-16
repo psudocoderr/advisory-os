@@ -28,3 +28,12 @@ export function isEphemeral(target: Target): boolean;
 export function assertDestructiveAllowed(url: string | undefined, options?: DestructiveOptions): Target;
 export function assertPushAllowed(url: string | undefined): Target;
 export function findExcessData(counts: Record<string, number>, volumes: Record<string, number>): string[];
+export const SHELL_ONLY_VARS: string[];
+export function mergeEnv(
+  fileEnv: Record<string, string>,
+  shellEnv: Record<string, string | undefined>
+): Record<string, string | undefined>;
+export function assertScriptTargetAllowed(
+  mode: "local-only" | "writes",
+  env: Record<string, string | undefined>
+): string[];

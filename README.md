@@ -66,8 +66,8 @@ npm run lint             # eslint
 npm run typecheck        # tsc --noEmit
 npm run format           # prettier
 
-npm run db:migrate       # create and apply a migration (local only)
-npm run db:deploy        # apply migrations (deployed environments)
+npm run db:migrate       # create and apply a migration (local only, always)
+npm run db:deploy        # apply migrations (a deployed target needs ALLOW_DEPLOYED_DB=1)
 npm run db:status        # migration state of the target database
 npm run db:drift         # does the database match schema.prisma?
 npm run db:seed          # reset to fixtures (refuses deployed databases)
@@ -81,6 +81,14 @@ npm run questions:import    # validate a CSV; --apply to load it
 
 npm run bootstrap:admin  # create or reset an admin account
 ```
+
+Variables set in the shell override `.env` and `.env.local`, so
+`DATABASE_URL=... npm run db:status` reaches the database you named. Scripts
+that write (`db:deploy`, `db:seed`, `db:studio`, `questions:import`,
+`bootstrap:admin`) refuse a deployed database unless `ALLOW_DEPLOYED_DB=1` is
+set in the shell for that command; `db:migrate` and `db:push` refuse one
+outright. Guard overrides in an env file are ignored. Production migrations go
+through the `migrate-production` workflow.
 
 ## Safety rails
 
