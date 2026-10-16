@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { estimateEap, isSessionExpired, IRT, rulesFor } from "@/lib/irt";
 import { finalizeSession, questionBank } from "@/lib/certify-session";
 import { loadTrackProgress } from "@/lib/knowledge";
@@ -124,9 +125,21 @@ export async function POST(request: Request) {
 
   const previousAttempts = await prisma.testSession.count({ where: { userId: session.user.id, ...scope } });
 
-  const testSession = await prisma.testSession.create({
-    data: { userId: session.user.id, ...scope, attemptNumber: previousAttempts + 1 }
-  });
+  // Two Starts can race past the open-attempt check above. The partial unique
+  // indexes from migration 20261017120000 let only one insert through; the
+  // other hands back the attempt that won, as if it had been resumed.
+  let testSession;
+  try {
+    testSession = await prisma.testSession.create({
+      data: { userId: session.user.id, ...scope, attemptNumber: previousAttempts + 1 }
+    });
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+    const winner = await prisma.testSession.findFirstOrThrow({
+      where: { userId: session.user.id, ...scope, status: "IN_PROGRESS" }
+    });
+    return NextResponse.json({ sessionId: winner.id, resumed: true });
+  }
 
   await prisma.auditLog.create({
     data: {
