@@ -32,17 +32,17 @@ export function LoginForm() {
         </div>
         <div>
           <h1 className="text-xl font-semibold text-ink">Sign in</h1>
-          <p className="text-sm text-muted">Use a seeded advisor or admin account.</p>
+          <p className="text-sm text-muted">Use your staff account.</p>
         </div>
       </div>
       <div className="space-y-4">
         <label className="label">
           Email
-          <input className="field" name="email" type="email" defaultValue="admin@advisory.local" required />
+          <input className="field" name="email" type="email" autoComplete="username" required />
         </label>
         <label className="label">
           Password
-          <input className="field" name="password" type="password" defaultValue="ChangeMeAdmin123!" required />
+          <input className="field" name="password" type="password" autoComplete="current-password" required />
         </label>
         {error ? (
           <div className="rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{error}</div>
