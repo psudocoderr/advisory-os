@@ -30,11 +30,9 @@
 import readline from "node:readline";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
+import { passwordProblem } from "../src/lib/password-policy";
 
 const prisma = new PrismaClient();
-
-/** Published in this repository. Never acceptable on a deployed instance. */
-const PUBLISHED_DEFAULTS = ["ChangeMeAdmin123!", "ChangeMeAdvisor123!"];
 
 /**
  * Asks a question on the terminal. With `hidden`, keystrokes are not echoed.
@@ -92,21 +90,13 @@ async function obtain(variable: string, prompt: string, { hidden = false } = {})
 }
 
 function assertPasswordUsable(password: string): void {
-  if (PUBLISHED_DEFAULTS.includes(password)) {
+  // Shared with the admin form, so the two paths cannot drift apart again.
+  const problem = passwordProblem(password);
+  if (problem) {
     throw new Error(
-      "That password is published in this repository (.env.example and git history).\n" +
-        "  Setting it on a deployed instance would hand out the credential.\n" +
-        "  Choose a different one."
-    );
-  }
-
-  if (password.length < 12) {
-    throw new Error(
-      `Password is ${password.length} characters. Use at least 12.\n\n` +
-        `  This account has ADMIN role, which bypasses row scoping entirely\n` +
-        `  (src/lib/auth.ts scopedUserFilter) and can read every client record\n` +
-        `  including PAN and AUM. There is also no login rate limiting yet\n` +
-        `  (docs/flags.md S3), so nothing slows an attacker down.`
+      `${problem}\n\n` +
+        `  An ADMIN account bypasses row scoping (src/lib/auth.ts scopedUserFilter)\n` +
+        `  and can read every client record, including PAN and AUM.`
     );
   }
 }

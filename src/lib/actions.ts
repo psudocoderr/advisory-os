@@ -9,6 +9,7 @@ import { requireAdmin, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formError, type FormState } from "@/lib/form-state";
 import { panSchema, phoneShape, toE164 } from "@/lib/identifiers";
+import { passwordProblem } from "@/lib/password-policy";
 import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
 
 const optionalDate = z
@@ -96,7 +97,10 @@ const userSchema = z.object({
     .string()
     .email()
     .transform((value) => value.toLowerCase().trim()),
-  password: z.string().min(8).max(128),
+  password: z.string().superRefine((value, ctx) => {
+    const problem = passwordProblem(value);
+    if (problem) ctx.addIssue({ code: "custom", message: problem });
+  }),
   role: z.enum(["ADMIN", "ADVISOR"])
 });
 
