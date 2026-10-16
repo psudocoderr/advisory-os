@@ -1,0 +1,35 @@
+name: Keep the preview database awake
+
+# Supabase pauses a free project after about 7 days without activity. The
+# daily Vercel cron (vercel.json) only reaches production, because Vercel runs
+# crons on production deployments alone, so the preview project paused and the
+# next migration run failed with P1001 (2026-10-16). One query twice a week
+# keeps it awake; twice rather than once because GitHub can delay scheduled
+# runs by hours.
+#
+# Runs on main (scheduled workflows always do), the only branch the
+# preview-database environment releases its secret to.
+
+on:
+  schedule:
+    - cron: "17 4 * * 1,4"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    name: SELECT 1 on the preview database
+    runs-on: ubuntu-latest
+    environment: preview-database
+    env:
+      DATABASE_URL: ${{ secrets.PREVIEW_DIRECT_URL }}
+    steps:
+      - name: Ping
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::notice::Preview database not configured (PREVIEW_DIRECT_URL); skipping."
+            exit 0
+          fi
+          psql "$DATABASE_URL" -tAc "select 1" > /dev/null
+          echo "Preview database answered."
