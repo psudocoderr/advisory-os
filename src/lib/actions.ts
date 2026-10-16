@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 import { Prisma, ProspectStage, KycStatus, PlanStatus } from "@prisma/client";
 import { requireAdmin, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import type { FormState } from "@/lib/form-state";
+import { formError, type FormState } from "@/lib/form-state";
 import { panSchema, phoneShape, toE164 } from "@/lib/identifiers";
 import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
 
@@ -641,16 +641,6 @@ const DUPLICATE = {
 
 function done(): FormState {
   return { ok: Date.now() };
-}
-
-/** The first validation problem, worded for the person filling in the form. */
-function formError(error: z.ZodError): FormState {
-  const issue = error.issues[0];
-  // Custom and pattern messages (PAN, mobile) are written as full sentences already.
-  if (!issue || issue.code === "custom" || issue.code === "invalid_string") return { error: issue?.message };
-  const field = String(issue.path[0] ?? "");
-  const label = field.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
-  return { error: label ? `${label}: ${issue.message}` : issue.message };
 }
 
 /**
