@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
+import { LOGIN_LIMITS, TOO_MANY_ATTEMPTS } from "@/lib/login-limits";
 
 export function LoginForm() {
   const router = useRouter();
@@ -20,6 +21,8 @@ export function LoginForm() {
         redirect: false
       });
       if (result?.ok) router.push("/dashboard");
+      else if (result?.error === TOO_MANY_ATTEMPTS)
+        setError(`Too many failed sign-ins. Try again in ${LOGIN_LIMITS.windowMinutes} minutes.`);
       else setError("Invalid email or password.");
     });
   }

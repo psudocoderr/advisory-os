@@ -3,6 +3,8 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { TOO_MANY_ATTEMPTS } from "@/lib/login-limits";
+import { clearLoginFailures, clientIp, loginBlocked, recordLoginFailure, throttleKeys } from "@/lib/login-throttle";
 import type { Role } from "@prisma/client";
 
 export const authOptions: NextAuthOptions = {
@@ -20,14 +22,19 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials.password) return null;
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase().trim() }
-        });
-        if (!user || !user.isActive) return null;
-        const valid = await bcrypt.compare(credentials.password, user.passwordHash);
-        if (!valid) return null;
+        const email = credentials.email.toLowerCase().trim();
+        const keys = throttleKeys(email, clientIp(req?.headers));
+        // Before any lookup or hashing: a throttled request costs nothing.
+        if (await loginBlocked(keys)) throw new Error(TOO_MANY_ATTEMPTS);
+        const user = await prisma.user.findUnique({ where: { email } });
+        const valid = !!user?.isActive && (await bcrypt.compare(credentials.password, user.passwordHash));
+        if (!user || !valid) {
+          await recordLoginFailure(keys);
+          return null;
+        }
+        await clearLoginFailures(keys);
         return { id: user.id, email: user.email, name: user.name, role: user.role };
       }
     })
