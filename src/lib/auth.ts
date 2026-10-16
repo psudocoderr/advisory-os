@@ -37,7 +37,18 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = (user as { role: Role }).role;
+        return token;
       }
+      // Every server-side session read lands here, so re-reading the account
+      // makes deactivation and role changes take effect on the next request
+      // instead of when the JWT expires. Throwing is how next-auth v4 drops a
+      // session: getServerSession returns null and the cookie is cleared.
+      // Returning a partial token would instead yield a session with no id.
+      const account = token.id
+        ? await prisma.user.findUnique({ where: { id: token.id }, select: { role: true, isActive: true } })
+        : null;
+      if (!account?.isActive) throw new Error("Session revoked: account inactive or removed");
+      token.role = account.role;
       return token;
     },
     async session({ session, token }) {
