@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 import { createQuestionItem, createUser, updateUserActive } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { compactInr, dateLabel, titleCase } from "@/lib/format";
@@ -136,7 +137,7 @@ export default async function AdminPage() {
                 name="password"
                 type="password"
                 placeholder="Temporary password"
-                minLength={8}
+                minLength={MIN_PASSWORD_LENGTH}
                 required
               />
             </div>
