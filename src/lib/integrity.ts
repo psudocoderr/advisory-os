@@ -111,3 +111,18 @@ export function isRedundantEvent(
   const now = context.now ?? new Date();
   return now.getTime() - context.latestSameKindAt.getTime() < DEDUPE_WINDOW_MS;
 }
+
+/**
+ * Whether the per-session row cap may drop this event.
+ *
+ * The cap bounds what a client can write, but it must not be able to switch
+ * enforcement off: 200 alternating fullscreen events sent before the first
+ * question used to fill it, and every later exit and strike was then
+ * dropped, leaving the server sure the candidate was in fullscreen with no
+ * strikes (flags D8). So once the clock runs, fullscreen and strike events
+ * always go through. They are bounded without the cap: the fourth strike ends
+ * the attempt, and a fullscreen return needs an exit before it.
+ */
+export function isCappable(kind: IntegrityKind, timerStarted: boolean): boolean {
+  return !timerStarted || !(isStrike(kind) || isFullscreenKind(kind));
+}

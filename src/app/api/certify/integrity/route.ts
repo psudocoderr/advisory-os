@@ -5,7 +5,14 @@ import { authOptions } from "@/lib/auth";
 import { estimateEap } from "@/lib/irt";
 import { finalizeSession, latestFullscreenKind, questionBank } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
-import { INTEGRITY_KINDS, STRIKE_KINDS, STRIKE_LIMIT, isRedundantEvent, shouldTerminate } from "@/lib/integrity";
+import {
+  INTEGRITY_KINDS,
+  STRIKE_KINDS,
+  STRIKE_LIMIT,
+  isCappable,
+  isRedundantEvent,
+  shouldTerminate
+} from "@/lib/integrity";
 
 /**
  * Records that the candidate left the exam surface, and ends the attempt once
@@ -24,7 +31,10 @@ const schema = z.object({
   kind: z.enum(INTEGRITY_KINDS)
 });
 
-/** Client-driven volume needs a ceiling; a held key could write unbounded rows. */
+/**
+ * Client-driven volume needs a ceiling; a held key could write unbounded rows.
+ * Once the clock runs it applies to informational events only (isCappable).
+ */
 const MAX_EVENTS_PER_SESSION = 200;
 
 export async function POST(request: Request) {
@@ -48,7 +58,7 @@ export async function POST(request: Request) {
   }
 
   const total = await prisma.integrityEvent.count({ where: { sessionId } });
-  if (total >= MAX_EVENTS_PER_SESSION) {
+  if (total >= MAX_EVENTS_PER_SESSION && isCappable(kind, Boolean(testSession.timerStartedAt))) {
     return NextResponse.json({ recorded: false, strikes: total, capped: true, terminated: false });
   }
 
