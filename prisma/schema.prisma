@@ -408,6 +408,12 @@ model TestSession {
   integrityEvents IntegrityEvent[]
 
   @@index([userId, moduleId])
+  /// Also, in SQL only (Prisma cannot express a partial index): at most one
+  /// IN_PROGRESS session per user per test, as
+  /// test_sessions_one_open_module_test_key, unique (userId, moduleId) WHERE
+  /// moduleId IS NOT NULL, and test_sessions_one_open_final_exam_key, unique
+  /// (userId, trackId) WHERE moduleId IS NULL. See migration
+  /// 20261017120000_one_open_test_session.
   @@map("test_sessions")
 }
 
