@@ -3,7 +3,7 @@
  *
  * The bank is the company's content. This does not write questions; it gives
  * the practice a way to author them in Excel or Sheets, checks them, and loads
- * them. Growing the bank is the point -- at 12 per module the adaptive test
+ * them. Growing the bank is the point -- at 12 per topic the adaptive test
  * cannot converge and the retry cooldown is meaningless.
  *
  *   npm run questions:check              audit the bank in the database
@@ -11,7 +11,7 @@
  *   npm run questions:import <file>      validate a CSV (dry run)
  *   npm run questions:import <file> --apply    validate and load it
  *   npm run questions:import <file> --replace --apply
- *       retire the existing questions in every module the file covers, then
+ *       retire the existing questions in every topic the file covers, then
  *       load it. Needed to get out from under a bank that is already broken:
  *       otherwise good questions cannot be imported, because validation is
  *       against the merged result and the existing rows keep failing it.
@@ -31,7 +31,7 @@ import {
 const prisma = new PrismaClient();
 
 const COLUMNS = [
-  "module",
+  "topic",
   "chapter",
   "content",
   "option_a",
@@ -88,11 +88,8 @@ function report(issues: Issue[]): { errors: number; warnings: number } {
   return { errors: errors.length, warnings: warnings.length };
 }
 
-/**
- * Every topic, as "slug" -> id. The CSV's `module` column names a topic (its
- * name from before topics existed). A slug shared by two modules is ambiguous.
- */
-async function loadModules() {
+/** Every topic, as "slug" -> id. A slug shared by two modules is ambiguous. */
+async function loadTopics() {
   return prisma.topic.findMany({
     orderBy: [{ module: { track: { order: "asc" } } }, { module: { order: "asc" } }, { order: "asc" }],
     select: { id: true, slug: true, chapters: { select: { id: true, slug: true } } }
@@ -106,7 +103,7 @@ async function loadFromDatabase(): Promise<(QuestionDraft & { topicId: string })
   });
   return rows.map((r) => ({
     topicId: r.topicId,
-    module: r.topic.slug,
+    topic: r.topic.slug,
     chapterSlug: r.chapter.slug,
     content: r.content,
     options: r.options as { key: string; text: string }[],
@@ -119,15 +116,15 @@ async function loadFromDatabase(): Promise<(QuestionDraft & { topicId: string })
 }
 
 async function check() {
-  const [bank, modules] = await Promise.all([loadFromDatabase(), loadModules()]);
+  const [bank, topics] = await Promise.all([loadFromDatabase(), loadTopics()]);
   console.log(`  ${bank.length} active questions\n`);
-  for (const m of modules) {
+  for (const m of topics) {
     const n = bank.filter((q) => q.topicId === m.id).length;
     const bar = "#".repeat(Math.round((n / TARGET_BANK_SIZE) * 20)).padEnd(20, ".");
-    console.log(`  ${m.slug.padEnd(8)}  ${bar}  ${n}/${TARGET_BANK_SIZE}`);
+    console.log(`  ${m.slug.padEnd(24)}  ${bar}  ${n}/${TARGET_BANK_SIZE}`);
   }
   console.log("");
-  const { errors } = report(validateBank(bank, "database", { modules: modules.map((m) => m.slug) }));
+  const { errors } = report(validateBank(bank, "database", { topics: topics.map((m) => m.slug) }));
   process.exitCode = errors ? 1 : 0;
 }
 
@@ -140,8 +137,8 @@ function template() {
    */
   const examples: string[][] = [
     [
-      "m1",
-      "introduction",
+      "kyc-and-compliance",
+      "kyc-overview",
       "The KRA record shows a different surname from the PAN-linked name. What is the correct next step?",
       "Proceed with onboarding and note the difference",
       "Raise the proof protocol and resolve before onboarding",
@@ -154,8 +151,8 @@ function template() {
       "0.25"
     ],
     [
-      "m1",
-      "introduction",
+      "kyc-and-compliance",
+      "kyc-overview",
       "Which identifier must be tagged on a transaction to attribute advice to the individual who gave it?",
       "The ARN of the distributor firm",
       "The folio number",
@@ -168,8 +165,8 @@ function template() {
       "0.25"
     ],
     [
-      "m2",
-      "introduction",
+      "kyc-and-compliance",
+      "kyc-overview",
       "A penny-drop verification fails but the client insists the account is correct. What should happen?",
       "Do not proceed until the bank account is verified",
       "Accept a cancelled cheque as sufficient proof",
@@ -182,8 +179,8 @@ function template() {
       "0.25"
     ],
     [
-      "m3",
-      "introduction",
+      "kyc-and-compliance",
+      "kyc-overview",
       "An ELSS purchase is submitted at 14:45 on a business day. Which NAV applies?",
       "The previous business day's NAV",
       "The NAV of the next business day",
@@ -196,8 +193,8 @@ function template() {
       "0.25"
     ],
     [
-      "m4",
-      "introduction",
+      "kyc-and-compliance",
+      "kyc-overview",
       "A portfolio's equity allocation has drifted from 60% to 72%. What does this indicate?",
       "The client's risk profile has changed",
       "The portfolio needs rebalancing toward the agreed allocation",
@@ -224,7 +221,7 @@ function template() {
   console.log("                    Fails above 60% on one key: a bank where one letter");
   console.log("                    dominates is passable without reading the questions.");
   console.log("    distractors     specific to the question. Fails if one wrong answer is");
-  console.log("                    reused across more than half a module -- repeated filler");
+  console.log("                    reused across more than half a topic -- repeated filler");
   console.log("                    is recognisable without knowing the subject.");
   console.log("    difficulty      -2 easy to +2 hard, spread out. The adaptive test picks");
   console.log("                    the most informative next item; with no spread there is");
@@ -232,11 +229,13 @@ function template() {
   console.log("    discrimination  around 1.0. Higher means the item separates ability more");
   console.log("                    sharply. Leave at 1.0 unless you have response data.");
   console.log("    guessing        0.25 for a four-option item -- the chance of a blind hit.");
-  console.log("    module          the module's slug, e.g. m1.");
-  console.log("    chapter         the slug of the chapter the question tests, in that module.");
+  console.log("    topic           the topic's slug, as in its URL, e.g. kyc-and-compliance.");
+  console.log("                    (Files with a 'module' column from before topics still work.)");
+  console.log("    chapter         the slug of the chapter the question tests, in that topic.");
+  console.log("                    Draft chapters work: import questions before you publish.");
   console.log("    explanation     shown when reviewing a wrong answer. Say why the correct");
   console.log("                    option is correct, not just what it is.\n");
-  console.log(`  Target: ${TARGET_BANK_SIZE} questions per module.`);
+  console.log(`  Target: ${TARGET_BANK_SIZE} questions per topic.`);
   console.log("  Run 'npm run questions:check' at any time to see where the bank stands.");
 }
 
@@ -244,13 +243,14 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
   const rows = parseCsv(readFileSync(path, "utf8"));
   if (!rows.length) throw new Error("file is empty");
 
-  const header = rows[0].map((h) => h.trim().toLowerCase());
+  // "module" is what this column was called before topics existed.
+  const header = rows[0].map((h) => h.trim().toLowerCase()).map((h) => (h === "module" ? "topic" : h));
   const missing = COLUMNS.filter((c) => !header.includes(c));
   if (missing.length) throw new Error(`missing columns: ${missing.join(", ")}`);
   const at = (row: string[], col: string) => (row[header.indexOf(col)] ?? "").trim();
 
   const drafts: QuestionDraft[] = rows.slice(1).map((row) => ({
-    module: at(row, "module").toLowerCase(),
+    topic: at(row, "topic").toLowerCase(),
     chapterSlug: at(row, "chapter").toLowerCase(),
     content: at(row, "content"),
     options: [
@@ -280,19 +280,19 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
     return;
   }
 
-  // Every row must name a module and chapter that exist. Checked in the dry
+  // Every row must name a topic and chapter that exist. Checked in the dry
   // run too, so a typo is caught before anyone reaches for --apply.
-  const modules = await loadModules();
+  const topics = await loadTopics();
   const unknown: string[] = [];
   const resolved = drafts.map((d, i) => {
-    const matches = modules.filter((m) => m.slug === d.module);
+    const matches = topics.filter((m) => m.slug === d.topic);
     if (matches.length !== 1) {
-      unknown.push(`row ${i + 2}: topic "${d.module}" ${matches.length ? "is in more than one module" : "not found"}`);
+      unknown.push(`row ${i + 2}: topic "${d.topic}" ${matches.length ? "is in more than one module" : "not found"}`);
       return null;
     }
     const chapter = matches[0].chapters.find((c) => c.slug === d.chapterSlug);
     if (!chapter) {
-      unknown.push(`row ${i + 2}: chapter "${d.chapterSlug}" not found in topic "${d.module}"`);
+      unknown.push(`row ${i + 2}: chapter "${d.chapterSlug}" not found in topic "${d.topic}"`);
       return null;
     }
     return { topicId: matches[0].id, chapterId: chapter.id };
@@ -305,14 +305,20 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
   }
 
   // Then the merged result: a file that is balanced on its own can still tip
-  // the module it joins.
+  // the topic it joins. Only the topics this file touches: every bank check
+  // is per topic, and another topic's problems are not this import's to fix
+  // (they would otherwise block a clean file; `questions:check` reports them).
   const existing = await loadFromDatabase();
-  const modulesCovered = new Set(drafts.map((d) => d.module));
+  const topicsCovered = new Set(drafts.map((d) => d.topic));
   const topicIdsCovered = [...new Set(resolved.map((r) => r!.topicId))];
-  const retained = replace ? existing.filter((q) => !topicIdsCovered.includes(q.topicId)) : existing;
+  const sameTopics = existing.filter((q) => topicIdsCovered.includes(q.topicId));
+  const retained = replace ? [] : sameTopics;
   const merged = [...retained, ...drafts];
 
-  console.log(`\n  Checking the resulting bank${replace ? " (existing questions in these topics retired)" : ""}:`);
+  console.log(
+    `\n  Checking the resulting bank for ${[...topicsCovered].sort().join(", ")}` +
+      `${replace ? " (existing questions in these topics retired)" : ""}:`
+  );
   const mergedResult = report(validateBank(merged, "resulting bank"));
 
   if (mergedResult.errors) {
@@ -320,7 +326,7 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
       console.log(
         `\n  ${mergedResult.errors} error(s), but the file itself is clean -- these come from` +
           `\n  questions already in the database. Re-run with --replace to retire the existing` +
-          `\n  questions in ${[...modulesCovered].sort().join(", ")} and import this file in their place.`
+          `\n  questions in ${[...topicsCovered].sort().join(", ")} and import this file in their place.`
       );
     } else {
       console.log(`\n  ${mergedResult.errors} error(s) remain even after retiring the existing questions.`);
@@ -371,12 +377,11 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
         actorId: author.id,
         action: "CREATE",
         entity: "QuestionItem",
-        summary: `Imported ${drafts.length} questions from ${path}${replace ? `, retiring existing questions in ${[...modulesCovered].sort().join(", ")}` : ""}`
+        summary: `Imported ${drafts.length} questions from ${path}${replace ? `, retiring existing questions in ${[...topicsCovered].sort().join(", ")}` : ""}`
       }
     });
   });
-  if (replace)
-    console.log(`  retired ${retiredCount} existing question(s) in ${[...modulesCovered].sort().join(", ")}`);
+  if (replace) console.log(`  retired ${retiredCount} existing question(s) in ${[...topicsCovered].sort().join(", ")}`);
   console.log(`\n  imported ${drafts.length} questions`);
 }
 
