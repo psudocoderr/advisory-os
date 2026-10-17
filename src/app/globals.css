@@ -202,6 +202,63 @@
   margin-top: 0;
 }
 
+/* Collapsible ## sections: a native <details> per section. */
+.chapter-section {
+  border-top: 1px solid #d8dee8;
+  padding-top: 0.75rem;
+}
+
+.chapter-section:last-child {
+  border-bottom: 1px solid #d8dee8;
+  padding-bottom: 0.75rem;
+}
+
+.chapter-body > .chapter-section + .chapter-section {
+  margin-top: 0;
+}
+
+.chapter-section > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.chapter-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.chapter-section > summary::before {
+  content: "▸";
+  color: #64748b;
+}
+
+.chapter-section[open] > summary::before {
+  content: "▾";
+}
+
+.chapter-section > summary:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+
+.chapter-section > summary h2 {
+  margin: 0;
+}
+
+.chapter-section-body {
+  padding: 0.5rem 0 0 1.25rem;
+}
+
+.chapter-section-body > * + * {
+  margin-top: 1rem;
+}
+
+.chapter-section-body > :first-child {
+  margin-top: 0;
+}
+
 .chapter-body a {
   color: #0f766e;
   text-decoration: underline;

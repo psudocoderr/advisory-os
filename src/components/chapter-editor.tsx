@@ -129,7 +129,7 @@ export function ChapterEditor({
           />
           {preview ? (
             <div className="min-h-112 p-6">
-              <ChapterBody markdown={body} />
+              <ChapterBody markdown={body} collapsible={false} />
             </div>
           ) : null}
         </Card>
