@@ -13,6 +13,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:sim": "vitest run -c vitest.simulation.config.mts",
     "db:generate": "node scripts/with-env.mjs prisma generate",
     "db:migrate": "node scripts/with-env.mjs --local-only prisma migrate dev",
     "db:deploy": "node scripts/with-env.mjs --writes prisma migrate deploy",
