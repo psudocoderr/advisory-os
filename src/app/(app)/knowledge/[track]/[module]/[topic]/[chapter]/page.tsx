@@ -55,7 +55,7 @@ export default async function ChapterPage({
         </div>
         <Card className="p-3">
           <div className="px-2 pb-2 text-xs font-bold uppercase tracking-wide text-muted">
-            {topicIndex + 1}. {topic.title}
+            {topic.number} {topic.title}
           </div>
           <ol>
             {topic.chapters.map((item, index) => {
@@ -68,6 +68,7 @@ export default async function ChapterPage({
                   }`}
                 >
                   <ChapterStateIcon state={itemState} size={14} />
+                  <span className="mono text-xs text-muted">{item.number}</span>
                   {item.title}
                 </span>
               );
@@ -90,12 +91,12 @@ export default async function ChapterPage({
                   className="flex items-center gap-2 rounded px-2 py-1.5 text-sm font-semibold text-teal hover:underline"
                 >
                   <Award size={14} />
-                  Topic test
+                  Topic {topic.number} test
                 </Link>
               ) : (
                 <span className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted">
                   <Lock size={14} />
-                  Topic test
+                  Topic {topic.number} test
                 </span>
               )}
             </li>
@@ -105,7 +106,7 @@ export default async function ChapterPage({
 
       <article>
         <div className="text-xs font-semibold text-muted">
-          Chapter {chapterIndex + 1} of {topic.chapters.length}
+          Chapter {topic.chapters[chapterIndex].number} · {chapterIndex + 1} of {topic.chapters.length} in {topic.title}
         </div>
         <h1 className="mt-1 text-2xl font-semibold text-ink">{chapter.title}</h1>
 
@@ -154,7 +155,7 @@ export default async function ChapterPage({
                 href={`/certify/${topic.id}`}
                 className="inline-flex items-center gap-1.5 rounded border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-teal"
               >
-                Topic test
+                Topic {topic.number} test
                 <ArrowRight size={16} />
               </Link>
             ) : null}

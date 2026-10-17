@@ -27,75 +27,64 @@ export default async function CertifyPage() {
         standing ? (
           <div key={standing.track.id} className="mb-6">
             <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">{standing.track.title}</h2>
-            <div className="grid gap-4 lg:grid-cols-2">
-              {standing.track.topics.map((topic, index) => {
-                const topicStanding = standing.progress[index];
-                const level = standing.badgeLevels.get(topic.id);
-                const questionCount = counts.find((item) => item.topicId === topic.id)?._count ?? 0;
-                return (
-                  <Card key={topic.id} className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-mint text-teal">
-                        <ClipboardCheck size={20} />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-ink">
-                          {index + 1}. {topic.title}
-                        </h3>
-                        <div className="mt-1 text-sm text-muted">
-                          {questionCount} questions · {level ? LEVEL_LABEL[level] : "No badge yet"}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex justify-end border-t border-line pt-4">
-                      {topicStanding.testUnlocked ? (
-                        <Link
-                          href={`/certify/${topic.id}`}
-                          className="rounded bg-navy px-3 py-2 text-sm font-semibold text-white"
-                        >
-                          {level ? "Retake" : "Start"}
-                        </Link>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-sm text-muted">
-                          <Lock size={14} />
-                          Locked
-                        </span>
-                      )}
-                    </div>
-                  </Card>
-                );
-              })}
-              <Card className="p-4 lg:col-span-2">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-navy text-white">
-                      <Award size={20} />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-ink">Final exam</h3>
-                      <div className="mt-1 text-sm text-muted">
-                        {standing.certificateLevel
-                          ? `Certificate: ${LEVEL_LABEL[standing.certificateLevel]}`
-                          : "Awards the track certificate"}
-                      </div>
-                    </div>
-                  </div>
-                  {standing.finalUnlocked ? (
-                    <Link
-                      href={`/certify/final/${standing.track.id}`}
-                      className="rounded bg-navy px-3 py-2 text-sm font-semibold text-white"
-                    >
-                      {standing.certificateLevel ? "Retake" : "Start"}
-                    </Link>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 text-sm text-muted">
-                      <Lock size={14} />
-                      Earn every topic badge
+            {standing.track.modules.map((module, moduleIndex) => {
+              const moduleStanding = standing.moduleProgress[moduleIndex];
+              return (
+                <div key={module.id} className="mb-5">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-bold text-ink">
+                      Module {module.number} · {module.title}
+                    </h3>
+                    <span className="flex items-center gap-1.5 text-sm text-muted">
+                      <Award size={14} className={moduleStanding.badged ? "text-teal" : ""} />
+                      {moduleStanding.badgeLevel
+                        ? `Module badge: ${LEVEL_LABEL[moduleStanding.badgeLevel]}`
+                        : `${moduleStanding.topicsPassed} of ${moduleStanding.topicsCounted} topics passed`}
                     </span>
-                  )}
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {module.topics.map((topic) => {
+                      const topicStanding = standing.progress.find((row) => row.id === topic.id)!;
+                      if (topicStanding.comingSoon) return null;
+                      const level = standing.badgeLevels.get(topic.id);
+                      const questionCount = counts.find((item) => item.topicId === topic.id)?._count ?? 0;
+                      return (
+                        <Card key={topic.id} className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-mint text-teal">
+                              <ClipboardCheck size={20} />
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-ink">
+                                {topic.number} {topic.title}
+                              </h4>
+                              <div className="mt-1 text-sm text-muted">
+                                {questionCount} questions · {level ? LEVEL_LABEL[level] : "No badge yet"}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-4 flex justify-end border-t border-line pt-4">
+                            {topicStanding.testUnlocked ? (
+                              <Link
+                                href={`/certify/${topic.id}`}
+                                className="rounded bg-navy px-3 py-2 text-sm font-semibold text-white"
+                              >
+                                {level ? "Retake" : "Start"}
+                              </Link>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 text-sm text-muted">
+                                <Lock size={14} />
+                                Locked
+                              </span>
+                            )}
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
                 </div>
-              </Card>
-            </div>
+              );
+            })}
           </div>
         ) : null
       )}

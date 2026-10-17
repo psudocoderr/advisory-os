@@ -70,10 +70,8 @@ export default async function DashboardPage() {
   const topics = standing
     ? standing.track.topics.map((topic, index) => ({ ...topic, progress: standing.progress[index] }))
     : [];
-  const badgedCount = topics.filter((topic) => topic.progress.badged).length;
-  const next = standing
-    ? nextStep(standing.track, standing.progress, standing.finalUnlocked, standing.certificateLevel)
-    : null;
+  const modulesBadged = standing ? standing.moduleProgress.filter((row) => row.badged).length : 0;
+  const next = standing ? nextStep(standing.track, standing.progress) : null;
 
   return (
     <>
@@ -106,8 +104,7 @@ export default async function DashboardPage() {
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs font-semibold text-muted">
-                {badgedCount} of {topics.length} badges
-                {standing.certificateLevel ? ` · Certificate: ${LEVEL_LABEL[standing.certificateLevel]}` : ""}
+                {modulesBadged} of {standing.track.modules.length} module badges
               </span>
               {next ? (
                 <Link
@@ -121,7 +118,7 @@ export default async function DashboardPage() {
           </div>
 
           <div className="mt-3.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {topics.map((topic, index) => {
+            {topics.map((topic) => {
               const level = standing.badgeLevels.get(topic.id);
               return (
                 <div
@@ -132,7 +129,7 @@ export default async function DashboardPage() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="mono rounded border border-line bg-panel px-1.5 py-0.5 text-[10px] font-bold text-navy">
-                      {index + 1}
+                      {topic.number}
                     </span>
                     {level ? (
                       <span className="flex items-center gap-1 text-[10px] font-bold text-teal">
@@ -142,7 +139,9 @@ export default async function DashboardPage() {
                   </div>
                   <div className="mt-2 text-xs font-bold leading-snug text-ink">{topic.title}</div>
                   <div className="mt-2 border-t border-line/50 pt-1.5 text-[10px] font-medium text-muted">
-                    {topic.progress.chaptersDone}/{topic.chapters.length} chapters
+                    {topic.progress.comingSoon
+                      ? "Coming soon"
+                      : `${topic.progress.chaptersDone}/${topic.chapters.length} chapters`}
                   </div>
                 </div>
               );
