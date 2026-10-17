@@ -11,6 +11,7 @@ import { formError, type FormState } from "@/lib/form-state";
 import { panSchema, phoneShape, toE164 } from "@/lib/identifiers";
 import { passwordProblem } from "@/lib/password-policy";
 import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
+import { deleteObject, storageConfig } from "@/lib/storage";
 
 const optionalDate = z
   .string()
@@ -510,6 +511,102 @@ export async function saveTopic(_prev: FormState, formData: FormData): Promise<F
   } catch (error) {
     return knowledgeConflict(error);
   }
+  revalidateKnowledge();
+  return done();
+}
+
+/**
+ * Deletes a topic and everything in it: chapters (with completions and file
+ * records), questions, every test attempt on it (with answers and integrity
+ * events) and its badges. Irreversible, so the admin types the topic's slug
+ * to confirm (owner decision 2026-10-17: production holds fixtures only).
+ *
+ * One transaction: either all of it goes or none of it does. Uploaded files
+ * are removed from the bucket afterwards; a file that fails to delete is only
+ * an orphan in private storage, and the audit entry says so.
+ */
+export async function deleteTopic(_prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requireAdmin();
+  const id = z.string().min(1).parse(formData.get("id"));
+  const typed = z
+    .string()
+    .trim()
+    .parse(formData.get("confirm") ?? "");
+  const topic = await prisma.topic.findUnique({ where: { id }, select: { title: true, slug: true } });
+  if (!topic) return { error: "Not found; it may have been deleted already. Reload the page." };
+  if (typed !== topic.slug) return { error: `Type ${topic.slug} to confirm` };
+
+  const removed = await prisma.$transaction(async (tx) => {
+    const sessions = (await tx.testSession.findMany({ where: { topicId: id }, select: { id: true } })).map(
+      (row) => row.id
+    );
+    const questions = (await tx.questionItem.findMany({ where: { topicId: id }, select: { id: true } })).map(
+      (row) => row.id
+    );
+    const assets = await tx.asset.findMany({ where: { chapter: { topicId: id } }, select: { key: true } });
+
+    const badges = await tx.certification.deleteMany({
+      where: { OR: [{ topicId: id }, { sessionId: { in: sessions } }] }
+    });
+    // Answers and integrity events go with their attempts (cascade). Answers
+    // to these questions inside any other attempt go too, or the questions
+    // could not be deleted.
+    await tx.responseLog.deleteMany({ where: { questionId: { in: questions } } });
+    const attempts = await tx.testSession.deleteMany({ where: { id: { in: sessions } } });
+    const questionCount = await tx.questionItem.deleteMany({ where: { id: { in: questions } } });
+    await tx.asset.deleteMany({ where: { chapter: { topicId: id } } });
+    const chapters = await tx.chapter.deleteMany({ where: { topicId: id } });
+    await tx.topic.delete({ where: { id } });
+    return {
+      chapters: chapters.count,
+      questions: questionCount.count,
+      attempts: attempts.count,
+      badges: badges.count,
+      keys: assets.map((row) => row.key)
+    };
+  });
+
+  const config = storageConfig();
+  const results = config ? await Promise.allSettled(removed.keys.map((key) => deleteObject(config, key))) : [];
+  const fileFailures = config
+    ? results.filter((result) => result.status === "rejected" || !result.value.ok).length
+    : removed.keys.length;
+
+  await log(
+    session.user.id,
+    "DELETE",
+    "Topic",
+    `${topic.title} deleted: ${removed.chapters} chapters, ${removed.questions} questions, ` +
+      `${removed.attempts} test attempts, ${removed.badges} badges, ${removed.keys.length} files` +
+      (fileFailures ? ` (${fileFailures} files left in storage)` : ""),
+    id
+  );
+  revalidateKnowledge();
+  revalidatePath("/certify");
+  revalidatePath("/admin");
+  return done();
+}
+
+/** Deletes a module, only once it has no topics left. */
+export async function deleteModule(_prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requireAdmin();
+  const id = z.string().min(1).parse(formData.get("id"));
+  const trainingModule = await prisma.module.findUnique({
+    where: { id },
+    select: { title: true, _count: { select: { topics: true } } }
+  });
+  if (!trainingModule) return { error: "Not found; it may have been deleted already. Reload the page." };
+  if (trainingModule._count.topics > 0) return { error: "Delete or move this module's topics first" };
+  try {
+    await prisma.module.delete({ where: { id } });
+  } catch (error) {
+    // A topic added since the check above: the foreign key refuses.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") {
+      return { error: "Delete or move this module's topics first" };
+    }
+    return knowledgeConflict(error);
+  }
+  await log(session.user.id, "DELETE", "Module", `${trainingModule.title} deleted`, id);
   revalidateKnowledge();
   return done();
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ArrowDown, ArrowUp, FilePlus, Pencil, Plus } from "lucide-react";
-import { createChapter, moveKnowledgeItem, saveTopic, saveTrack } from "@/lib/actions";
+import { ArrowDown, ArrowUp, FilePlus, Pencil, Plus, Trash2 } from "lucide-react";
+import { createChapter, deleteModule, deleteTopic, moveKnowledgeItem, saveTopic, saveTrack } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MINIMUM_BANK_SIZE } from "@/lib/question-bank";
@@ -19,8 +19,14 @@ export default async function KnowledgeEditorPage() {
           topics: {
             orderBy: { order: "asc" },
             include: {
-              chapters: { orderBy: { order: "asc" }, select: { id: true, title: true, isPublished: true } },
-              _count: { select: { questions: { where: { isActive: true } } } }
+              chapters: {
+                orderBy: { order: "asc" },
+                select: { id: true, title: true, isPublished: true, _count: { select: { assets: true } } }
+              },
+              // Active questions for the bank warning; attempts and badges for the delete dialog.
+              _count: {
+                select: { questions: { where: { isActive: true } }, testSessions: true, certifications: true }
+              }
             }
           }
         }
@@ -74,12 +80,28 @@ export default async function KnowledgeEditorPage() {
                       <h3 className="text-sm font-bold uppercase tracking-wide text-muted">
                         Module {moduleIndex + 1} · {module.title}
                       </h3>
-                      <FormDialog label="New topic" title="New topic" icon={<Plus size={14} />} action={saveTopic}>
-                        <input type="hidden" name="moduleId" value={module.id} />
-                        <TitledFields />
-                        <PublishedField checked={false} />
-                        <Save />
-                      </FormDialog>
+                      <div className="flex gap-2">
+                        <FormDialog label="New topic" title="New topic" icon={<Plus size={14} />} action={saveTopic}>
+                          <input type="hidden" name="moduleId" value={module.id} />
+                          <TitledFields />
+                          <PublishedField checked={false} />
+                          <Save />
+                        </FormDialog>
+                        {module.topics.length === 0 ? (
+                          <FormDialog
+                            label="Delete module"
+                            title={`Delete ${module.title}`}
+                            icon={<Trash2 size={14} />}
+                            action={deleteModule}
+                          >
+                            <input type="hidden" name="id" value={module.id} />
+                            <p className="text-sm text-muted">
+                              This module has no topics. Deleting it cannot be undone.
+                            </p>
+                            <DeleteButton />
+                          </FormDialog>
+                        ) : null}
+                      </div>
                     </div>
                     {module.topics.map((topic, topicIndex) => {
                       const published = topic.chapters.filter((chapter) => chapter.isPublished).length;
@@ -127,6 +149,36 @@ export default async function KnowledgeEditorPage() {
                                 <input type="hidden" name="topicId" value={topic.id} />
                                 <TitledFields description={false} />
                                 <Save />
+                              </FormDialog>
+                              <FormDialog
+                                label="Delete"
+                                title={`Delete ${topic.title}`}
+                                icon={<Trash2 size={14} />}
+                                action={deleteTopic}
+                              >
+                                <input type="hidden" name="id" value={topic.id} />
+                                <p className="text-sm text-ink">
+                                  This permanently deletes the topic and everything in it:
+                                </p>
+                                <ul className="list-disc pl-5 text-sm text-muted">
+                                  <li>{topic.chapters.length} chapters and their completion ticks</li>
+                                  <li>
+                                    {topic.chapters.reduce((sum, chapter) => sum + chapter._count.assets, 0)} uploaded
+                                    files
+                                  </li>
+                                  <li>its questions ({topic._count.questions} active)</li>
+                                  <li>{topic._count.testSessions} test attempts, with their answers</li>
+                                  <li>{topic._count.certifications} badges</li>
+                                </ul>
+                                <p className="text-sm text-ink">It cannot be undone. Unpublishing hides it instead.</p>
+                                <input
+                                  className="field"
+                                  name="confirm"
+                                  placeholder={`Type ${topic.slug} to confirm`}
+                                  autoComplete="off"
+                                  required
+                                />
+                                <DeleteButton />
                               </FormDialog>
                             </div>
                           </div>
@@ -215,6 +267,12 @@ function ActiveField({ checked }: { checked: boolean }) {
       <input type="checkbox" name="isActive" defaultChecked={checked} />
       Visible to trainees
     </label>
+  );
+}
+
+function DeleteButton() {
+  return (
+    <button className="rounded bg-rose px-4 py-2 text-sm font-semibold text-white hover:opacity-90">Delete</button>
   );
 }
 
