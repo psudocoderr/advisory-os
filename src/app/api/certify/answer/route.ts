@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
-import { estimateEap, isSessionExpired, rulesFor, selectNextQuestion, shouldStop } from "@/lib/irt";
+import { estimateEap, isSessionExpired, selectNextQuestion, shouldStop } from "@/lib/irt";
 import { candidateOnExamSurface, finalizeSession, questionBank } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
 
@@ -45,8 +45,7 @@ export async function POST(request: Request) {
   // display; a client clock can be wrong or deliberately changed. An answer
   // arriving after the deadline does not count, and the session closes on the
   // estimate reached before time ran out.
-  const rules = rulesFor(testSession);
-  if (isSessionExpired(testSession.timerStartedAt, new Date(), rules)) {
+  if (isSessionExpired(testSession.timerStartedAt)) {
     const bankForScore = await questionBank(testSession);
     const expiredEstimate = estimateEap(testSession.responses, bankForScore);
     const result = await finalizeSession({
@@ -75,8 +74,7 @@ export async function POST(request: Request) {
   const question = selectNextQuestion(
     testSession.abilityEstimate,
     bank,
-    testSession.responses.map((response) => response.questionId),
-    !testSession.topicId
+    testSession.responses.map((response) => response.questionId)
   );
   if (!question || question.id !== input.questionId) {
     return NextResponse.json({ error: "That is not the current question." }, { status: 409 });
@@ -99,7 +97,7 @@ export async function POST(request: Request) {
     }
   });
 
-  if (shouldStop(answeredCount, estimate.se, rules)) {
+  if (shouldStop(answeredCount, estimate.se)) {
     const result = await finalizeSession({
       sessionId: testSession.id,
       userId: auth.user.id,
@@ -117,7 +115,7 @@ export async function POST(request: Request) {
   });
 
   const usedIds = responseHistory.map((response) => response.questionId);
-  const next = selectNextQuestion(estimate.theta, bank, usedIds, !testSession.topicId);
+  const next = selectNextQuestion(estimate.theta, bank, usedIds);
 
   // Running out of questions ends the test. It used to return HTTP 500 and
   // leave the session IN_PROGRESS, which permanently bricked the topic: the

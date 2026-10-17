@@ -4,7 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { estimateEap, isSessionExpired, IRT, rulesFor } from "@/lib/irt";
+import { estimateEap, isSessionExpired, IRT } from "@/lib/irt";
 import { finalizeSession, questionBank } from "@/lib/certify-session";
 import { loadTrackProgress } from "@/lib/knowledge";
 
@@ -27,7 +27,6 @@ export async function POST(request: Request) {
   // Every query below is scoped to this one test. Never { topicId: undefined },
   // which Prisma reads as "any topic".
   const scope = { trackId, topicId };
-  const rules = rulesFor(scope);
 
   // The lock is enforced here, not only on the page: the topic must be open
   // (its module open, the topic before it passed, not unpublished or coming
@@ -51,7 +50,7 @@ export async function POST(request: Request) {
     // countdown showed 0:00 on arrival, the test closed itself before the
     // first question, and integrity events were rejected because the session
     // was no longer active. Close it out and start fresh instead.
-    if (isSessionExpired(activeAttempt.timerStartedAt, new Date(), rules)) {
+    if (isSessionExpired(activeAttempt.timerStartedAt)) {
       const responses = await prisma.responseLog.findMany({
         where: { sessionId: activeAttempt.id },
         select: { questionId: true, isCorrect: true }
@@ -99,12 +98,12 @@ export async function POST(request: Request) {
   const questionCount = await prisma.questionItem.count({
     where: { isActive: true, topicId }
   });
-  if (questionCount < rules.minQuestions) {
+  if (questionCount < IRT.minQuestions) {
     return NextResponse.json(
       {
         error:
           `${title} has ${questionCount} active question${questionCount === 1 ? "" : "s"}; ` +
-          `at least ${rules.minQuestions} are needed to certify. Import more with 'npm run questions:import'.`
+          `at least ${IRT.minQuestions} are needed to certify. Import more with 'npm run questions:import'.`
       },
       { status: 422 }
     );

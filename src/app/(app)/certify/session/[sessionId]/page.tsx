@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
-import { decide, deadlineFor, LEVEL_LABEL, rulesFor, selectNextQuestion } from "@/lib/irt";
+import { decide, deadlineFor, IRT, LEVEL_LABEL, selectNextQuestion } from "@/lib/irt";
 import { questionBank, sessionPercentCorrect, weakestChapters } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
 import { Card, HowThisWorks, PageHeader, StatusBadge } from "@/components/ui";
@@ -69,10 +69,8 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
   const next = selectNextQuestion(
     session.abilityEstimate,
     bank,
-    session.responses.map((response) => response.questionId),
-    !session.topicId
+    session.responses.map((response) => response.questionId)
   );
-  const rules = rulesFor(session);
   // An exhausted bank is a finished test, not a missing page. Returning 404
   // here is what made the old exhaustion bug unrecoverable: the start route
   // resumes an IN_PROGRESS session, and this page then refused to render it.
@@ -86,7 +84,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
           testName={label}
           initialProgress={{ answered: session.responses.length }}
           deadlineMs={null}
-          timeLimitMinutes={rules.timeLimitMinutes}
+          timeLimitMinutes={IRT.timeLimitMinutes}
           autoFinish="BANK_EXHAUSTED"
         />
       </>
@@ -109,8 +107,8 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
         sessionId={session.id}
         testName={label}
         initialProgress={{ answered: session.responses.length }}
-        deadlineMs={session.timerStartedAt ? deadlineFor(session.timerStartedAt, rules).getTime() : null}
-        timeLimitMinutes={rules.timeLimitMinutes}
+        deadlineMs={session.timerStartedAt ? deadlineFor(session.timerStartedAt).getTime() : null}
+        timeLimitMinutes={IRT.timeLimitMinutes}
       />
     </>
   );

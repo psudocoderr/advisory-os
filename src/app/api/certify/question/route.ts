@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { candidateOnExamSurface, finalizeSession, questionBank } from "@/lib/certify-session";
-import { deadlineFor, estimateEap, isSessionExpired, rulesFor, selectNextQuestion } from "@/lib/irt";
+import { deadlineFor, estimateEap, isSessionExpired, selectNextQuestion } from "@/lib/irt";
 import { prisma } from "@/lib/prisma";
 
 type Option = { key: string; text: string };
@@ -41,9 +41,8 @@ export async function POST(request: Request) {
   }
 
   const bank = await questionBank(testSession);
-  const rules = rulesFor(testSession);
 
-  if (isSessionExpired(testSession.timerStartedAt, new Date(), rules)) {
+  if (isSessionExpired(testSession.timerStartedAt)) {
     const estimate = estimateEap(testSession.responses, bank);
     const result = await finalizeSession({
       sessionId: testSession.id,
@@ -66,8 +65,7 @@ export async function POST(request: Request) {
   const next = selectNextQuestion(
     testSession.abilityEstimate,
     bank,
-    testSession.responses.map((response) => response.questionId),
-    !testSession.topicId
+    testSession.responses.map((response) => response.questionId)
   );
   if (!next) {
     const estimate = estimateEap(testSession.responses, bank);
@@ -107,6 +105,6 @@ export async function POST(request: Request) {
     progress: {
       answered: testSession.responses.length
     },
-    deadlineMs: deadlineFor(timerStartedAt, rules).getTime()
+    deadlineMs: deadlineFor(timerStartedAt).getTime()
   });
 }

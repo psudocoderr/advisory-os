@@ -1,4 +1,4 @@
-import { decide, LEVEL_LABEL, outranks, rulesFor, type Decision } from "@/lib/irt";
+import { decide, IRT, LEVEL_LABEL, outranks, type Decision } from "@/lib/irt";
 import { chapterHref } from "@/lib/knowledge";
 import { FULLSCREEN_KINDS, isOnExamSurface, type IntegrityKind } from "@/lib/integrity";
 import { Prisma } from "@prisma/client";
@@ -63,14 +63,13 @@ export async function candidateOnExamSurface(sessionId: string): Promise<boolean
 }
 
 /**
- * The active questions a session draws from: its topic's, or on a final
- * exam (no topic) every topic's in the track.
+ * The active questions a session draws from: its topic's. A session with no
+ * topic (an old final exam; none can be started since 2026-10-17) gets none,
+ * so it ends as soon as it is touched instead of drawing from every topic.
  */
-export function questionBank(session: { trackId: string; topicId: string | null }) {
-  if (session.topicId) return prisma.questionItem.findMany({ where: { topicId: session.topicId, isActive: true } });
-  return prisma.questionItem.findMany({
-    where: { topic: { module: { trackId: session.trackId } }, isActive: true }
-  });
+export async function questionBank(session: { topicId: string | null }) {
+  if (!session.topicId) return [];
+  return prisma.questionItem.findMany({ where: { topicId: session.topicId, isActive: true } });
 }
 
 /** The three chapters behind the most wrong answers, for remediation links. */
@@ -148,7 +147,7 @@ export async function finalizeSession(params: {
    * the cooldown query only matches FAILED, so this is excluded from it
    * automatically.
    */
-  const abandoned = reason === "TIMED_OUT" && answered < rulesFor(current).minQuestions;
+  const abandoned = reason === "TIMED_OUT" && answered < IRT.minQuestions;
 
   const label = current.topic?.title ?? `${current.track.title} final exam`;
   const percentCorrect = await sessionPercentCorrect(sessionId);

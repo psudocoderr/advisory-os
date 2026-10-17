@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   IRT,
-  FINAL_EXAM,
-  rulesFor,
   deadlineFor,
   isExpired,
   isSessionExpired,
@@ -313,51 +311,22 @@ describe("isSessionExpired", () => {
   });
 });
 
-describe("final exam", () => {
-  const q = (id: string, topicId: string, difficulty = 0) => ({
-    id,
-    topicId,
-    difficulty,
-    discrimination: 1,
-    guessing: 0.2
-  });
-  // m1 holds the most informative items at theta 0; unbalanced selection would
-  // keep choosing from it.
-  const bank = [q("a1", "m1"), q("a2", "m1"), q("a3", "m1"), q("b1", "m2", 2.5), q("c1", "m3", -2.5)];
+describe("question selection", () => {
+  const q = (id: string, difficulty = 0) => ({ id, difficulty, discrimination: 1, guessing: 0.2 });
+  const bank = [q("a1"), q("a2"), q("a3"), q("b1", 2.5), q("c1", -2.5)];
 
-  it("uses its own rules only for a session with no topic", () => {
-    expect(rulesFor({ topicId: null })).toBe(FINAL_EXAM);
-    expect(rulesFor({ topicId: "m1" })).toBe(IRT);
-  });
-
-  it("stops and times out on the final exam's own limits", () => {
-    expect(shouldStop(FINAL_EXAM.maxQuestions - 1, 99, FINAL_EXAM)).toBe(false);
-    expect(shouldStop(FINAL_EXAM.maxQuestions, 99, FINAL_EXAM)).toBe(true);
-    const start = new Date(0);
-    const deadline = deadlineFor(start, FINAL_EXAM);
-    expect(deadline.getTime()).toBe(FINAL_EXAM.timeLimitMinutes * 60 * 1000);
-    expect(isSessionExpired(start, new Date(deadline.getTime() - 1000), FINAL_EXAM)).toBe(false);
-    expect(isSessionExpired(start, new Date(deadline.getTime() + 5000), FINAL_EXAM)).toBe(true);
-  });
-
-  it("spreads questions across topics when balancing", () => {
+  it("takes the most informative unused question each time", () => {
     const used: string[] = [];
-    for (let i = 0; i < 3; i += 1) used.push(selectNextQuestion(0, bank, used, true)!.id);
-    expect(used.map((id) => id[0]).sort()).toEqual(["a", "b", "c"]);
-    // Without balancing the most informative topic wins every time.
-    const unbalanced: string[] = [];
-    for (let i = 0; i < 3; i += 1) unbalanced.push(selectNextQuestion(0, bank, unbalanced)!.id);
-    expect(unbalanced).toEqual(["a1", "a2", "a3"]);
+    for (let i = 0; i < 3; i += 1) used.push(selectNextQuestion(0, bank, used)!.id);
+    expect(used).toEqual(["a1", "a2", "a3"]);
   });
 
-  it("keeps going on the topics that still have questions", () => {
-    expect(selectNextQuestion(0, bank, ["a1", "b1", "c1"], true)!.id).toBe("a2");
+  it("returns nothing once every question is used", () => {
     expect(
       selectNextQuestion(
         0,
         bank,
-        bank.map((x) => x.id),
-        true
+        bank.map((x) => x.id)
       )
     ).toBeUndefined();
   });
