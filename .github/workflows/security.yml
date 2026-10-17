@@ -1,0 +1,88 @@
+name: Security
+
+# Four checks, separate from ci.yml so a security failure is easy to spot:
+# secrets in git history, known vulnerabilities in production dependencies,
+# risky dependencies added by a pull request, and static analysis (CodeQL).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly, so new advisories and CodeQL queries reach code nobody touched.
+    - cron: "17 3 * * 1"
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Secrets in git history (gitleaks)
+    runs-on: ubuntu-latest
+    env:
+      # The pinned binary, checked against the release's published checksum.
+      # Running the binary avoids gitleaks-action's licence key requirement.
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$RUNNER_TEMP/$tarball" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$tarball"
+          echo "$GITLEAKS_SHA256  $RUNNER_TEMP/$tarball" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" gitleaks
+      # Full history, every branch fetched. Matched values are redacted from
+      # the log. A finding fails the job; if it is a false positive, allowlist
+      # its fingerprint in .gitleaks.toml rather than switching the job off.
+      - name: Scan
+        run: '"$RUNNER_TEMP/gitleaks" git . --redact --no-banner --verbose'
+
+  audit:
+    name: Production dependency audit (npm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      # Production dependencies only, high and critical only. Dev-only
+      # advisories never reach the deployed app and are left to Dependabot.
+      - run: npm audit --omit=dev --audit-level=high
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Fails a pull request that adds or upgrades to a dependency with a known
+      # high or critical advisory, before it is merged.
+      - uses: actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: high
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Uploads results to the Security tab. Free while the repository is
+      # public; a private repository needs GitHub Advanced Security for this.
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+      # The app code, plus the workflow files themselves (script injection,
+      # over-broad permissions).
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript, actions
+          build-mode: none
+      - uses: github/codeql-action/analyze@v4

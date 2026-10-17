@@ -101,6 +101,7 @@ Several commands will refuse to run, by design. They are not broken.
 | `db:snapshot` omits row contents on deployed databases | A full dump would put client PAN, phone numbers and AUM into a plaintext file. Counts and test outcomes only. |
 | `questions:import` rejects a skewed bank | A bank where one answer key dominates, or where distractors repeat, is passable without reading the questions. That is not hypothetical — it is what shipped. |
 | `bootstrap:admin` rejects short or published passwords | The account it creates bypasses row scoping and reads every client record. |
+| The `Security` workflow fails a pull request | A secret anywhere in git history (gitleaks), a high or critical advisory in a production dependency (`npm audit --omit=dev`), a pull request adding a vulnerable dependency (dependency review), or a CodeQL finding. A gitleaks false positive is allowlisted by fingerprint in `.gitleaks.toml`, never by turning the job off. |
 
 ## How certification works
 
