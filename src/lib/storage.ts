@@ -81,3 +81,8 @@ export async function presignUpload(config: StorageConfig, key: string, contentT
 export function fetchObject(config: StorageConfig, key: string) {
   return client(config).fetch(objectUrl(config, key), { method: "GET" });
 }
+
+/** Removes an object. S3 answers 204 whether or not it existed. */
+export function deleteObject(config: StorageConfig, key: string) {
+  return client(config).fetch(objectUrl(config, key), { method: "DELETE" });
+}
