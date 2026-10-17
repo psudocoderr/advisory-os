@@ -12,7 +12,7 @@ export const OPTION_KEYS = ["A", "B", "C", "D"] as const;
 export type OptionKey = (typeof OPTION_KEYS)[number];
 
 /**
- * Questions per module the bank aims for.
+ * Questions per topic the bank aims for.
  *
  * At 12 the adaptive test cannot work: maxQuestions is 18, so the bank runs
  * out before the cap and the ability estimate never reaches seStop. 40 gives
@@ -22,13 +22,13 @@ export type OptionKey = (typeof OPTION_KEYS)[number];
  */
 export const TARGET_BANK_SIZE = 40;
 
-/** Below this the module cannot be certified at all. */
+/** Below this the topic cannot be certified at all. */
 export const MINIMUM_BANK_SIZE = 10;
 
 export type QuestionDraft = {
-  /** Module slug, e.g. "m1". Resolved against the database on import. */
-  module: string;
-  /** Slug of the chapter the question tests, within that module. */
+  /** Topic slug, e.g. "kyc-and-compliance". Resolved against the database on import. */
+  topic: string;
+  /** Slug of the chapter the question tests, within that topic. */
   chapterSlug: string;
   content: string;
   options: { key: string; text: string }[];
@@ -52,7 +52,7 @@ export function validateQuestion(q: QuestionDraft, where: string): Issue[] {
   const issues: Issue[] = [];
   const err = (message: string) => issues.push({ severity: "error", where, message });
 
-  if (!q.module.trim()) err("module is empty");
+  if (!q.topic.trim()) err("topic is empty");
   if (!q.chapterSlug.trim()) err("chapter is empty; every question must link to the chapter it tests");
   if (q.content.trim().length < 10) err("content is missing or too short to be a question");
   if (!q.explanation.trim()) err("explanation is empty; it is shown when reviewing a wrong answer");
@@ -80,27 +80,27 @@ export function validateBank(
   questions: QuestionDraft[],
   label = "bank",
   /**
-   * Whether to check how many questions each module has.
+   * Whether to check how many questions each topic has.
    *
    * Off when validating an import file on its own: a file is a partial
-   * contribution and may legitimately carry three questions for one module.
+   * contribution and may legitimately carry three questions for one topic.
    * Size is only meaningful against the bank the file will become part of.
    */
   options: {
     checkSize?: boolean;
-    /** Every module that should have questions, to warn about empty ones. */
-    modules?: string[];
+    /** Every topic that should have questions, to warn about empty ones. */
+    topics?: string[];
   } = {}
 ): Issue[] {
-  const { checkSize = true, modules = [] } = options;
+  const { checkSize = true, topics = [] } = options;
   const issues: Issue[] = [];
   const add = (severity: Issue["severity"], message: string) => issues.push({ severity, where: label, message });
 
-  const byModule = new Map<string, QuestionDraft[]>();
+  const byTopic = new Map<string, QuestionDraft[]>();
   for (const q of questions) {
-    const list = byModule.get(q.module) ?? [];
+    const list = byTopic.get(q.topic) ?? [];
     list.push(q);
-    byModule.set(q.module, list);
+    byTopic.set(q.topic, list);
   }
 
   // Duplicate stems, across the whole set.
@@ -113,7 +113,7 @@ export function validateBank(
     if (n > 1) add("error", `the same question appears ${n} times: "${stem.slice(0, 60)}"`);
   }
 
-  for (const [code, list] of byModule) {
+  for (const [code, list] of byTopic) {
     // Answer-key skew. The exact defect that made the seeded bank pointless:
     // if one key dominates, the test is passable without reading it.
     const keyCounts = new Map<string, number>();
@@ -170,8 +170,8 @@ export function validateBank(
   }
 
   if (checkSize) {
-    for (const code of modules) {
-      if (!byModule.has(code)) add("warning", `${code}: no questions supplied.`);
+    for (const code of topics) {
+      if (!byTopic.has(code)) add("warning", `${code}: no questions supplied.`);
     }
   }
 

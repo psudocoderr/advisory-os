@@ -226,15 +226,20 @@ Two functions with very different jobs:
 
 - `validateQuestion()` — one question in isolation. Four distinct options, a
   valid key, parameters in range, an SOP link, an explanation.
-- `validateBank()` — **the whole bank together.** Answer-key skew, distractor
-  reuse, duplicate stems, difficulty spread, module size.
+- `validateBank()` — **each topic's questions together.** Answer-key skew,
+  distractor reuse, duplicate stems, difficulty spread, topic size.
 
 The second exists because the defect that shipped was invisible per-question:
 every individual item was well formed. Only in aggregate did it become obvious
 that every answer was A and the wrong answers were three recycled strings.
 
 `checkSize` is optional because an import file is a partial contribution — a
-file may legitimately carry three questions for one module.
+file may legitimately carry three questions for one topic. An import is checked
+against the topics it touches only (their existing questions plus the file), so
+a broken bank in another topic does not block it; `questions:check` reports the
+whole database. The CSV's first column is `topic` (the topic's slug); files with
+the older `module` header are still read. Questions can be imported into draft
+chapters, which is the safe order: draft, import, then publish.
 
 ### 3.5 `actions.ts` — the thirteen mutations
 

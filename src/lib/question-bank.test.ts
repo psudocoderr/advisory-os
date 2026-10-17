@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MINIMUM_BANK_SIZE, validateBank, validateQuestion, type Issue, type QuestionDraft } from "./question-bank";
 
 const q = (over: Partial<QuestionDraft> = {}, i = 0): QuestionDraft => ({
-  module: "m1",
+  topic: "m1",
   chapterSlug: "introduction",
   content: `A sufficiently long question stem number ${i}?`,
   options: [
@@ -107,7 +107,7 @@ describe("validateBank", () => {
     ).toMatch(/appears \d+ times/);
   });
 
-  it("blocks a module below the certifiable minimum", () => {
+  it("blocks a topic below the certifiable minimum", () => {
     const issues = validateBank(bank(MINIMUM_BANK_SIZE - 1));
     expect(
       errors(issues)
@@ -130,7 +130,7 @@ describe("validateBank", () => {
 
 describe("validateBank size checks", () => {
   it("skips size checks when validating a partial import file", () => {
-    // A file may legitimately carry three questions for one module.
+    // A file may legitimately carry three questions for one topic.
     const issues = validateBank(bank(3), "this file", { checkSize: false });
     expect(errors(issues)).toHaveLength(0);
     expect(issues.map((i) => i.message).join()).not.toMatch(/below the|target questions|no questions supplied/);
