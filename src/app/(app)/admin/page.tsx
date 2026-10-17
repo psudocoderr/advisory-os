@@ -10,26 +10,26 @@ import { Card, PageHeader, StatCard, StatusBadge, TableScroll } from "@/componen
 export default async function AdminPage() {
   await requireAdmin();
 
-  const [users, prospects, clients, plans, certs, attempts, audit, questionPerformance, modules] = await Promise.all([
+  const [users, prospects, clients, plans, certs, attempts, audit, questionPerformance, topics] = await Promise.all([
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.prospect.count(),
     prisma.client.findMany({ select: { aum: true } }),
     prisma.investmentPlan.count(),
-    prisma.certification.findMany({ where: { status: "ACTIVE", moduleId: { not: null } } }),
+    prisma.certification.findMany({ where: { status: "ACTIVE", topicId: { not: null } } }),
     prisma.testSession.findMany({
-      include: { user: true, module: { select: { title: true } }, track: { select: { title: true } } },
+      include: { user: true, topic: { select: { title: true } }, track: { select: { title: true } } },
       orderBy: { startedAt: "desc" },
       take: 8
     }),
     prisma.auditLog.findMany({ include: { actor: true }, orderBy: { createdAt: "desc" }, take: 10 }),
     prisma.questionItem.findMany({
-      include: { responses: true, module: true, chapter: true },
+      include: { responses: true, topic: true, chapter: true },
       orderBy: { updatedAt: "desc" },
       take: 10
     }),
-    prisma.module.findMany({
-      where: { track: { isActive: true } },
-      orderBy: [{ track: { order: "asc" } }, { order: "asc" }],
+    prisma.topic.findMany({
+      where: { module: { track: { isActive: true } } },
+      orderBy: [{ module: { track: { order: "asc" } } }, { module: { order: "asc" } }, { order: "asc" }],
       include: { chapters: { orderBy: { order: "asc" }, select: { id: true, title: true } } }
     })
   ]);
@@ -63,7 +63,7 @@ export default async function AdminPage() {
         <StatCard label="Prospects" value={prospects} detail="All advisors" />
         <StatCard label="Clients" value={clients.length} detail={compactInr(aum)} />
         <StatCard label="Plans" value={plans} detail="Across team" />
-        <StatCard label="Badges" value={certs.length} detail="Active module badges" />
+        <StatCard label="Badges" value={certs.length} detail="Active topic badges" />
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
@@ -76,9 +76,9 @@ export default async function AdminPage() {
                   <th className="px-4 py-3">Advisor</th>
                   <th className="px-4 py-3">Role</th>
                   <th className="px-4 py-3">Active</th>
-                  {modules.map((module) => (
-                    <th key={module.id} className="px-4 py-3" title={module.title}>
-                      {module.order}. {module.title}
+                  {topics.map((topic) => (
+                    <th key={topic.id} className="px-4 py-3" title={topic.title}>
+                      {topic.order}. {topic.title}
                     </th>
                   ))}
                   <th className="px-4 py-3">Access</th>
@@ -94,10 +94,10 @@ export default async function AdminPage() {
                         {user.isActive ? "Active" : "Inactive"}
                       </StatusBadge>
                     </td>
-                    {modules.map((module) => {
-                      const cert = certs.find((item) => item.userId === user.id && item.moduleId === module.id);
+                    {topics.map((topic) => {
+                      const cert = certs.find((item) => item.userId === user.id && item.topicId === topic.id);
                       return (
-                        <td key={module.id} className="px-4 py-3">
+                        <td key={topic.id} className="px-4 py-3">
                           {cert?.badgeLevel ? (
                             <StatusBadge tone="teal">{LEVEL_LABEL[cert.badgeLevel]}</StatusBadge>
                           ) : (
@@ -152,7 +152,7 @@ export default async function AdminPage() {
               <div key={attempt.id} className="flex items-center justify-between gap-3 px-4 py-3">
                 <div>
                   <div className="font-semibold text-ink">
-                    {attempt.user.name} • {attempt.module?.title ?? attempt.track.title}
+                    {attempt.user.name} • {attempt.topic?.title ?? attempt.track.title}
                   </div>
                   <div className="text-sm text-muted">
                     Attempt {attempt.attemptNumber} • theta {attempt.abilityEstimate.toFixed(2)} • SE{" "}
@@ -204,9 +204,9 @@ export default async function AdminPage() {
                 <option value="" disabled>
                   Chapter this question tests
                 </option>
-                {modules.map((module) => (
-                  <optgroup key={module.id} label={`${module.order}. ${module.title}`}>
-                    {module.chapters.map((chapter) => (
+                {topics.map((topic) => (
+                  <optgroup key={topic.id} label={`${topic.order}. ${topic.title}`}>
+                    {topic.chapters.map((chapter) => (
                       <option key={chapter.id} value={chapter.id}>
                         {chapter.title}
                       </option>
@@ -262,7 +262,7 @@ export default async function AdminPage() {
             <thead className="bg-wash text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-4 py-3">Question</th>
-                <th className="px-4 py-3">Module</th>
+                <th className="px-4 py-3">Topic</th>
                 <th className="px-4 py-3">Chapter</th>
                 <th className="px-4 py-3">Attempts</th>
                 <th className="px-4 py-3">% Correct</th>
@@ -286,7 +286,7 @@ export default async function AdminPage() {
                 return (
                   <tr key={question.id}>
                     <td className="max-w-lg px-4 py-3">{question.content}</td>
-                    <td className="px-4 py-3">{question.module.title}</td>
+                    <td className="px-4 py-3">{question.topic.title}</td>
                     <td className="px-4 py-3">{question.chapter.title}</td>
                     <td className="mono px-4 py-3">{attemptsCount}</td>
                     <td className="mono px-4 py-3">{attemptsCount ? `${correct}%` : "—"}</td>

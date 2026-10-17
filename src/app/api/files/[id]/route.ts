@@ -21,14 +21,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const asset = await prisma.asset.findUnique({
     where: { id },
-    include: { chapter: { select: { id: true, module: { select: { trackId: true } } } } }
+    include: { chapter: { select: { id: true, topic: { select: { module: { select: { trackId: true } } } } } } }
   });
   if (!asset) return notFound;
 
   if (session.user.role !== "ADMIN") {
-    const standing = await loadTrackProgress({ id: asset.chapter.module.trackId }, session.user);
+    const standing = await loadTrackProgress({ id: asset.chapter.topic.module.trackId }, session.user);
     const state = standing?.progress
-      .flatMap((module) => module.chapters)
+      .flatMap((topic) => topic.chapters)
       .find((chapter) => chapter.id === asset.chapter.id)?.state;
     if (!state || state === "locked") return notFound;
   }

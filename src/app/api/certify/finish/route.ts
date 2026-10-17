@@ -49,7 +49,7 @@ export async function POST(request: Request) {
         testSession.abilityEstimate,
         bank,
         testSession.responses.map((response) => response.questionId),
-        !testSession.moduleId
+        !testSession.topicId
       );
       if (next) return NextResponse.json({ error: "There are questions left in this test." }, { status: 409 });
     }

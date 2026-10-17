@@ -55,7 +55,7 @@ export default async function DashboardPage() {
         },
         orderBy: { issuedAt: "desc" },
         take: 5,
-        include: { user: true, module: { select: { title: true } }, track: { select: { title: true } } }
+        include: { user: true, topic: { select: { title: true } }, track: { select: { title: true } } }
       }),
       firstTrack ? loadTrackProgress({ id: firstTrack.id }, session.user) : null
     ]);
@@ -67,10 +67,10 @@ export default async function DashboardPage() {
     count: prospects.find((item) => item.stage === stage)?._count ?? 0
   }));
 
-  const trainingModules = standing
-    ? standing.track.modules.map((module, index) => ({ ...module, progress: standing.progress[index] }))
+  const topics = standing
+    ? standing.track.topics.map((topic, index) => ({ ...topic, progress: standing.progress[index] }))
     : [];
-  const badgedCount = trainingModules.filter((module) => module.progress.badged).length;
+  const badgedCount = topics.filter((topic) => topic.progress.badged).length;
   const next = standing
     ? nextStep(standing.track, standing.progress, standing.finalUnlocked, standing.certificateLevel)
     : null;
@@ -106,7 +106,7 @@ export default async function DashboardPage() {
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs font-semibold text-muted">
-                {badgedCount} of {trainingModules.length} badges
+                {badgedCount} of {topics.length} badges
                 {standing.certificateLevel ? ` · Certificate: ${LEVEL_LABEL[standing.certificateLevel]}` : ""}
               </span>
               {next ? (
@@ -121,13 +121,13 @@ export default async function DashboardPage() {
           </div>
 
           <div className="mt-3.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {trainingModules.map((module, index) => {
-              const level = standing.badgeLevels.get(module.id);
+            {topics.map((topic, index) => {
+              const level = standing.badgeLevels.get(topic.id);
               return (
                 <div
-                  key={module.id}
+                  key={topic.id}
                   className={`flex flex-col justify-between rounded-lg border p-3 ${
-                    module.progress.badged ? "border-teal/30 bg-mint/20" : "border-line bg-wash"
+                    topic.progress.badged ? "border-teal/30 bg-mint/20" : "border-line bg-wash"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -140,9 +140,9 @@ export default async function DashboardPage() {
                       </span>
                     ) : null}
                   </div>
-                  <div className="mt-2 text-xs font-bold leading-snug text-ink">{module.title}</div>
+                  <div className="mt-2 text-xs font-bold leading-snug text-ink">{topic.title}</div>
                   <div className="mt-2 border-t border-line/50 pt-1.5 text-[10px] font-medium text-muted">
-                    {module.progress.chaptersDone}/{module.chapters.length} chapters
+                    {topic.progress.chaptersDone}/{topic.chapters.length} chapters
                   </div>
                 </div>
               );
@@ -243,7 +243,7 @@ export default async function DashboardPage() {
                 certs.map((cert) => (
                   <div key={cert.id} className="px-4 py-3">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-semibold text-ink">{cert.module?.title ?? cert.track.title}</div>
+                      <div className="text-sm font-semibold text-ink">{cert.topic?.title ?? cert.track.title}</div>
                       {cert.badgeLevel ? <StatusBadge tone="teal">{LEVEL_LABEL[cert.badgeLevel]}</StatusBadge> : null}
                     </div>
                     <div className="mt-1 text-xs text-muted">

@@ -12,13 +12,13 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
   const session = await prisma.testSession.findUnique({
     where: { id: sessionId },
     include: {
-      module: { select: { title: true } },
+      topic: { select: { title: true } },
       track: { select: { title: true } },
       responses: { select: { questionId: true } }
     }
   });
   if (!session || session.userId !== auth.user.id) notFound();
-  const label = session.module?.title ?? `${session.track.title} final exam`;
+  const label = session.topic?.title ?? `${session.track.title} final exam`;
 
   if (session.status !== "IN_PROGRESS") {
     const remediation = session.certified ? [] : await weakestChapters(session.id);
@@ -70,7 +70,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
     session.abilityEstimate,
     bank,
     session.responses.map((response) => response.questionId),
-    !session.moduleId
+    !session.topicId
   );
   const rules = rulesFor(session);
   // An exhausted bank is a finished test, not a missing page. Returning 404
@@ -83,7 +83,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
         <PageHeader title={`${label}: test`} description="Every available question in this test has been answered." />
         <TestSessionClient
           sessionId={session.id}
-          module={label}
+          testName={label}
           initialProgress={{ answered: session.responses.length }}
           deadlineMs={null}
           timeLimitMinutes={rules.timeLimitMinutes}
@@ -107,7 +107,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
       */}
       <TestSessionClient
         sessionId={session.id}
-        module={label}
+        testName={label}
         initialProgress={{ answered: session.responses.length }}
         deadlineMs={session.timerStartedAt ? deadlineFor(session.timerStartedAt, rules).getTime() : null}
         timeLimitMinutes={rules.timeLimitMinutes}

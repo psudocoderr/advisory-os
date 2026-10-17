@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     testSession.abilityEstimate,
     bank,
     testSession.responses.map((response) => response.questionId),
-    !testSession.moduleId
+    !testSession.topicId
   );
   if (!question || question.id !== input.questionId) {
     return NextResponse.json({ error: "That is not the current question." }, { status: 409 });
@@ -117,10 +117,10 @@ export async function POST(request: Request) {
   });
 
   const usedIds = responseHistory.map((response) => response.questionId);
-  const next = selectNextQuestion(estimate.theta, bank, usedIds, !testSession.moduleId);
+  const next = selectNextQuestion(estimate.theta, bank, usedIds, !testSession.topicId);
 
   // Running out of questions ends the test. It used to return HTTP 500 and
-  // leave the session IN_PROGRESS, which permanently bricked the module: the
+  // leave the session IN_PROGRESS, which permanently bricked the topic: the
   // start route resumes an in-progress session, and the resumed page 404s
   // because it cannot find a next question either.
   if (!next) {

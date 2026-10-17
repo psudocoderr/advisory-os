@@ -88,23 +88,25 @@ function report(issues: Issue[]): { errors: number; warnings: number } {
   return { errors: errors.length, warnings: warnings.length };
 }
 
-/** Every module, as "slug" -> id. A slug shared by two tracks is ambiguous. */
+/**
+ * Every topic, as "slug" -> id. The CSV's `module` column names a topic (its
+ * name from before topics existed). A slug shared by two modules is ambiguous.
+ */
 async function loadModules() {
-  const modules = await prisma.module.findMany({
-    orderBy: [{ track: { order: "asc" } }, { order: "asc" }],
+  return prisma.topic.findMany({
+    orderBy: [{ module: { track: { order: "asc" } } }, { module: { order: "asc" } }, { order: "asc" }],
     select: { id: true, slug: true, chapters: { select: { id: true, slug: true } } }
   });
-  return modules;
 }
 
-async function loadFromDatabase(): Promise<(QuestionDraft & { moduleId: string })[]> {
+async function loadFromDatabase(): Promise<(QuestionDraft & { topicId: string })[]> {
   const rows = await prisma.questionItem.findMany({
     where: { isActive: true },
-    include: { module: { select: { slug: true } }, chapter: { select: { slug: true } } }
+    include: { topic: { select: { slug: true } }, chapter: { select: { slug: true } } }
   });
   return rows.map((r) => ({
-    moduleId: r.moduleId,
-    module: r.module.slug,
+    topicId: r.topicId,
+    module: r.topic.slug,
     chapterSlug: r.chapter.slug,
     content: r.content,
     options: r.options as { key: string; text: string }[],
@@ -120,7 +122,7 @@ async function check() {
   const [bank, modules] = await Promise.all([loadFromDatabase(), loadModules()]);
   console.log(`  ${bank.length} active questions\n`);
   for (const m of modules) {
-    const n = bank.filter((q) => q.moduleId === m.id).length;
+    const n = bank.filter((q) => q.topicId === m.id).length;
     const bar = "#".repeat(Math.round((n / TARGET_BANK_SIZE) * 20)).padEnd(20, ".");
     console.log(`  ${m.slug.padEnd(8)}  ${bar}  ${n}/${TARGET_BANK_SIZE}`);
   }
@@ -285,19 +287,19 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
   const resolved = drafts.map((d, i) => {
     const matches = modules.filter((m) => m.slug === d.module);
     if (matches.length !== 1) {
-      unknown.push(`row ${i + 2}: module "${d.module}" ${matches.length ? "is in more than one track" : "not found"}`);
+      unknown.push(`row ${i + 2}: topic "${d.module}" ${matches.length ? "is in more than one module" : "not found"}`);
       return null;
     }
     const chapter = matches[0].chapters.find((c) => c.slug === d.chapterSlug);
     if (!chapter) {
-      unknown.push(`row ${i + 2}: chapter "${d.chapterSlug}" not found in module "${d.module}"`);
+      unknown.push(`row ${i + 2}: chapter "${d.chapterSlug}" not found in topic "${d.module}"`);
       return null;
     }
-    return { moduleId: matches[0].id, chapterId: chapter.id };
+    return { topicId: matches[0].id, chapterId: chapter.id };
   });
   if (unknown.length) {
     for (const line of unknown) console.log(`  ERROR    ${line}`);
-    console.log(`\n  ${unknown.length} row(s) point at modules or chapters that do not exist. Nothing imported.`);
+    console.log(`\n  ${unknown.length} row(s) point at topics or chapters that do not exist. Nothing imported.`);
     process.exitCode = 1;
     return;
   }
@@ -306,11 +308,11 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
   // the module it joins.
   const existing = await loadFromDatabase();
   const modulesCovered = new Set(drafts.map((d) => d.module));
-  const moduleIdsCovered = [...new Set(resolved.map((r) => r!.moduleId))];
-  const retained = replace ? existing.filter((q) => !moduleIdsCovered.includes(q.moduleId)) : existing;
+  const topicIdsCovered = [...new Set(resolved.map((r) => r!.topicId))];
+  const retained = replace ? existing.filter((q) => !topicIdsCovered.includes(q.topicId)) : existing;
   const merged = [...retained, ...drafts];
 
-  console.log(`\n  Checking the resulting bank${replace ? " (existing questions in these modules retired)" : ""}:`);
+  console.log(`\n  Checking the resulting bank${replace ? " (existing questions in these topics retired)" : ""}:`);
   const mergedResult = report(validateBank(merged, "resulting bank"));
 
   if (mergedResult.errors) {
@@ -335,7 +337,7 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
   const author = await prisma.user.findFirst({ where: { role: "ADMIN" }, select: { id: true } });
   if (!author) throw new Error("no ADMIN user to attribute these questions to");
 
-  // One transaction: a failed insert must not leave a module with its old
+  // One transaction: a failed insert must not leave a topic with its old
   // questions retired and nothing active in their place.
   let retiredCount = 0;
   await prisma.$transaction(async (tx) => {
@@ -343,7 +345,7 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
       // Deactivate rather than delete: ResponseLog references these rows, and
       // past attempts should keep the questions they were actually asked.
       const retired = await tx.questionItem.updateMany({
-        where: { moduleId: { in: moduleIdsCovered }, isActive: true },
+        where: { topicId: { in: topicIdsCovered }, isActive: true },
         data: { isActive: false }
       });
       retiredCount = retired.count;
@@ -351,7 +353,7 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
 
     await tx.questionItem.createMany({
       data: drafts.map((d, i) => ({
-        moduleId: resolved[i]!.moduleId,
+        topicId: resolved[i]!.topicId,
         chapterId: resolved[i]!.chapterId,
         content: d.content,
         options: d.options,

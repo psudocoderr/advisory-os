@@ -10,7 +10,7 @@ export default async function KnowledgePage() {
   const tracks = await prisma.track.findMany({
     where: { isActive: true },
     orderBy: { order: "asc" },
-    include: { _count: { select: { modules: true } } }
+    include: { modules: { select: { _count: { select: { topics: { where: { isPublished: true } } } } } } }
   });
 
   // One track is the normal case for now; skip the extra click.
@@ -26,7 +26,9 @@ export default async function KnowledgePage() {
               <Card className="flex items-center justify-between gap-3 p-5 hover:border-teal">
                 <div>
                   <h2 className="font-bold text-ink">{track.title}</h2>
-                  <p className="mt-1 text-sm text-muted">{track._count.modules} modules</p>
+                  <p className="mt-1 text-sm text-muted">
+                    {track.modules.reduce((sum, module) => sum + module._count.topics, 0)} topics
+                  </p>
                 </div>
                 <ChevronRight size={18} className="text-muted" />
               </Card>

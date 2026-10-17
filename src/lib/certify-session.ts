@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
  *
  * Every one of these is a legitimate ending. Previously only STOP_RULE was
  * handled: running out of questions returned HTTP 500 and left the session
- * IN_PROGRESS, which bricked the module for that user because the start route
+ * IN_PROGRESS, which bricked the topic for that user because the start route
  * resumes an in-progress session and the resumed page then 404s.
  */
 export type FinishReason = "STOP_RULE" | "BANK_EXHAUSTED" | "TIMED_OUT" | "INTEGRITY_TERMINATED";
@@ -63,13 +63,13 @@ export async function candidateOnExamSurface(sessionId: string): Promise<boolean
 }
 
 /**
- * The active questions a session draws from: its module's, or on a final
- * exam (no module) every module's in the track.
+ * The active questions a session draws from: its topic's, or on a final
+ * exam (no topic) every topic's in the track.
  */
-export function questionBank(session: { trackId: string; moduleId: string | null }) {
-  if (session.moduleId) return prisma.questionItem.findMany({ where: { moduleId: session.moduleId, isActive: true } });
+export function questionBank(session: { trackId: string; topicId: string | null }) {
+  if (session.topicId) return prisma.questionItem.findMany({ where: { topicId: session.topicId, isActive: true } });
   return prisma.questionItem.findMany({
-    where: { module: { trackId: session.trackId }, isActive: true }
+    where: { topic: { module: { trackId: session.trackId } }, isActive: true }
   });
 }
 
@@ -79,7 +79,15 @@ export async function weakestChapters(sessionId: string): Promise<Remediation[]>
     where: { sessionId, isCorrect: false },
     include: {
       question: {
-        include: { chapter: { include: { module: { include: { track: { select: { slug: true } } } } } } }
+        include: {
+          chapter: {
+            include: {
+              topic: {
+                select: { slug: true, module: { select: { slug: true, track: { select: { slug: true } } } } }
+              }
+            }
+          }
+        }
       }
     }
   });
@@ -90,7 +98,7 @@ export async function weakestChapters(sessionId: string): Promise<Remediation[]>
     if (!chapter) continue;
     const current = counts.get(chapter.id) || {
       title: chapter.title,
-      href: chapterHref(chapter.module.track.slug, chapter.module.slug, chapter.slug),
+      href: chapterHref(chapter.topic.module.track.slug, chapter.topic.module.slug, chapter.topic.slug, chapter.slug),
       count: 0
     };
     current.count += 1;
@@ -127,7 +135,7 @@ export async function finalizeSession(params: {
 
   const current = await prisma.testSession.findUnique({
     where: { id: sessionId },
-    include: { module: { select: { title: true } }, track: { select: { title: true } } }
+    include: { topic: { select: { title: true } }, track: { select: { title: true } } }
   });
   if (!current) throw new Error("Session not found");
 
@@ -135,14 +143,14 @@ export async function finalizeSession(params: {
    * Running out of time after one question is abandonment, not failure.
    *
    * Treating it as FAILED trips the 24-hour retry cooldown in the start
-   * route, which meant walking away from a test locked you out of the module
+   * route, which meant walking away from a test locked you out of the topic
    * for a day. ABANDONED already existed in TestSessionStatus and was unused;
    * the cooldown query only matches FAILED, so this is excluded from it
    * automatically.
    */
   const abandoned = reason === "TIMED_OUT" && answered < rulesFor(current).minQuestions;
 
-  const label = current.module?.title ?? `${current.track.title} final exam`;
+  const label = current.topic?.title ?? `${current.track.title} final exam`;
   const percentCorrect = await sessionPercentCorrect(sessionId);
 
   /** What an already-finished session recorded, reported instead of finishing it again. */
@@ -198,7 +206,7 @@ export async function finalizeSession(params: {
   if (badgeLevel) {
     const data = { sessionId, abilityScore: theta, badgeLevel, percentCorrect, issuedAt: new Date() };
 
-    const held = { userId, trackId: current.trackId, moduleId: current.moduleId, status: "ACTIVE" as const };
+    const held = { userId, trackId: current.trackId, topicId: current.topicId, status: "ACTIVE" as const };
 
     // The best level stands: a retake that scores lower passes, but leaves
     // the badge already held untouched.
@@ -214,7 +222,7 @@ export async function finalizeSession(params: {
     } else {
       try {
         await prisma.certification.create({
-          data: { ...data, userId, trackId: current.trackId, moduleId: current.moduleId }
+          data: { ...data, userId, trackId: current.trackId, topicId: current.topicId }
         });
       } catch (error) {
         // Two attempts certified at once (e.g. a double-clicked Start left two

@@ -18,7 +18,7 @@ export default async function AttemptTrajectoryPage({
     where: { id: sessionId },
     include: {
       user: { select: { name: true } },
-      module: { select: { title: true } },
+      topic: { select: { title: true } },
       track: { select: { title: true } },
       responses: {
         orderBy: { createdAt: "asc" },
@@ -27,7 +27,7 @@ export default async function AttemptTrajectoryPage({
     }
   });
   if (!session || session.userId !== userId) notFound();
-  const label = session.module?.title ?? `${session.track.title} final exam`;
+  const label = session.topic?.title ?? `${session.track.title} final exam`;
 
   return (
     <>

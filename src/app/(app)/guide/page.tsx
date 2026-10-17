@@ -15,7 +15,7 @@ export default async function GuidePage() {
     <div className="mx-auto max-w-240">
       <PageHeader
         title="How training works"
-        description="Read the chapters, pass each module test, then the final exam."
+        description="Read the chapters, pass each topic test, then the final exam."
       />
       <div className="grid gap-6 lg:grid-cols-[180px_1fr]">
         <nav aria-label="On this page" className="lg:sticky lg:top-6 lg:self-start">
@@ -36,8 +36,8 @@ export default async function GuidePage() {
         <div className="min-w-0 space-y-4">
           <Section id="track">
             <p>
-              A track is a set of modules taken in order. Each module has chapters to read and ends with a test. Pass a
-              module&apos;s test to earn its badge; the next module opens once you have it.
+              A track is made of modules, and each module of topics, taken in order. Each topic has chapters to read and
+              ends with a test. Pass a topic&apos;s test to earn its badge; the next topic opens once you have it.
             </p>
             <p>A lock means something is not open yet. Your dashboard always shows the next thing to do.</p>
           </Section>
@@ -45,7 +45,7 @@ export default async function GuidePage() {
           <Section id="chapters">
             <p>
               Chapters open one at a time. When you finish one, press <strong>Mark as complete</strong>: it gets a tick
-              and the next chapter opens. Once every chapter in a module has a tick, its test opens.
+              and the next chapter opens. Once every chapter in a topic has a tick, its test opens.
             </p>
             <p>You can go back and reread any chapter you have completed at any time.</p>
           </Section>
@@ -53,7 +53,7 @@ export default async function GuidePage() {
           <Section id="tests">
             <div className="grid gap-3 sm:grid-cols-2">
               <Fact
-                label="Module test"
+                label="Topic test"
                 value={`${IRT.minQuestions}–${IRT.maxQuestions} questions · ${IRT.timeLimitMinutes} min`}
               />
               <Fact
@@ -110,7 +110,7 @@ export default async function GuidePage() {
 
           <Section id="final-exam">
             <p>
-              Once every module in the track has a badge, the final exam opens. It covers every module evenly and awards
+              Once every topic in the track has a badge, the final exam opens. It covers every topic evenly and awards
               the track certificate, with a level worked out the same way as for badges.
             </p>
           </Section>

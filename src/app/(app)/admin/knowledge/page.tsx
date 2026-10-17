@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { ArrowDown, ArrowUp, FilePlus, Pencil, Plus } from "lucide-react";
-import { createChapter, moveKnowledgeItem, saveModule, saveTrack } from "@/lib/actions";
+import { createChapter, moveKnowledgeItem, saveTopic, saveTrack } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MINIMUM_BANK_SIZE } from "@/lib/question-bank";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
 import { FormDialog } from "@/components/form-dialog";
 
-/** Admin editor for tracks, modules and chapters (text only). */
+/** Admin editor for tracks, topics and chapters (text only). Modules are created by migration for now. */
 export default async function KnowledgeEditorPage() {
   await requireAdmin();
   const tracks = await prisma.track.findMany({
@@ -16,8 +16,13 @@ export default async function KnowledgeEditorPage() {
       modules: {
         orderBy: { order: "asc" },
         include: {
-          chapters: { orderBy: { order: "asc" }, select: { id: true, title: true, isPublished: true } },
-          _count: { select: { questions: { where: { isActive: true } } } }
+          topics: {
+            orderBy: { order: "asc" },
+            include: {
+              chapters: { orderBy: { order: "asc" }, select: { id: true, title: true, isPublished: true } },
+              _count: { select: { questions: { where: { isActive: true } } } }
+            }
+          }
         }
       }
     }
@@ -27,7 +32,7 @@ export default async function KnowledgeEditorPage() {
     <>
       <PageHeader
         title="Knowledge editor"
-        description="Tracks, modules and chapters. New chapters start as drafts; trainees see a chapter once it is published."
+        description="Tracks, topics and chapters. New chapters start as drafts; trainees see a chapter once it is published."
         action={
           <FormDialog label="New track" title="New track" icon={<Plus size={15} />} primary action={saveTrack}>
             <TitledFields />
@@ -53,81 +58,89 @@ export default async function KnowledgeEditorPage() {
                   <ActiveField checked={track.isActive} />
                   <Save />
                 </FormDialog>
-                <FormDialog label="New module" title="New module" icon={<Plus size={14} />} action={saveModule}>
-                  <input type="hidden" name="trackId" value={track.id} />
-                  <TitledFields />
-                  <Save />
-                </FormDialog>
               </div>
             </div>
 
-            <div className="mt-4 space-y-4">
-              {track.modules.map((module, moduleIndex) => {
-                const published = module.chapters.filter((chapter) => chapter.isPublished).length;
-                return (
-                  <div key={module.id} className="rounded border border-line p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Move
-                          kind="module"
-                          id={module.id}
-                          first={moduleIndex === 0}
-                          last={moduleIndex === track.modules.length - 1}
-                        />
-                        <h3 className="font-bold text-ink">
-                          {moduleIndex + 1}. {module.title}
-                        </h3>
-                        {/* Either gap stops trainees at this module: its test can't open. */}
-                        {published === 0 ? <StatusBadge tone="amber">No published chapters</StatusBadge> : null}
-                        {module._count.questions < MINIMUM_BANK_SIZE ? (
-                          <StatusBadge tone="amber">
-                            {module._count.questions}/{MINIMUM_BANK_SIZE} questions
-                          </StatusBadge>
-                        ) : null}
-                      </div>
-                      <div className="flex gap-2">
-                        <FormDialog label="Edit" title="Edit module" icon={<Pencil size={14} />} action={saveModule}>
-                          <input type="hidden" name="id" value={module.id} />
-                          <TitledFields values={module} />
-                          <Save />
-                        </FormDialog>
-                        <FormDialog
-                          label="New chapter"
-                          title="New chapter"
-                          icon={<FilePlus size={14} />}
-                          action={createChapter}
-                        >
-                          <input type="hidden" name="moduleId" value={module.id} />
-                          <TitledFields description={false} />
-                          <Save />
-                        </FormDialog>
-                      </div>
-                    </div>
-                    <ol className="mt-3 divide-y divide-line">
-                      {module.chapters.map((chapter, chapterIndex) => (
-                        <li key={chapter.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                          <div className="flex items-center gap-2">
-                            <Move
-                              kind="chapter"
-                              id={chapter.id}
-                              first={chapterIndex === 0}
-                              last={chapterIndex === module.chapters.length - 1}
-                            />
-                            <span className="text-ink">{chapter.title}</span>
-                            {chapter.isPublished ? null : <StatusBadge>Draft</StatusBadge>}
-                          </div>
-                          <Link
-                            href={`/admin/knowledge/chapters/${chapter.id}`}
-                            className="text-xs font-semibold text-teal hover:underline"
-                          >
-                            Edit
-                          </Link>
-                        </li>
-                      ))}
-                    </ol>
+            <div className="mt-4 space-y-5">
+              {track.modules.map((module) => (
+                <section key={module.id} className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-muted">{module.title}</h3>
+                    <FormDialog label="New topic" title="New topic" icon={<Plus size={14} />} action={saveTopic}>
+                      <input type="hidden" name="moduleId" value={module.id} />
+                      <TitledFields />
+                      <Save />
+                    </FormDialog>
                   </div>
-                );
-              })}
+                  {module.topics.map((topic, topicIndex) => {
+                    const published = topic.chapters.filter((chapter) => chapter.isPublished).length;
+                    return (
+                      <div key={topic.id} className="rounded border border-line p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Move
+                              kind="topic"
+                              id={topic.id}
+                              first={topicIndex === 0}
+                              last={topicIndex === module.topics.length - 1}
+                            />
+                            <h4 className="font-bold text-ink">
+                              {topicIndex + 1}. {topic.title}
+                            </h4>
+                            {topic.isPublished ? null : <StatusBadge tone="rose">Unpublished</StatusBadge>}
+                            {/* Either gap stops trainees at this topic: its test can't open. */}
+                            {published === 0 ? <StatusBadge tone="amber">No published chapters</StatusBadge> : null}
+                            {topic._count.questions < MINIMUM_BANK_SIZE ? (
+                              <StatusBadge tone="amber">
+                                {topic._count.questions}/{MINIMUM_BANK_SIZE} questions
+                              </StatusBadge>
+                            ) : null}
+                          </div>
+                          <div className="flex gap-2">
+                            <FormDialog label="Edit" title="Edit topic" icon={<Pencil size={14} />} action={saveTopic}>
+                              <input type="hidden" name="id" value={topic.id} />
+                              <TitledFields values={topic} />
+                              <Save />
+                            </FormDialog>
+                            <FormDialog
+                              label="New chapter"
+                              title="New chapter"
+                              icon={<FilePlus size={14} />}
+                              action={createChapter}
+                            >
+                              <input type="hidden" name="topicId" value={topic.id} />
+                              <TitledFields description={false} />
+                              <Save />
+                            </FormDialog>
+                          </div>
+                        </div>
+                        <ol className="mt-3 divide-y divide-line">
+                          {topic.chapters.map((chapter, chapterIndex) => (
+                            <li key={chapter.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                              <div className="flex items-center gap-2">
+                                <Move
+                                  kind="chapter"
+                                  id={chapter.id}
+                                  first={chapterIndex === 0}
+                                  last={chapterIndex === topic.chapters.length - 1}
+                                />
+                                <span className="text-ink">{chapter.title}</span>
+                                {chapter.isPublished ? null : <StatusBadge>Draft</StatusBadge>}
+                              </div>
+                              <Link
+                                href={`/admin/knowledge/chapters/${chapter.id}`}
+                                className="text-xs font-semibold text-teal hover:underline"
+                              >
+                                Edit
+                              </Link>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    );
+                  })}
+                </section>
+              ))}
             </div>
           </Card>
         ))}

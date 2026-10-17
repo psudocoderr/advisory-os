@@ -24,7 +24,7 @@ export async function loadTraineeReport(userId: string) {
   const sessions = await prisma.testSession.findMany({
     where: { userId },
     include: {
-      module: { select: { title: true } },
+      topic: { select: { title: true } },
       track: { select: { title: true } },
       responses: { select: { isCorrect: true } }
     },
@@ -43,7 +43,7 @@ export async function loadTraineeReport(userId: string) {
       : null;
     return {
       id: session.id,
-      test: session.module?.title ?? `${session.track.title} final exam`,
+      test: session.topic?.title ?? `${session.track.title} final exam`,
       attemptNumber: session.attemptNumber,
       date: session.completedAt ?? session.startedAt,
       status: session.status,

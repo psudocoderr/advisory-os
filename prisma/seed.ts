@@ -14,9 +14,9 @@ const daysFromNow = (days: number) => new Date(today.getTime() + days * 24 * 60 
  */
 const SEED_VOLUMES = { users: 2, clients: 3, prospects: 3 };
 
-/** Internal keys for the five demo modules; not stored anywhere. */
-type ModuleCode = "M1" | "M2" | "M3" | "M4" | "M5";
-type ModuleRef = { moduleId: string; chapterId: string };
+/** Internal keys for the five demo topics; not stored anywhere. */
+type TopicCode = "M1" | "M2" | "M3" | "M4" | "M5";
+type TopicRef = { topicId: string; chapterId: string };
 
 /**
  * Seed passwords must be supplied explicitly.
@@ -302,8 +302,8 @@ async function main() {
   // No progress is seeded: every account starts with no ticks, sessions or
   // badges, so nothing appears as earned that was not. (The demo advisor used
   // to carry a fabricated Proficient badge with no answers behind it.)
-  const { modules } = await seedTrack();
-  await seedQuestions(admin.id, modules);
+  const { topics } = await seedTrack();
+  await seedQuestions(admin.id, topics);
 
   await prisma.auditLog.createMany({
     data: [
@@ -314,16 +314,20 @@ async function main() {
 }
 
 /**
- * Track 1 with its five demo modules, one chapter each. Real chapter content
- * comes from the client; these exist so the reader, the locks and the demo
- * questions have something to hang off.
+ * The Foundations track with one module, Operational Excellence, holding five
+ * demo topics of one chapter each. Real chapter content comes from the
+ * client; these exist so the reader, the locks and the demo questions have
+ * something to hang off.
  */
 async function seedTrack() {
   const track = await prisma.track.create({
-    data: { slug: "operational-excellence", title: "Operational-Excellence", order: 1 }
+    data: { slug: "foundations", title: "Foundations", order: 1 }
+  });
+  const trainingModule = await prisma.module.create({
+    data: { trackId: track.id, slug: "operational-excellence", title: "Operational Excellence", order: 1 }
   });
 
-  const titles: [ModuleCode, string][] = [
+  const titles: [TopicCode, string][] = [
     ["M1", "KYC & Compliance"],
     ["M2", "Client Onboarding"],
     ["M3", "Investment Operations"],
@@ -331,11 +335,11 @@ async function seedTrack() {
     ["M5", "Full Advisory Certification"]
   ];
 
-  const modules = new Map<ModuleCode, ModuleRef>();
+  const topics = new Map<TopicCode, TopicRef>();
   for (const [index, [code, title]] of titles.entries()) {
-    const created = await prisma.module.create({
+    const created = await prisma.topic.create({
       data: {
-        trackId: track.id,
+        moduleId: trainingModule.id,
         slug: code.toLowerCase(),
         title,
         order: index + 1,
@@ -351,10 +355,10 @@ async function seedTrack() {
       },
       include: { chapters: true }
     });
-    modules.set(code, { moduleId: created.id, chapterId: created.chapters[0].id });
+    topics.set(code, { topicId: created.id, chapterId: created.chapters[0].id });
   }
 
-  return { trackId: track.id, modules };
+  return { trackId: track.id, topics };
 }
 
 /** Placeholder text that exercises the formatting a real chapter will use. */
@@ -373,8 +377,8 @@ function demoChapter(title: string) {
   ].join("\n\n");
 }
 
-async function seedQuestions(adminId: string, modules: Map<ModuleCode, ModuleRef>) {
-  const stems: Record<ModuleCode, string[]> = {
+async function seedQuestions(adminId: string, topics: Map<TopicCode, TopicRef>) {
+  const stems: Record<TopicCode, string[]> = {
     M1: [
       "Which record is treated as the first source of truth for PAN-linked identity?",
       "What should happen when the KRA name and master identity name diverge?",
@@ -459,7 +463,7 @@ async function seedQuestions(adminId: string, modules: Map<ModuleCode, ModuleRef
    * varied, plausible, and specific to the subject. The correct answer rotates
    * across A, B, C and D. Deterministic, so the seed stays reproducible.
    */
-  function buildOptions(module: ModuleCode, index: number, total: number) {
+  function buildOptions(module: TopicCode, index: number, total: number) {
     const correctKey = "ABCD"[index % 4];
     const distractors = [1, 2, 3].map((offset) => correctAnswer(module, (index + offset * 3 + 1) % total));
 
@@ -472,11 +476,11 @@ async function seedQuestions(adminId: string, modules: Map<ModuleCode, ModuleRef
     return { options, correctKey };
   }
 
-  const rows = (["M1", "M2", "M3", "M4", "M5"] as ModuleCode[]).flatMap((module) =>
+  const rows = (["M1", "M2", "M3", "M4", "M5"] as TopicCode[]).flatMap((module) =>
     stems[module].map((content, index) => {
       const { options, correctKey } = buildOptions(module, index, stems[module].length);
       return {
-        ...modules.get(module)!,
+        ...topics.get(module)!,
         content,
         options,
         correctKey,
@@ -493,8 +497,8 @@ async function seedQuestions(adminId: string, modules: Map<ModuleCode, ModuleRef
   await prisma.questionItem.createMany({ data: rows });
 }
 
-function correctAnswer(module: ModuleCode, index: number) {
-  const answers: Record<ModuleCode, string[]> = {
+function correctAnswer(module: TopicCode, index: number) {
+  const answers: Record<TopicCode, string[]> = {
     M1: [
       "The IT portal PAN-linked name",
       "Trigger proof protocol before proceeding",
@@ -578,6 +582,7 @@ async function clear() {
   // Rows only: files already in the bucket are not touched.
   await prisma.asset.deleteMany();
   await prisma.chapter.deleteMany();
+  await prisma.topic.deleteMany();
   await prisma.module.deleteMany();
   await prisma.track.deleteMany();
   await prisma.portfolioReview.deleteMany();
