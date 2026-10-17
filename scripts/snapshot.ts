@@ -41,6 +41,7 @@ async function main() {
     portfolioReviews: await prisma.portfolioReview.count(),
     tracks: await prisma.track.count(),
     modules: await prisma.module.count(),
+    topics: await prisma.topic.count(),
     chapters: await prisma.chapter.count(),
     chapterCompletions: await prisma.chapterCompletion.count(),
     questionItems: await prisma.questionItem.count(),
@@ -55,7 +56,7 @@ async function main() {
   const sessions = await prisma.testSession.findMany({
     orderBy: { startedAt: "desc" },
     select: {
-      module: { select: { slug: true } },
+      topic: { select: { slug: true } },
       status: true,
       attemptNumber: true,
       abilityEstimate: true,
@@ -70,7 +71,7 @@ async function main() {
 
   const certifications = await prisma.certification.findMany({
     select: {
-      module: { select: { slug: true } },
+      topic: { select: { slug: true } },
       badgeLevel: true,
       percentCorrect: true,
       status: true,
@@ -124,11 +125,11 @@ async function main() {
 
   if (sessions.length) {
     lines.push(
-      "| module | who | status | attempt | answered | theta | SE | integrity | started | completed |",
+      "| topic | who | status | attempt | answered | theta | SE | integrity | started | completed |",
       "|---|---|---|---|---|---|---|---|---|---|",
       ...sessions.map(
         (s) =>
-          `| ${s.module?.slug ?? "final"} | ${s.user.email} | ${s.status} | ${s.attemptNumber} | ${s._count.responses} | ` +
+          `| ${s.topic?.slug ?? "final"} | ${s.user.email} | ${s.status} | ${s.attemptNumber} | ${s._count.responses} | ` +
           `${s.abilityEstimate.toFixed(2)} | ${s.standardError === 99 ? "—" : s.standardError.toFixed(2)} | ` +
           `${s._count.integrityEvents} | ${s.startedAt.toISOString().slice(0, 16)} | ` +
           `${s.completedAt ? s.completedAt.toISOString().slice(0, 16) : "—"} |`
@@ -141,11 +142,11 @@ async function main() {
   lines.push("", "## Certifications held", "");
   if (certifications.length) {
     lines.push(
-      "| module | level | status | theta | % correct | issued |",
+      "| topic | level | status | theta | % correct | issued |",
       "|---|---|---|---|---|---|",
       ...certifications.map(
         (c) =>
-          `| ${c.module?.slug ?? "final"} | ${c.badgeLevel ?? "—"} | ${c.status} | ${c.abilityScore.toFixed(2)} | ` +
+          `| ${c.topic?.slug ?? "final"} | ${c.badgeLevel ?? "—"} | ${c.status} | ${c.abilityScore.toFixed(2)} | ` +
           `${c.percentCorrect === null ? "—" : c.percentCorrect.toFixed(0)} | ${c.issuedAt.toISOString().slice(0, 10)} |`
       )
     );

@@ -314,9 +314,9 @@ describe("isSessionExpired", () => {
 });
 
 describe("final exam", () => {
-  const q = (id: string, moduleId: string, difficulty = 0) => ({
+  const q = (id: string, topicId: string, difficulty = 0) => ({
     id,
-    moduleId,
+    topicId,
     difficulty,
     discrimination: 1,
     guessing: 0.2
@@ -325,9 +325,9 @@ describe("final exam", () => {
   // keep choosing from it.
   const bank = [q("a1", "m1"), q("a2", "m1"), q("a3", "m1"), q("b1", "m2", 2.5), q("c1", "m3", -2.5)];
 
-  it("uses its own rules only for a session with no module", () => {
-    expect(rulesFor({ moduleId: null })).toBe(FINAL_EXAM);
-    expect(rulesFor({ moduleId: "m1" })).toBe(IRT);
+  it("uses its own rules only for a session with no topic", () => {
+    expect(rulesFor({ topicId: null })).toBe(FINAL_EXAM);
+    expect(rulesFor({ topicId: "m1" })).toBe(IRT);
   });
 
   it("stops and times out on the final exam's own limits", () => {
@@ -340,17 +340,17 @@ describe("final exam", () => {
     expect(isSessionExpired(start, new Date(deadline.getTime() + 5000), FINAL_EXAM)).toBe(true);
   });
 
-  it("spreads questions across modules when balancing", () => {
+  it("spreads questions across topics when balancing", () => {
     const used: string[] = [];
     for (let i = 0; i < 3; i += 1) used.push(selectNextQuestion(0, bank, used, true)!.id);
     expect(used.map((id) => id[0]).sort()).toEqual(["a", "b", "c"]);
-    // Without balancing the most informative module wins every time.
+    // Without balancing the most informative topic wins every time.
     const unbalanced: string[] = [];
     for (let i = 0; i < 3; i += 1) unbalanced.push(selectNextQuestion(0, bank, unbalanced)!.id);
     expect(unbalanced).toEqual(["a1", "a2", "a3"]);
   });
 
-  it("keeps going on the modules that still have questions", () => {
+  it("keeps going on the topics that still have questions", () => {
     expect(selectNextQuestion(0, bank, ["a1", "b1", "c1"], true)!.id).toBe("a2");
     expect(
       selectNextQuestion(

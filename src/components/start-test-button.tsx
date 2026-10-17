@@ -4,14 +4,14 @@ import { useRouter } from "next/navigation";
 import { useTransition, useState } from "react";
 
 /**
- * `test` names a module test or a track's final exam. `blocked` is the reason
+ * `test` names a topic test or a track's final exam. `blocked` is the reason
  * it cannot start yet, shown on the button.
  */
 export function StartTestButton({
   test,
   blocked
 }: {
-  test: { moduleId: string } | { trackId: string };
+  test: { topicId: string } | { trackId: string };
   blocked: string | null;
 }) {
   const router = useRouter();

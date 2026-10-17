@@ -47,7 +47,7 @@ export async function POST(request: Request) {
 
   const testSession = await prisma.testSession.findUnique({
     where: { id: sessionId },
-    select: { id: true, userId: true, status: true, trackId: true, moduleId: true, timerStartedAt: true }
+    select: { id: true, userId: true, status: true, trackId: true, topicId: true, timerStartedAt: true }
   });
   if (!testSession || testSession.userId !== auth.user.id) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });

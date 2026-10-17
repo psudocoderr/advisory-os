@@ -15,32 +15,32 @@ export default async function CertifyPage() {
     prisma.certification.findMany({
       where: { status: "ACTIVE", ...(session.user.role === "ADMIN" ? {} : { userId: session.user.id }) },
       orderBy: { issuedAt: "desc" },
-      include: { user: true, module: true, track: true }
+      include: { user: true, topic: true, track: true }
     }),
-    prisma.questionItem.groupBy({ by: ["moduleId"], where: { isActive: true }, _count: true })
+    prisma.questionItem.groupBy({ by: ["topicId"], where: { isActive: true }, _count: true })
   ]);
 
   return (
     <>
-      <PageHeader title="Tests & badges" description="Each module closes with an adaptive test that awards a badge." />
+      <PageHeader title="Tests & badges" description="Each topic closes with an adaptive test that awards a badge." />
       {standings.map((standing) =>
         standing ? (
           <div key={standing.track.id} className="mb-6">
             <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted">{standing.track.title}</h2>
             <div className="grid gap-4 lg:grid-cols-2">
-              {standing.track.modules.map((module, index) => {
-                const moduleStanding = standing.progress[index];
-                const level = standing.badgeLevels.get(module.id);
-                const questionCount = counts.find((item) => item.moduleId === module.id)?._count ?? 0;
+              {standing.track.topics.map((topic, index) => {
+                const topicStanding = standing.progress[index];
+                const level = standing.badgeLevels.get(topic.id);
+                const questionCount = counts.find((item) => item.topicId === topic.id)?._count ?? 0;
                 return (
-                  <Card key={module.id} className="p-4">
+                  <Card key={topic.id} className="p-4">
                     <div className="flex items-start gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-mint text-teal">
                         <ClipboardCheck size={20} />
                       </div>
                       <div>
                         <h3 className="font-semibold text-ink">
-                          {index + 1}. {module.title}
+                          {index + 1}. {topic.title}
                         </h3>
                         <div className="mt-1 text-sm text-muted">
                           {questionCount} questions · {level ? LEVEL_LABEL[level] : "No badge yet"}
@@ -48,9 +48,9 @@ export default async function CertifyPage() {
                       </div>
                     </div>
                     <div className="mt-4 flex justify-end border-t border-line pt-4">
-                      {moduleStanding.testUnlocked ? (
+                      {topicStanding.testUnlocked ? (
                         <Link
-                          href={`/certify/${module.id}`}
+                          href={`/certify/${topic.id}`}
                           className="rounded bg-navy px-3 py-2 text-sm font-semibold text-white"
                         >
                           {level ? "Retake" : "Start"}
@@ -90,7 +90,7 @@ export default async function CertifyPage() {
                   ) : (
                     <span className="inline-flex items-center gap-1.5 text-sm text-muted">
                       <Lock size={14} />
-                      Earn every module badge
+                      Earn every topic badge
                     </span>
                   )}
                 </div>
@@ -110,7 +110,7 @@ export default async function CertifyPage() {
               <div key={cert.id} className="rounded border border-line bg-wash p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-semibold text-ink">
-                    {cert.module?.title ?? `${cert.track.title} certificate`}
+                    {cert.topic?.title ?? `${cert.track.title} certificate`}
                   </span>
                   {cert.badgeLevel ? <StatusBadge tone="teal">{LEVEL_LABEL[cert.badgeLevel]}</StatusBadge> : null}
                 </div>

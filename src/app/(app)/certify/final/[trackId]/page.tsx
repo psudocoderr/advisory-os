@@ -15,10 +15,10 @@ export default async function FinalExamPage({ params }: { params: Promise<{ trac
   const { track, progress, badgeLevels, finalUnlocked, certificateLevel } = standing;
 
   const questionCount = await prisma.questionItem.count({
-    where: { isActive: true, module: { trackId: track.id } }
+    where: { isActive: true, topic: { module: { trackId: track.id } } }
   });
   const blocked = !finalUnlocked
-    ? "Earn every module badge to unlock"
+    ? "Earn every topic badge to unlock"
     : questionCount < FINAL_EXAM.minQuestions
       ? "Not enough questions yet"
       : null;
@@ -27,7 +27,7 @@ export default async function FinalExamPage({ params }: { params: Promise<{ trac
     <>
       <PageHeader
         title={`${track.title}: final exam`}
-        description="An adaptive test across every module in the track. It awards the track certificate."
+        description="An adaptive test across every topic in the track. It awards the track certificate."
         action={<HowThisWorks section="final-exam" />}
       />
       <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
@@ -48,14 +48,14 @@ export default async function FinalExamPage({ params }: { params: Promise<{ trac
           </div>
         </Card>
         <Card className="p-4">
-          <h2 className="mb-3 font-semibold text-ink">Module badges</h2>
+          <h2 className="mb-3 font-semibold text-ink">Topic badges</h2>
           <div className="space-y-1">
-            {track.modules.map((module, index) => {
-              const level = badgeLevels.get(module.id);
+            {track.topics.map((topic, index) => {
+              const level = badgeLevels.get(topic.id);
               return (
-                <div key={module.id} className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm">
+                <div key={topic.id} className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm">
                   <span className={progress[index].badged ? "text-ink" : "text-muted"}>
-                    {index + 1}. {module.title}
+                    {index + 1}. {topic.title}
                   </span>
                   {level ? (
                     <StatusBadge tone="teal">{LEVEL_LABEL[level]}</StatusBadge>

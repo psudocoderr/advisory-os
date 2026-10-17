@@ -33,9 +33,9 @@ export default async function TrackerPage() {
                   <th className="px-4 py-3">Trainee</th>
                   <th className="px-4 py-3">Next step</th>
                   <th className="px-4 py-3">Chapters</th>
-                  {track.modules.map((module, index) => (
-                    <th key={module.id} className="px-4 py-3" title={module.title}>
-                      M{index + 1}
+                  {track.topics.map((topic, index) => (
+                    <th key={topic.id} className="px-4 py-3" title={topic.title}>
+                      T{index + 1}
                     </th>
                   ))}
                   <th className="px-4 py-3">Certificate</th>
@@ -54,10 +54,10 @@ export default async function TrackerPage() {
                     <td className="mono px-4 py-3">
                       {row.chaptersDone}/{chaptersTotal}
                     </td>
-                    {track.modules.map((module) => {
-                      const level = row.badgeLevels.get(module.id);
+                    {track.topics.map((topic) => {
+                      const level = row.badgeLevels.get(topic.id);
                       return (
-                        <td key={module.id} className="px-4 py-3">
+                        <td key={topic.id} className="px-4 py-3">
                           {level ? <StatusBadge tone="teal">{LEVEL_LABEL[level]}</StatusBadge> : "—"}
                         </td>
                       );

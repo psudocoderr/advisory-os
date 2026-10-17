@@ -11,15 +11,15 @@ export const IRT = {
   cooldownHours: 24
 };
 
-/** How long a test runs and when it stops. Module tests use IRT itself. */
+/** How long a test runs and when it stops. Topic tests use IRT itself. */
 export type TestRules = Pick<typeof IRT, "minQuestions" | "maxQuestions" | "seStop" | "timeLimitMinutes">;
 
 /**
  * The final exam: the same adaptive engine over every question in the track,
- * spread evenly across its modules.
+ * spread evenly across its topics.
  *
  * Placeholders until the client confirms length and duration; change them
- * here. The pass rule is the modules' one (decide below).
+ * here. The pass rule is the topic tests' one (decide below).
  */
 export const FINAL_EXAM: TestRules = {
   minQuestions: 20,
@@ -28,9 +28,9 @@ export const FINAL_EXAM: TestRules = {
   timeLimitMinutes: 45
 };
 
-/** A session with no module is a final exam. */
-export function rulesFor(session: { moduleId: string | null }): TestRules {
-  return session.moduleId ? IRT : FINAL_EXAM;
+/** A session with no topic is a final exam. */
+export function rulesFor(session: { topicId: string | null }): TestRules {
+  return session.topicId ? IRT : FINAL_EXAM;
 }
 
 type ResponseLike = Pick<ResponseLog, "questionId" | "isCorrect">;
@@ -115,13 +115,13 @@ export function estimateEap(responses: ResponseLike[], questions: QuestionLike[]
 /**
  * The most informative unused question.
  *
- * With `balance` (the final exam), only questions from the module with the
- * fewest answered so far are candidates, so the exam covers every module
- * evenly instead of homing in on whichever module has the most informative
+ * With `balance` (the final exam), only questions from the topic with the
+ * fewest answered so far are candidates, so the exam covers every topic
+ * evenly instead of homing in on whichever topic has the most informative
  * items. Deterministic either way: the answer route recomputes this to check
  * which question is current.
  */
-export function selectNextQuestion<T extends QuestionLike & { moduleId?: string | null }>(
+export function selectNextQuestion<T extends QuestionLike & { topicId?: string | null }>(
   theta: number,
   questions: T[],
   usedQuestionIds: string[],
@@ -132,11 +132,11 @@ export function selectNextQuestion<T extends QuestionLike & { moduleId?: string 
   if (balance && candidates.length) {
     const answered = new Map<string, number>();
     for (const question of questions) {
-      const key = question.moduleId ?? "";
+      const key = question.topicId ?? "";
       answered.set(key, (answered.get(key) ?? 0) + (used.has(question.id) ? 1 : 0));
     }
-    const fewest = Math.min(...candidates.map((question) => answered.get(question.moduleId ?? "")!));
-    candidates = candidates.filter((question) => answered.get(question.moduleId ?? "") === fewest);
+    const fewest = Math.min(...candidates.map((question) => answered.get(question.topicId ?? "")!));
+    candidates = candidates.filter((question) => answered.get(question.topicId ?? "") === fewest);
   }
   return (
     candidates

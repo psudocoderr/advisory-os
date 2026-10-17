@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 /**
  * What a trainee may open in a track.
  *
- * Strict sequence: the first module is open; each later module opens once
- * the one before it has a badge. Inside an open module, chapters open one at
- * a time as the previous one is marked complete, and the module test opens
- * once every chapter is complete.
+ * Strict sequence across the track: the first topic is open; each later topic
+ * opens once the one before it has a badge. Inside an open topic, chapters
+ * open one at a time as the previous one is marked complete, and the topic
+ * test opens once every chapter is complete.
  *
  * Pure, so the same rule is shared by the pages that show locks and the
  * server code that enforces them. Hiding a link is not a lock; every write
@@ -15,7 +15,7 @@ import { prisma } from "@/lib/prisma";
  */
 export type ChapterState = "complete" | "open" | "locked";
 
-export type ModuleProgress = {
+export type TopicProgress = {
   id: string;
   unlocked: boolean;
   chapters: { id: string; state: ChapterState }[];
@@ -25,16 +25,16 @@ export type ModuleProgress = {
 };
 
 export function trackProgress(
-  modules: { id: string; chapters: { id: string }[] }[],
+  topics: { id: string; chapters: { id: string }[] }[],
   completedChapterIds: ReadonlySet<string>,
-  badgedModuleIds: ReadonlySet<string>,
+  badgedTopicIds: ReadonlySet<string>,
   /** Admins preview everything; nothing is locked for them. */
   unlockAll = false
-): ModuleProgress[] {
-  return modules.map((module, index) => {
-    const unlocked = unlockAll || index === 0 || badgedModuleIds.has(modules[index - 1].id);
+): TopicProgress[] {
+  return topics.map((topic, index) => {
+    const unlocked = unlockAll || index === 0 || badgedTopicIds.has(topics[index - 1].id);
     let previousDone = true;
-    const chapters = module.chapters.map(({ id }) => {
+    const chapters = topic.chapters.map(({ id }) => {
       const done = completedChapterIds.has(id);
       const state: ChapterState = done ? "complete" : unlocked && (previousDone || unlockAll) ? "open" : "locked";
       previousDone = done;
@@ -42,41 +42,54 @@ export function trackProgress(
     });
     const chaptersDone = chapters.filter((chapter) => chapter.state === "complete").length;
     return {
-      id: module.id,
+      id: topic.id,
       unlocked,
       chapters,
       chaptersDone,
       testUnlocked: unlocked && chapters.length > 0 && (unlockAll || chaptersDone === chapters.length),
-      badged: badgedModuleIds.has(module.id)
+      badged: badgedTopicIds.has(topic.id)
     };
   });
 }
 
 /**
- * The final exam opens once every module in the track is badged. A track with
- * no modules has nothing to examine.
+ * The final exam opens once every topic in the track is badged. A track with
+ * no topics has nothing to examine.
  */
-export function finalExamUnlocked(progress: ModuleProgress[], unlockAll = false): boolean {
-  return progress.length > 0 && (unlockAll || progress.every((module) => module.badged));
+export function finalExamUnlocked(progress: TopicProgress[], unlockAll = false): boolean {
+  return progress.length > 0 && (unlockAll || progress.every((topic) => topic.badged));
 }
 
-/** A track with its modules and published chapters, in order. */
-export function loadTrack(where: { slug: string } | { id: string }) {
-  return prisma.track.findFirst({
+/**
+ * A track with its modules, their published topics and those topics'
+ * published chapters, in order. `topics` is the same topics as one list in
+ * track order, each carrying its module: the sequence trainees work through.
+ */
+export async function loadTrack(where: { slug: string } | { id: string }) {
+  const track = await prisma.track.findFirst({
     where: { ...where, isActive: true },
     include: {
       modules: {
         orderBy: { order: "asc" },
         include: {
-          chapters: {
+          topics: {
             where: { isPublished: true },
             orderBy: { order: "asc" },
-            select: { id: true, slug: true, title: true, order: true }
+            include: {
+              chapters: {
+                where: { isPublished: true },
+                orderBy: { order: "asc" },
+                select: { id: true, slug: true, title: true, order: true }
+              }
+            }
           }
         }
       }
     }
   });
+  if (!track) return null;
+  const topics = track.modules.flatMap(({ topics, ...module }) => topics.map((topic) => ({ ...topic, module })));
+  return { ...track, topics };
 }
 
 /** A track together with where this user stands in it. */
@@ -84,28 +97,28 @@ export async function loadTrackProgress(where: { slug: string } | { id: string }
   const track = await loadTrack(where);
   if (!track) return null;
 
-  const chapterIds = track.modules.flatMap((module) => module.chapters.map((chapter) => chapter.id));
+  const chapterIds = track.topics.flatMap((topic) => topic.chapters.map((chapter) => chapter.id));
   const [completions, badges] = await Promise.all([
     prisma.chapterCompletion.findMany({
       where: { userId: user.id, chapterId: { in: chapterIds } },
       select: { chapterId: true }
     }),
-    // Module badges, plus the track certificate (the row with no module).
+    // Topic badges, plus the track certificate (the row with no topic).
     prisma.certification.findMany({
       where: { userId: user.id, trackId: track.id, status: "ACTIVE" },
-      select: { moduleId: true, badgeLevel: true }
+      select: { topicId: true, badgeLevel: true }
     })
   ]);
-  const moduleBadges = badges.filter((row) => row.moduleId !== null);
-  const certificateLevel = badges.find((row) => row.moduleId === null)?.badgeLevel ?? null;
+  const topicBadges = badges.filter((row) => row.topicId !== null);
+  const certificateLevel = badges.find((row) => row.topicId === null)?.badgeLevel ?? null;
 
   const progress = trackProgress(
-    track.modules,
+    track.topics,
     new Set(completions.map((row) => row.chapterId)),
-    new Set(moduleBadges.map((row) => row.moduleId!)),
+    new Set(topicBadges.map((row) => row.topicId!)),
     user.role === "ADMIN"
   );
-  const badgeLevels = new Map(moduleBadges.map((row) => [row.moduleId!, row.badgeLevel]));
+  const badgeLevels = new Map(topicBadges.map((row) => [row.topicId!, row.badgeLevel]));
   return {
     track,
     progress,
@@ -118,7 +131,13 @@ export async function loadTrackProgress(where: { slug: string } | { id: string }
 type TrackOutline = {
   id: string;
   slug: string;
-  modules: { id: string; title: string; slug: string; chapters: { title: string; slug: string }[] }[];
+  topics: {
+    id: string;
+    title: string;
+    slug: string;
+    module: { slug: string };
+    chapters: { title: string; slug: string }[];
+  }[];
 };
 
 /**
@@ -127,21 +146,24 @@ type TrackOutline = {
  */
 export function nextStep(
   track: TrackOutline,
-  progress: ModuleProgress[],
+  progress: TopicProgress[],
   finalUnlocked: boolean,
   certificateLevel: BadgeLevel | null
 ): { label: string; href: string } {
   if (certificateLevel) return { label: "Certified", href: `/knowledge/${track.slug}` };
   if (finalUnlocked) return { label: "Take the final exam", href: `/certify/final/${track.id}` };
-  const index = progress.findIndex((module) => !module.badged);
-  const current = track.modules[index];
+  const index = progress.findIndex((topic) => !topic.badged);
+  const current = track.topics[index];
   if (!current) return { label: "Nothing to do yet", href: `/knowledge/${track.slug}` };
   if (progress[index].testUnlocked)
-    return { label: `Take the module ${index + 1} test`, href: `/certify/${current.id}` };
+    return { label: `Take the "${current.title}" test`, href: `/certify/${current.id}` };
   const chapterIndex = progress[index].chapters.findIndex((chapter) => chapter.state === "open");
   const chapter = current.chapters[chapterIndex];
-  if (!chapter) return { label: `Module ${index + 1} has no chapters yet`, href: `/knowledge/${track.slug}` };
-  return { label: `Read "${chapter.title}"`, href: chapterHref(track.slug, current.slug, chapter.slug) };
+  if (!chapter) return { label: `"${current.title}" has no chapters yet`, href: `/knowledge/${track.slug}` };
+  return {
+    label: `Read "${chapter.title}"`,
+    href: chapterHref(track.slug, current.module.slug, current.slug, chapter.slug)
+  };
 }
 
 /**
@@ -151,7 +173,7 @@ export function nextStep(
 export async function loadTeamProgress(trackId: string) {
   const track = await loadTrack({ id: trackId });
   if (!track) return null;
-  const chapterIds = track.modules.flatMap((module) => module.chapters.map((chapter) => chapter.id));
+  const chapterIds = track.topics.flatMap((topic) => topic.chapters.map((chapter) => chapter.id));
 
   const [users, completions, certifications, lastCompletion, lastAttempt] = await Promise.all([
     prisma.user.findMany({
@@ -165,7 +187,7 @@ export async function loadTeamProgress(trackId: string) {
     }),
     prisma.certification.findMany({
       where: { trackId: track.id, status: "ACTIVE" },
-      select: { userId: true, moduleId: true, badgeLevel: true }
+      select: { userId: true, topicId: true, badgeLevel: true }
     }),
     prisma.chapterCompletion.groupBy({
       by: ["userId"],
@@ -177,12 +199,12 @@ export async function loadTeamProgress(trackId: string) {
 
   const rows = users.map((user) => {
     const mine = certifications.filter((row) => row.userId === user.id);
-    const moduleBadges = mine.filter((row) => row.moduleId !== null);
-    const certificateLevel = mine.find((row) => row.moduleId === null)?.badgeLevel ?? null;
+    const topicBadges = mine.filter((row) => row.topicId !== null);
+    const certificateLevel = mine.find((row) => row.topicId === null)?.badgeLevel ?? null;
     const progress = trackProgress(
-      track.modules,
+      track.topics,
       new Set(completions.filter((row) => row.userId === user.id).map((row) => row.chapterId)),
-      new Set(moduleBadges.map((row) => row.moduleId!))
+      new Set(topicBadges.map((row) => row.topicId!))
     );
     const lastActivity = [
       lastCompletion.find((row) => row.userId === user.id)?._max.completedAt,
@@ -192,8 +214,8 @@ export async function loadTeamProgress(trackId: string) {
       .sort((a, b) => b.getTime() - a.getTime())[0];
     return {
       user,
-      chaptersDone: progress.reduce((sum, module) => sum + module.chaptersDone, 0),
-      badgeLevels: new Map(moduleBadges.map((row) => [row.moduleId!, row.badgeLevel])),
+      chaptersDone: progress.reduce((sum, topic) => sum + topic.chaptersDone, 0),
+      badgeLevels: new Map(topicBadges.map((row) => [row.topicId!, row.badgeLevel])),
       certificateLevel,
       next: nextStep(track, progress, finalExamUnlocked(progress), certificateLevel),
       lastActivity: lastActivity ?? null
@@ -203,6 +225,6 @@ export async function loadTeamProgress(trackId: string) {
   return { track, chaptersTotal: chapterIds.length, rows };
 }
 
-export function chapterHref(trackSlug: string, moduleSlug: string, chapterSlug: string) {
-  return `/knowledge/${trackSlug}/${moduleSlug}/${chapterSlug}`;
+export function chapterHref(trackSlug: string, moduleSlug: string, topicSlug: string, chapterSlug: string) {
+  return `/knowledge/${trackSlug}/${moduleSlug}/${topicSlug}/${chapterSlug}`;
 }

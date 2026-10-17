@@ -8,8 +8,8 @@ import { estimateEap, isSessionExpired, IRT, rulesFor } from "@/lib/irt";
 import { finalizeSession, questionBank } from "@/lib/certify-session";
 import { loadTrackProgress } from "@/lib/knowledge";
 
-/** A module test, or with `trackId` the track's final exam. */
-const schema = z.union([z.object({ moduleId: z.string().min(1) }), z.object({ trackId: z.string().min(1) })]);
+/** A topic test, or with `trackId` the track's final exam. */
+const schema = z.union([z.object({ topicId: z.string().min(1) }), z.object({ trackId: z.string().min(1) })]);
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -19,36 +19,39 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid test" }, { status: 400 });
 
   let trackId: string;
-  let moduleId: string | null;
+  let topicId: string | null;
   let title: string;
-  if ("moduleId" in parsed.data) {
-    const trainingModule = await prisma.module.findUnique({ where: { id: parsed.data.moduleId } });
-    if (!trainingModule) return NextResponse.json({ error: "Module not found" }, { status: 404 });
-    [trackId, moduleId, title] = [trainingModule.trackId, trainingModule.id, trainingModule.title];
+  if ("topicId" in parsed.data) {
+    const topic = await prisma.topic.findUnique({
+      where: { id: parsed.data.topicId },
+      include: { module: { select: { trackId: true } } }
+    });
+    if (!topic) return NextResponse.json({ error: "Topic not found" }, { status: 404 });
+    [trackId, topicId, title] = [topic.module.trackId, topic.id, topic.title];
   } else {
     const track = await prisma.track.findUnique({ where: { id: parsed.data.trackId } });
     if (!track) return NextResponse.json({ error: "Track not found" }, { status: 404 });
-    [trackId, moduleId, title] = [track.id, null, `${track.title} final exam`];
+    [trackId, topicId, title] = [track.id, null, `${track.title} final exam`];
   }
-  // Every query below is scoped to this one test: a module's, or the track's
-  // final exam (moduleId null). Never { moduleId: undefined }, which Prisma
-  // reads as "any module".
-  const scope = { trackId, moduleId };
+  // Every query below is scoped to this one test: a topic's, or the track's
+  // final exam (topicId null). Never { topicId: undefined }, which Prisma
+  // reads as "any topic".
+  const scope = { trackId, topicId };
   const rules = rulesFor(scope);
 
-  // The lock is enforced here, not only on the page. A module test opens once
-  // every chapter in the module is complete and the module before it is
-  // badged; the final exam once every module is badged.
+  // The lock is enforced here, not only on the page. A topic test opens once
+  // every chapter in the topic is complete and the topic before it is
+  // badged; the final exam once every topic is badged.
   const standing = await loadTrackProgress({ id: trackId }, session.user);
-  const unlocked = moduleId
-    ? standing?.progress.find((module) => module.id === moduleId)?.testUnlocked
+  const unlocked = topicId
+    ? standing?.progress.find((topic) => topic.id === topicId)?.testUnlocked
     : standing?.finalUnlocked;
   if (!unlocked) {
     return NextResponse.json(
       {
-        error: moduleId
-          ? "Complete every chapter in this module, and the module before it, to unlock the test."
-          : "Earn every module badge in this track to unlock the final exam."
+        error: topicId
+          ? "Complete every chapter in this topic, and the topic before it, to unlock the test."
+          : "Earn every topic badge in this track to unlock the final exam."
       },
       { status: 403 }
     );
@@ -110,7 +113,7 @@ export async function POST(request: Request) {
 
   // A test needs at least its minimum length in questions to be answerable.
   const questionCount = await prisma.questionItem.count({
-    where: { isActive: true, ...(moduleId ? { moduleId } : { module: { trackId } }) }
+    where: { isActive: true, ...(topicId ? { topicId } : { topic: { module: { trackId } } }) }
   });
   if (questionCount < rules.minQuestions) {
     return NextResponse.json(

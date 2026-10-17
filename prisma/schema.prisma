@@ -258,8 +258,8 @@ model PortfolioReview {
   @@map("portfolio_reviews")
 }
 
-/// A learning path, e.g. Operational-Excellence. Modules, chapters and tests
-/// all hang off a track, so a second track is a new row, not a migration.
+/// The top level of the knowledge portal, e.g. Foundations. Track > module >
+/// topic > chapter; a second track is a new row, not a migration.
 model Track {
   id          String   @id @default(cuid())
   slug        String   @unique
@@ -279,6 +279,8 @@ model Track {
 
 /// A unit within a track, completed in order and closed by an adaptive test
 /// that awards a badge. Replaced the fixed M1-M5 enum (dropped in the contract release).
+/// A unit of a track that later modules build on (e.g. Operational
+/// Excellence). It holds topics; its badge is derived from theirs, not stored.
 model Module {
   id          String   @id @default(cuid())
   trackId     String
@@ -289,21 +291,44 @@ model Module {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  track          Track           @relation(fields: [trackId], references: [id], onDelete: Restrict)
-  chapters       Chapter[]
-  questions      QuestionItem[]
-  testSessions   TestSession[]
-  certifications Certification[]
+  track  Track   @relation(fields: [trackId], references: [id], onDelete: Restrict)
+  topics Topic[]
 
   @@unique([trackId, order])
   @@unique([trackId, slug])
   @@map("modules")
 }
 
+/// A subject within a module, with its own chapters, test and badge. Was
+/// called a module until 2026-10-17 (table renamed from "modules").
+model Topic {
+  id          String   @id @default(cuid())
+  moduleId    String
+  slug        String
+  title       String
+  description String   @default("")
+  order       Int
+  /// Unpublished topics are invisible to trainees and do not count toward
+  /// the module badge.
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  module         Module          @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  chapters       Chapter[]
+  questions      QuestionItem[]
+  testSessions   TestSession[]
+  certifications Certification[]
+
+  @@unique([moduleId, order])
+  @@unique([moduleId, slug])
+  @@map("topics")
+}
+
 /// One reading unit. `body` is markdown, rendered with raw HTML disabled.
 model Chapter {
   id          String   @id @default(cuid())
-  moduleId    String
+  topicId     String
   slug        String
   title       String
   body        String   @default("")
@@ -312,13 +337,13 @@ model Chapter {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  module      Module              @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  topic       Topic               @relation(fields: [topicId], references: [id], onDelete: Restrict)
   completions ChapterCompletion[]
   questions   QuestionItem[]
   assets      Asset[]
 
-  @@unique([moduleId, order])
-  @@unique([moduleId, slug])
+  @@unique([topicId, order])
+  @@unique([topicId, slug])
   @@map("chapters")
 }
 
@@ -357,7 +382,7 @@ model ChapterCompletion {
 
 model QuestionItem {
   id             String   @id @default(cuid())
-  moduleId       String
+  topicId        String
   chapterId      String
   content        String
   options        Json
@@ -371,12 +396,12 @@ model QuestionItem {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  module    Module        @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  topic     Topic         @relation(fields: [topicId], references: [id], onDelete: Restrict)
   chapter   Chapter       @relation(fields: [chapterId], references: [id], onDelete: Restrict)
   createdBy User          @relation("QuestionAuthor", fields: [createdById], references: [id])
   responses ResponseLog[]
 
-  @@index([moduleId])
+  @@index([topicId])
   @@map("question_items")
 }
 
@@ -385,7 +410,7 @@ model TestSession {
   userId          String
   trackId         String
   /// Null on a final exam, which covers the whole track.
-  moduleId        String?
+  topicId         String?
   startedAt       DateTime          @default(now())
   /// When the first question was released and the clock started. Null until
   /// the candidate has entered fullscreen: time spent getting there is not
@@ -402,18 +427,18 @@ model TestSession {
 
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   track           Track            @relation(fields: [trackId], references: [id], onDelete: Restrict)
-  module          Module?          @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  topic           Topic?           @relation(fields: [topicId], references: [id], onDelete: Restrict)
   responses       ResponseLog[]
   certification   Certification?
   integrityEvents IntegrityEvent[]
 
-  @@index([userId, moduleId])
+  @@index([userId, topicId])
   /// Also, in SQL only (Prisma cannot express a partial index): at most one
   /// IN_PROGRESS session per user per test, as
-  /// test_sessions_one_open_module_test_key, unique (userId, moduleId) WHERE
-  /// moduleId IS NOT NULL, and test_sessions_one_open_final_exam_key, unique
-  /// (userId, trackId) WHERE moduleId IS NULL. See migration
-  /// 20261017120000_one_open_test_session.
+  /// test_sessions_one_open_topic_test_key, unique (userId, topicId) WHERE
+  /// topicId IS NOT NULL, and test_sessions_one_open_final_exam_key, unique
+  /// (userId, trackId) WHERE topicId IS NULL. See migrations
+  /// 20261017120000_one_open_test_session and 20261018090000_topics.
   @@map("test_sessions")
 }
 
@@ -453,12 +478,12 @@ model IntegrityEvent {
   @@map("integrity_events")
 }
 
-/// A module badge (moduleId set) or a track certificate (moduleId null).
+/// A topic badge (topicId set) or a track certificate (topicId null).
 model Certification {
   id             String              @id @default(cuid())
   userId         String
   trackId        String
-  moduleId       String?
+  topicId        String?
   sessionId      String              @unique
   abilityScore   Float
   /// Share of answers correct in the deciding session, 0-100. Each level has
@@ -471,13 +496,13 @@ model Certification {
   user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   session TestSession @relation(fields: [sessionId], references: [id])
   track   Track       @relation(fields: [trackId], references: [id], onDelete: Restrict)
-  module  Module?     @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  topic   Topic?      @relation(fields: [topicId], references: [id], onDelete: Restrict)
 
-  @@unique([userId, moduleId, status])
+  @@unique([userId, topicId, status])
   /// Also, in SQL only (Prisma cannot express a partial index):
   /// certifications_track_certificate_key, unique (userId, trackId) WHERE
-  /// moduleId IS NULL AND status = 'ACTIVE'. The unique above does not cover
-  /// track certificates, because Postgres treats NULL moduleIds as distinct.
+  /// topicId IS NULL AND status = 'ACTIVE'. The unique above does not cover
+  /// track certificates, because Postgres treats NULL topicIds as distinct.
   /// See migration 20260928120000_track_certificate_unique.
   @@map("certifications")
 }

@@ -13,7 +13,7 @@ export default async function EditChapterPage({ params }: { params: Promise<{ id
   const chapter = await prisma.chapter.findUnique({
     where: { id },
     include: {
-      module: { select: { title: true, track: { select: { title: true } } } },
+      topic: { select: { title: true, module: { select: { track: { select: { title: true } } } } } },
       assets: { orderBy: { createdAt: "desc" }, select: { id: true, filename: true, contentType: true } }
     }
   });
@@ -30,7 +30,7 @@ export default async function EditChapterPage({ params }: { params: Promise<{ id
       </Link>
       <PageHeader
         title={chapter.title}
-        description={`${chapter.module.track.title} · ${chapter.module.title}. Markdown; raw HTML is shown as text, not run.`}
+        description={`${chapter.topic.module.track.title} · ${chapter.topic.title}. Markdown; raw HTML is shown as text, not run.`}
       />
       <ChapterEditor chapter={chapter} assets={chapter.assets} uploadsEnabled={storageConfig() !== null} />
     </>

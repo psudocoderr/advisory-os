@@ -29,21 +29,21 @@ type Result = {
 
 const REASON_NOTE: Record<FinishReason, string> = {
   STOP_RULE: "The estimate reached the required confidence.",
-  BANK_EXHAUSTED: "Every available question in this module was answered.",
+  BANK_EXHAUSTED: "Every available question in this test was answered.",
   TIMED_OUT: "The time limit was reached.",
   INTEGRITY_TERMINATED: "The attempt was ended after repeated integrity violations, and has been flagged for review."
 };
 
 export function TestSessionClient({
   sessionId,
-  module,
+  testName,
   initialProgress,
   autoFinish,
   deadlineMs,
   timeLimitMinutes
 }: {
   sessionId: string;
-  module: string;
+  testName: string;
   initialProgress: Progress;
   /**
    * Server-issued; the browser never decides when time is up. Null until the
@@ -250,7 +250,7 @@ export function TestSessionClient({
           {result.terminated
             ? "This attempt was ended by the system and does not count as a pass. It is recorded on your attempt history and flagged for review."
             : result.passed
-              ? `You passed ${module}. Your badge is on the Tests & badges page.`
+              ? `You passed ${testName}. Your badge is on the Tests & badges page.`
               : result.inconclusive
                 ? "Too close to call: no badge, and nothing on your record. Review these chapters and retake whenever you are ready."
                 : "Review these chapters before retrying after the cooldown window."}

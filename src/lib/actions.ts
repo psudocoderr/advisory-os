@@ -335,16 +335,16 @@ export async function createMeeting(_prev: FormState, formData: FormData): Promi
 export async function createQuestionItem(formData: FormData) {
   const session = await requireAdmin();
   const parsed = questionSchema.parse(Object.fromEntries(formData));
-  // The chapter decides the module, so the two cannot disagree.
+  // The chapter decides the topic, so the two cannot disagree.
   const chapter = await prisma.chapter.findUnique({
     where: { id: parsed.chapterId },
-    include: { module: { select: { title: true } } }
+    include: { topic: { select: { title: true } } }
   });
   if (!chapter) throw new Error("Chapter not found");
 
   const question = await prisma.questionItem.create({
     data: {
-      moduleId: chapter.moduleId,
+      topicId: chapter.topicId,
       chapterId: chapter.id,
       content: parsed.content,
       options: [
@@ -361,10 +361,10 @@ export async function createQuestionItem(formData: FormData) {
       createdById: session.user.id
     }
   });
-  await log(session.user.id, "CREATE", "QuestionItem", `${chapter.module.title} item added`, question.id);
+  await log(session.user.id, "CREATE", "QuestionItem", `${chapter.topic.title} item added`, question.id);
   revalidatePath("/admin");
   revalidatePath("/certify");
-  revalidatePath(`/certify/${chapter.moduleId}`);
+  revalidatePath(`/certify/${chapter.topicId}`);
 }
 
 /**
@@ -378,13 +378,15 @@ export async function markChapterComplete(formData: FormData) {
   const chapterId = z.string().min(1).parse(formData.get("chapterId"));
   const chapter = await prisma.chapter.findUnique({
     where: { id: chapterId },
-    include: { module: { include: { track: true } } }
+    include: { topic: { include: { module: { include: { track: true } } } } }
   });
   if (!chapter || !chapter.isPublished) throw new Error("Chapter not found");
+  const { topic } = chapter;
+  const { track } = topic.module;
 
-  const standing = await loadTrackProgress({ id: chapter.module.trackId }, session.user);
+  const standing = await loadTrackProgress({ id: track.id }, session.user);
   const state = standing?.progress
-    .find((module) => module.id === chapter.moduleId)
+    .find((row) => row.id === topic.id)
     ?.chapters.find((row) => row.id === chapterId)?.state;
   if (state !== "open" && state !== "complete") throw new Error("This chapter is locked");
 
@@ -393,8 +395,8 @@ export async function markChapterComplete(formData: FormData) {
     create: { userId: session.user.id, chapterId },
     update: {}
   });
-  revalidatePath(chapterHref(chapter.module.track.slug, chapter.module.slug, chapter.slug));
-  revalidatePath(`/knowledge/${chapter.module.track.slug}`);
+  revalidatePath(chapterHref(track.slug, topic.module.slug, topic.slug, chapter.slug));
+  revalidatePath(`/knowledge/${track.slug}`);
 }
 
 // --- Knowledge editor (admin) -------------------------------------------------
@@ -476,7 +478,7 @@ export async function saveTrack(_prev: FormState, formData: FormData): Promise<F
   return done();
 }
 
-export async function saveModule(_prev: FormState, formData: FormData): Promise<FormState> {
+export async function saveTopic(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireAdmin();
   const id = z
     .string()
@@ -489,15 +491,15 @@ export async function saveModule(_prev: FormState, formData: FormData): Promise<
   try {
     let saved;
     if (id) {
-      saved = await prisma.module.update({ where: { id }, data: { title, slug, description } });
+      saved = await prisma.topic.update({ where: { id }, data: { title, slug, description } });
     } else {
-      const trackId = z.string().min(1).parse(formData.get("trackId"));
-      if (!(await prisma.track.findUnique({ where: { id: trackId } }))) return { error: "Track not found" };
-      saved = await prisma.module.create({
-        data: { trackId, title, slug, description, order: await nextOrder("module", { trackId }) }
+      const moduleId = z.string().min(1).parse(formData.get("moduleId"));
+      if (!(await prisma.module.findUnique({ where: { id: moduleId } }))) return { error: "Module not found" };
+      saved = await prisma.topic.create({
+        data: { moduleId, title, slug, description, order: await nextOrder("topic", { moduleId }) }
       });
     }
-    await log(session.user.id, id ? "UPDATE" : "CREATE", "Module", `${saved.title} saved`, saved.id);
+    await log(session.user.id, id ? "UPDATE" : "CREATE", "Topic", `${saved.title} saved`, saved.id);
   } catch (error) {
     return knowledgeConflict(error);
   }
@@ -508,14 +510,14 @@ export async function saveModule(_prev: FormState, formData: FormData): Promise<
 /** New chapters start unpublished, so trainees never see a half-written one. */
 export async function createChapter(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireAdmin();
-  const moduleId = z.string().min(1).parse(formData.get("moduleId"));
+  const topicId = z.string().min(1).parse(formData.get("topicId"));
   const result = titledSchema.omit({ description: true }).safeParse(Object.fromEntries(formData));
   if (!result.success) return formError(result.error);
-  if (!(await prisma.module.findUnique({ where: { id: moduleId } }))) return { error: "Module not found" };
+  if (!(await prisma.topic.findUnique({ where: { id: topicId } }))) return { error: "Topic not found" };
   const { title } = result.data;
   try {
     const chapter = await prisma.chapter.create({
-      data: { moduleId, title, slug: slugOr(result.data.slug, title), order: await nextOrder("chapter", { moduleId }) }
+      data: { topicId, title, slug: slugOr(result.data.slug, title), order: await nextOrder("chapter", { topicId }) }
     });
     await log(session.user.id, "CREATE", "Chapter", `${chapter.title} created`, chapter.id);
   } catch (error) {
@@ -556,7 +558,7 @@ export async function saveChapter(_prev: FormState, formData: FormData): Promise
  */
 export async function moveKnowledgeItem(formData: FormData) {
   const session = await requireAdmin();
-  const kind = z.enum(["track", "module", "chapter"]).parse(formData.get("kind"));
+  const kind = z.enum(["track", "topic", "chapter"]).parse(formData.get("kind"));
   const id = z.string().min(1).parse(formData.get("id"));
   const direction = z.enum(["up", "down"]).parse(formData.get("direction"));
 
@@ -564,7 +566,7 @@ export async function moveKnowledgeItem(formData: FormData) {
     const model = tx[kind] as unknown as OrderedModel;
     const row = await model.findUnique({ where: { id } });
     if (!row) throw new Error("Not found");
-    const parent = kind === "module" ? { trackId: row.trackId } : kind === "chapter" ? { moduleId: row.moduleId } : {};
+    const parent = kind === "topic" ? { moduleId: row.moduleId } : kind === "chapter" ? { topicId: row.topicId } : {};
     const other = await model.findFirst({
       where: { ...parent, order: direction === "up" ? { lt: row.order } : { gt: row.order } },
       orderBy: { order: direction === "up" ? "desc" : "asc" }
@@ -579,8 +581,8 @@ export async function moveKnowledgeItem(formData: FormData) {
   revalidateKnowledge();
 }
 
-/** Track, Module and Chapter share id, order and a parent link; enough for reordering. */
-type OrderedRow = { id: string; order: number; trackId?: string; moduleId?: string };
+/** Track, Topic and Chapter share id, order and a parent link; enough for reordering. */
+type OrderedRow = { id: string; order: number; moduleId?: string; topicId?: string };
 type OrderedModel = {
   findUnique(args: object): Promise<OrderedRow | null>;
   findFirst(args: object): Promise<OrderedRow | null>;
@@ -588,7 +590,7 @@ type OrderedModel = {
   aggregate(args: object): Promise<{ _max: { order: number | null } }>;
 };
 
-async function nextOrder(kind: "track" | "module" | "chapter", where: { trackId?: string; moduleId?: string }) {
+async function nextOrder(kind: "track" | "topic" | "chapter", where: { moduleId?: string; topicId?: string }) {
   const model = prisma[kind] as unknown as OrderedModel;
   const max = await model.aggregate({ where, _max: { order: true } });
   return (max._max.order ?? 0) + 1;

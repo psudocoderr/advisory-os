@@ -12,33 +12,33 @@ import { ChapterStateIcon } from "@/components/knowledge";
 export default async function ChapterPage({
   params
 }: {
-  params: Promise<{ track: string; module: string; chapter: string }>;
+  params: Promise<{ track: string; module: string; topic: string; chapter: string }>;
 }) {
   const session = await requireSession();
-  const { track: trackSlug, module: moduleSlug, chapter: chapterSlug } = await params;
+  const { track: trackSlug, module: moduleSlug, topic: topicSlug, chapter: chapterSlug } = await params;
   const standing = await loadTrackProgress({ slug: trackSlug }, session.user);
   if (!standing) notFound();
   const { track, progress } = standing;
 
-  const moduleIndex = track.modules.findIndex((module) => module.slug === moduleSlug);
-  const trainingModule = track.modules[moduleIndex];
-  const chapterIndex = trainingModule?.chapters.findIndex((chapter) => chapter.slug === chapterSlug) ?? -1;
+  const topicIndex = track.topics.findIndex((topic) => topic.module.slug === moduleSlug && topic.slug === topicSlug);
+  const topic = track.topics[topicIndex];
+  const chapterIndex = topic?.chapters.findIndex((chapter) => chapter.slug === chapterSlug) ?? -1;
   if (chapterIndex < 0) notFound();
 
-  const moduleStanding = progress[moduleIndex];
-  const state = moduleStanding.chapters[chapterIndex].state;
+  const topicStanding = progress[topicIndex];
+  const state = topicStanding.chapters[chapterIndex].state;
   // Enforced on the server: a locked chapter's URL leads back to the contents.
   if (state === "locked") redirect(`/knowledge/${track.slug}`);
 
   const chapter = await prisma.chapter.findUniqueOrThrow({
-    where: { id: trainingModule.chapters[chapterIndex].id },
+    where: { id: topic.chapters[chapterIndex].id },
     select: { id: true, title: true, body: true }
   });
 
-  const href = (index: number) => chapterHref(track.slug, trainingModule.slug, trainingModule.chapters[index].slug);
+  const href = (index: number) => chapterHref(track.slug, topic.module.slug, topic.slug, topic.chapters[index].slug);
   const previous = chapterIndex > 0 ? chapterIndex - 1 : null;
-  const next = chapterIndex < trainingModule.chapters.length - 1 ? chapterIndex + 1 : null;
-  const nextOpen = next !== null && moduleStanding.chapters[next].state !== "locked";
+  const next = chapterIndex < topic.chapters.length - 1 ? chapterIndex + 1 : null;
+  const nextOpen = next !== null && topicStanding.chapters[next].state !== "locked";
 
   return (
     <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
@@ -55,11 +55,11 @@ export default async function ChapterPage({
         </div>
         <Card className="p-3">
           <div className="px-2 pb-2 text-xs font-bold uppercase tracking-wide text-muted">
-            {moduleIndex + 1}. {trainingModule.title}
+            {topicIndex + 1}. {topic.title}
           </div>
           <ol>
-            {trainingModule.chapters.map((item, index) => {
-              const itemState = moduleStanding.chapters[index].state;
+            {topic.chapters.map((item, index) => {
+              const itemState = topicStanding.chapters[index].state;
               const current = index === chapterIndex;
               const row = (
                 <span
@@ -84,18 +84,18 @@ export default async function ChapterPage({
               );
             })}
             <li className="mt-1 border-t border-line pt-1">
-              {moduleStanding.testUnlocked ? (
+              {topicStanding.testUnlocked ? (
                 <Link
-                  href={`/certify/${trainingModule.id}`}
+                  href={`/certify/${topic.id}`}
                   className="flex items-center gap-2 rounded px-2 py-1.5 text-sm font-semibold text-teal hover:underline"
                 >
                   <Award size={14} />
-                  Module test
+                  Topic test
                 </Link>
               ) : (
                 <span className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted">
                   <Lock size={14} />
-                  Module test
+                  Topic test
                 </span>
               )}
             </li>
@@ -105,7 +105,7 @@ export default async function ChapterPage({
 
       <article>
         <div className="text-xs font-semibold text-muted">
-          Chapter {chapterIndex + 1} of {trainingModule.chapters.length}
+          Chapter {chapterIndex + 1} of {topic.chapters.length}
         </div>
         <h1 className="mt-1 text-2xl font-semibold text-ink">{chapter.title}</h1>
 
@@ -149,12 +149,12 @@ export default async function ChapterPage({
                 <ArrowRight size={16} />
               </Link>
             ) : null}
-            {next === null && moduleStanding.testUnlocked ? (
+            {next === null && topicStanding.testUnlocked ? (
               <Link
-                href={`/certify/${trainingModule.id}`}
+                href={`/certify/${topic.id}`}
                 className="inline-flex items-center gap-1.5 rounded border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-teal"
               >
-                Module test
+                Topic test
                 <ArrowRight size={16} />
               </Link>
             ) : null}
