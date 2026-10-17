@@ -35,7 +35,7 @@ export default async function TopicTestPage({ params }: { params: Promise<{ topi
   return (
     <>
       <PageHeader
-        title={`${topic.title}: topic test`}
+        title={`${loaded.number} ${topic.title}: topic test`}
         description="An adaptive test. It awards a badge."
         action={<HowThisWorks section="tests" />}
       />

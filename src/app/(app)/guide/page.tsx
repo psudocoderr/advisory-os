@@ -1,5 +1,5 @@
 import { requireSession } from "@/lib/auth";
-import { FINAL_EXAM, IRT, LEVEL_FLOOR, LEVEL_LABEL } from "@/lib/irt";
+import { IRT, LEVEL_FLOOR, LEVEL_LABEL } from "@/lib/irt";
 import { STRIKE_LIMIT } from "@/lib/integrity";
 import { Card, PageHeader } from "@/components/ui";
 
@@ -15,7 +15,7 @@ export default async function GuidePage() {
     <div className="mx-auto max-w-240">
       <PageHeader
         title="How training works"
-        description="Read the chapters, pass each topic test, then the final exam."
+        description="Read the chapters, pass each topic test, and earn the module badge."
       />
       <div className="grid gap-6 lg:grid-cols-[180px_1fr]">
         <nav aria-label="On this page" className="lg:sticky lg:top-6 lg:self-start">
@@ -37,9 +37,13 @@ export default async function GuidePage() {
           <Section id="track">
             <p>
               A track is made of modules, and each module of topics, taken in order. Each topic has chapters to read and
-              ends with a test. Pass a topic&apos;s test to earn its badge; the next topic opens once you have it.
+              ends with a test. Pass a topic&apos;s test to earn its badge; the next topic in the module opens once you
+              have it. Numbers show where you are: module 1, topic 1.1, chapter 1.1.1.
             </p>
-            <p>A lock means something is not open yet. Your dashboard always shows the next thing to do.</p>
+            <p>
+              A lock means something is not open yet. A topic marked <strong>Coming soon</strong> has no chapters yet;
+              you skip it for now. Your dashboard always shows the next thing to do.
+            </p>
           </Section>
 
           <Section id="chapters">
@@ -55,10 +59,6 @@ export default async function GuidePage() {
               <Fact
                 label="Topic test"
                 value={`${IRT.minQuestions}–${IRT.maxQuestions} questions · ${IRT.timeLimitMinutes} min`}
-              />
-              <Fact
-                label="Final exam"
-                value={`${FINAL_EXAM.minQuestions}–${FINAL_EXAM.maxQuestions} questions · ${FINAL_EXAM.timeLimitMinutes} min`}
               />
             </div>
             <ul>
@@ -108,10 +108,14 @@ export default async function GuidePage() {
             </ul>
           </Section>
 
-          <Section id="final-exam">
+          <Section id="module-badge">
             <p>
-              Once every topic in the track has a badge, the final exam opens. It covers every topic evenly and awards
-              the track certificate, with a level worked out the same way as for badges.
+              Pass every topic test in a module and you hold its module badge. Its level is your lowest topic level:
+              Expert, Proficient and Satisfactory topics make a Satisfactory module badge. Retake a topic to raise it.
+            </p>
+            <p>
+              The module badge opens the next module. If a new topic is added to a module, the badge waits until you
+              have passed that topic too.
             </p>
           </Section>
         </div>
@@ -127,7 +131,7 @@ const SECTIONS = [
   { id: "tests", title: "Taking a test" },
   { id: "levels", title: "Levels and results" },
   { id: "retakes", title: "Retakes" },
-  { id: "final-exam", title: "The final exam" }
+  { id: "module-badge", title: "The module badge" }
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];

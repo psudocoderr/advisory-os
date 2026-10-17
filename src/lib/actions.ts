@@ -488,18 +488,25 @@ export async function saveTopic(_prev: FormState, formData: FormData): Promise<F
   if (!result.success) return formError(result.error);
   const { title, description } = result.data;
   const slug = slugOr(result.data.slug, title);
+  const isPublished = formData.get("isPublished") === "on";
   try {
     let saved;
     if (id) {
-      saved = await prisma.topic.update({ where: { id }, data: { title, slug, description } });
+      saved = await prisma.topic.update({ where: { id }, data: { title, slug, description, isPublished } });
     } else {
       const moduleId = z.string().min(1).parse(formData.get("moduleId"));
       if (!(await prisma.module.findUnique({ where: { id: moduleId } }))) return { error: "Module not found" };
       saved = await prisma.topic.create({
-        data: { moduleId, title, slug, description, order: await nextOrder("topic", { moduleId }) }
+        data: { moduleId, title, slug, description, isPublished, order: await nextOrder("topic", { moduleId }) }
       });
     }
-    await log(session.user.id, id ? "UPDATE" : "CREATE", "Topic", `${saved.title} saved`, saved.id);
+    await log(
+      session.user.id,
+      id ? "UPDATE" : "CREATE",
+      "Topic",
+      `${saved.title} saved (${isPublished ? "published" : "unpublished"})`,
+      saved.id
+    );
   } catch (error) {
     return knowledgeConflict(error);
   }

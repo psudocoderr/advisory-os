@@ -33,12 +33,16 @@ export default async function TrackerPage() {
                   <th className="px-4 py-3">Trainee</th>
                   <th className="px-4 py-3">Next step</th>
                   <th className="px-4 py-3">Chapters</th>
-                  {track.topics.map((topic, index) => (
+                  {track.topics.map((topic) => (
                     <th key={topic.id} className="px-4 py-3" title={topic.title}>
-                      T{index + 1}
+                      {topic.number}
                     </th>
                   ))}
-                  <th className="px-4 py-3">Certificate</th>
+                  {track.modules.map((module) => (
+                    <th key={module.id} className="px-4 py-3" title={`${module.title} badge`}>
+                      Module {module.number}
+                    </th>
+                  ))}
                   <th className="px-4 py-3">Last activity</th>
                 </tr>
               </thead>
@@ -62,13 +66,15 @@ export default async function TrackerPage() {
                         </td>
                       );
                     })}
-                    <td className="px-4 py-3">
-                      {row.certificateLevel ? (
-                        <StatusBadge tone="navy">{LEVEL_LABEL[row.certificateLevel]}</StatusBadge>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
+                    {row.moduleProgress.map((moduleRow) => (
+                      <td key={moduleRow.id} className="px-4 py-3">
+                        {moduleRow.badgeLevel ? (
+                          <StatusBadge tone="navy">{LEVEL_LABEL[moduleRow.badgeLevel]}</StatusBadge>
+                        ) : (
+                          `${moduleRow.topicsPassed}/${moduleRow.topicsCounted}`
+                        )}
+                      </td>
+                    ))}
                     <td className="px-4 py-3 text-muted">{row.lastActivity ? dateLabel(row.lastActivity) : "Never"}</td>
                   </tr>
                 ))}
