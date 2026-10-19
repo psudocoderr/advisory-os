@@ -295,6 +295,7 @@ npm run lint             # eslint
 npm run typecheck        # tsc --noEmit
 npm run format:check     # prettier
 npm run test             # vitest
+npm run test:integration # route handlers on a real database (name must end in _test)
 ```
 
 Health check: `GET /api/health` returns `{ ok, database }`, 503 when the

@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
@@ -11,6 +11,8 @@ export default defineConfig({
     // than appearance, is worth asserting.
     environment: "node",
     include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
+    // Need a database; run by `npm run test:integration`.
+    exclude: [...configDefaults.exclude, "tests/integration/**"],
     coverage: {
       provider: "v8",
       include: ["src/lib/**"],

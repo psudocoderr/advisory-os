@@ -62,6 +62,7 @@ instance should use `npm run bootstrap:admin`.
 npm run dev              # development server
 npm run build            # production build
 npm run test             # vitest
+npm run test:integration # route handlers on a real database (name must end in _test)
 npm run lint             # eslint
 npm run typecheck        # tsc --noEmit
 npm run format           # prettier
