@@ -33,14 +33,17 @@ jobs:
     # Holds PREVIEW_DIRECT_URL (secret) and PREVIEW_PROJECT_REF (variable).
     # Restrict its deployment branches to main so no other branch can read it.
     environment: preview-database
+    # The database URL is set per step, never at job level, so `npm ci` and
+    # the install scripts it runs cannot read it (flags S14).
     env:
-      DATABASE_URL: ${{ secrets.PREVIEW_DIRECT_URL }}
-      DIRECT_URL: ${{ secrets.PREVIEW_DIRECT_URL }}
       PREVIEW_PROJECT_REF: ${{ vars.PREVIEW_PROJECT_REF }}
     steps:
       # Not configured yet: skip rather than block production migrations.
       - name: Check configuration
         id: config
+        env:
+          DATABASE_URL: ${{ secrets.PREVIEW_DIRECT_URL }}
+          DIRECT_URL: ${{ secrets.PREVIEW_DIRECT_URL }}
         run: |
           if [ -z "$DATABASE_URL" ] || [ -z "$PREVIEW_PROJECT_REF" ]; then
             echo "::notice::Preview database not configured (PREVIEW_DIRECT_URL / PREVIEW_PROJECT_REF); skipping."
@@ -51,6 +54,9 @@ jobs:
       # unless the URL's Supabase project is exactly the preview project.
       - name: Refuse anything but the preview project
         if: steps.config.outputs.skip != 'true'
+        env:
+          DATABASE_URL: ${{ secrets.PREVIEW_DIRECT_URL }}
+          DIRECT_URL: ${{ secrets.PREVIEW_DIRECT_URL }}
         run: |
           node -e '
             const u = new URL(process.env.DATABASE_URL);
@@ -73,9 +79,15 @@ jobs:
         if: steps.config.outputs.skip != 'true'
       - name: Show pending migrations
         if: steps.config.outputs.skip != 'true'
+        env:
+          DATABASE_URL: ${{ secrets.PREVIEW_DIRECT_URL }}
+          DIRECT_URL: ${{ secrets.PREVIEW_DIRECT_URL }}
         run: npx prisma migrate status || true
       - name: Apply migrations
         if: steps.config.outputs.skip != 'true'
+        env:
+          DATABASE_URL: ${{ secrets.PREVIEW_DIRECT_URL }}
+          DIRECT_URL: ${{ secrets.PREVIEW_DIRECT_URL }}
         run: npx prisma migrate deploy
 
   deploy-migrations:
