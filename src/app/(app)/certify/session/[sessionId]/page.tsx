@@ -36,7 +36,17 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
         />
         <Card className="p-5">
           <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge tone={session.certified ? "teal" : session.status === "INCONCLUSIVE" ? "amber" : "rose"}>
+            <StatusBadge
+              tone={
+                session.certified
+                  ? "teal"
+                  : session.status === "INCONCLUSIVE"
+                    ? "amber"
+                    : session.status === "ABANDONED"
+                      ? "slate"
+                      : "rose"
+              }
+            >
               {session.status}
             </StatusBadge>
           </div>
@@ -45,7 +55,9 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
               ? `Passed at ${level ? LEVEL_LABEL[level] : "—"} level, ${percentCorrect.toFixed(0)}% correct. The best level you have reached stands.`
               : session.status === "INCONCLUSIVE"
                 ? "Too close to call: no badge, and nothing on your record. Review these chapters and retake whenever you are ready."
-                : "No badge this time. Review these chapters before retrying after the cooldown window."}
+                : session.status === "ABANDONED"
+                  ? `Time ran out before ${IRT.minQuestions} questions were answered, so this does not count as an attempt: nothing on your record, and you can start again whenever you are ready.`
+                  : "No badge this time. Review these chapters before retrying after the cooldown window."}
           </p>
           {!session.certified && remediation.length ? (
             <div className="mt-5 grid gap-2">
