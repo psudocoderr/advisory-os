@@ -413,6 +413,11 @@ every page and API route as signed out, two advisors, an admin and a user
 deactivated mid-session; server actions over their wire format; security headers;
 and a leak scan of the HTML, RSC payload included. It creates its own records on
 an emptied `_test` database; CI runs it in the `e2e` job.
+`npm run test:migrations` (`tests/migrations/run.ts`) covers what the empty-database
+migrations job cannot: for each folder `tests/migrations/<migration>/`, it migrates to
+just before that migration, loads `before.sql` (rows shaped as they were then), applies
+every migration and runs the `SELECT ... AS ok` checks in `after.sql`. **Add a folder
+for every migration that converts existing data.** CI runs it in the `migration-data` job.
 
 **Coverage ratchet.** The thresholds are the measured numbers, rounded down. A PR
 that raises coverage raises them to the new numbers, rounded down; no PR lowers

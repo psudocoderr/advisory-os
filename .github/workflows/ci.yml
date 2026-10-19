@@ -49,6 +49,40 @@ jobs:
       # Unit tests only, fast; coverage is measured in the integration job.
       - run: npm test
 
+  migration-data:
+    name: Migrations against old-shaped data
+    needs: quality
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: advisory_app
+          POSTGRES_PASSWORD: advisory_app_password
+          # Must end in _test: tests/migrations/run.ts empties it per case.
+          POSTGRES_DB: advisory_os_migrations_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U advisory_app"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://advisory_app:advisory_app_password@localhost:5432/advisory_os_migrations_test?schema=public
+      DIRECT_URL: postgresql://advisory_app:advisory_app_password@localhost:5432/advisory_os_migrations_test?schema=public
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # The migrations job proves every migration applies to an empty
+      # database. This one loads rows shaped like the data before a migration
+      # that converts data, applies the rest, and checks what they became
+      # (tests/migrations/<migration>/, flags O9).
+      - run: npm run test:migrations
+
   integration:
     name: Integration tests
     needs: quality

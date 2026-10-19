@@ -298,6 +298,7 @@ npm run test             # unit tests (vitest)
 npm run test:integration # route handlers on a real database (name must end in _test)
 npm run test:coverage    # both, with the coverage thresholds (needs that database)
 npm run test:e2e         # against a running production build on :3100 (database name must end in _test)
+npm run test:migrations  # old-shaped rows through the data-changing migrations (database name must end in _test)
 ```
 
 Health check: `GET /api/health` returns `{ ok, database }`, 503 when the
