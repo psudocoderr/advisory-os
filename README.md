@@ -64,6 +64,7 @@ npm run build            # production build
 npm run test             # unit tests (vitest)
 npm run test:integration # route handlers on a real database (name must end in _test)
 npm run test:coverage    # both, with the coverage thresholds (needs that database)
+npm run test:e2e         # against a running production build on :3100 (database name must end in _test)
 npm run lint             # eslint
 npm run typecheck        # tsc --noEmit
 npm run format           # prettier
