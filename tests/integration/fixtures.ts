@@ -88,3 +88,60 @@ export function expire(sessionId: string) {
 export function wrongKey(correctKey: string) {
   return KEYS.find((key) => key !== correctKey)!;
 }
+
+/** A FormData from plain fields, as a form post sends them. */
+export function form(fields: Record<string, string | number>) {
+  const data = new FormData();
+  for (const [key, value] of Object.entries(fields)) data.set(key, String(value));
+  return data;
+}
+
+/**
+ * Where a call redirected to (`redirect()` throws), or null when it returned
+ * normally. Any other error is rethrown.
+ */
+export async function redirectedTo(call: Promise<unknown>): Promise<string | null> {
+  try {
+    await call;
+    return null;
+  } catch (error) {
+    const digest = (error as { digest?: string }).digest;
+    if (!digest?.startsWith("NEXT_REDIRECT;")) throw error;
+    return digest.split(";")[2];
+  }
+}
+
+let serial = 0;
+/** A unique valid Indian mobile number and PAN for each call. */
+export function identifiers() {
+  serial += 1;
+  const n = String(serial).padStart(4, "0");
+  return { phone: `98765${n.padStart(5, "0")}`, pan: `ABCDE${n}F` };
+}
+
+export async function createProspectFor(owner: TestUser) {
+  return prisma.prospect.create({
+    data: {
+      name: "Prospect",
+      phone: `+91${identifiers().phone}`,
+      source: "REFERRAL",
+      firstContactDate: new Date(),
+      notes: "",
+      assignedToId: owner.id
+    }
+  });
+}
+
+export async function createClientFor(owner: TestUser) {
+  const { phone, pan } = identifiers();
+  return prisma.client.create({
+    data: {
+      name: "Client",
+      phone: `+91${phone}`,
+      pan,
+      aum: 100000,
+      onboardingDate: new Date(),
+      assignedToId: owner.id
+    }
+  });
+}
