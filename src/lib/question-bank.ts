@@ -8,6 +8,8 @@
  * the ones that would have caught it.
  */
 
+import { decide, estimateEap, IRT, LEVEL_LABEL, selectNextQuestion, shouldStop, type Decision } from "./irt";
+
 export const OPTION_KEYS = ["A", "B", "C", "D"] as const;
 export type OptionKey = (typeof OPTION_KEYS)[number];
 
@@ -166,6 +168,29 @@ export function validateBank(
       } else if (list.length < TARGET_BANK_SIZE) {
         add("warning", `${code}: ${list.length} of ${TARGET_BANK_SIZE} target questions.`);
       }
+
+      // Ceiling. Right answers to easy questions cannot prove ability above
+      // the pass mark, so a bank without enough hard items can make a topic
+      // unpassable even for a perfect candidate (simulation D15.1).
+      if (list.length >= MINIMUM_BANK_SIZE) {
+        const best = perfectRun(list);
+        const hardest = Math.max(...diffs).toFixed(2);
+        if (best.outcome !== "PASS") {
+          add(
+            "error",
+            `${code}: a candidate who answers every question correctly does not pass (${best.outcome}); ` +
+              `${list.length} questions, the hardest at ${hardest}. Add questions, especially at difficulty ` +
+              `${IRT.passTheta} or above.`
+          );
+        } else if (best.level !== "EXPERT") {
+          add(
+            "warning",
+            `${code}: a perfect run reaches only ${LEVEL_LABEL[best.level]}, so no one can earn Expert ` +
+              `(${list.length} questions, the hardest at ${hardest}). More questions, especially hard ones ` +
+              `(about 1.5 to 2.5), raise the ceiling.`
+          );
+        }
+      }
     }
   }
 
@@ -176,4 +201,27 @@ export function validateBank(
   }
 
   return issues;
+}
+
+/**
+ * The result of answering every question correctly, run through the same
+ * loop as the answer route: select, answer, estimate, stop. The best result
+ * any candidate can get from this bank.
+ */
+export function perfectRun(questions: QuestionDraft[]): Decision {
+  const items = questions.map((q, i) => ({ ...q, id: String(i) }));
+  const responses: { questionId: string; isCorrect: boolean }[] = [];
+  let estimate = estimateEap(responses, items);
+  for (;;) {
+    const next = selectNextQuestion(
+      estimate.theta,
+      items,
+      responses.map((r) => r.questionId)
+    );
+    if (!next) break;
+    responses.push({ questionId: next.id, isCorrect: true });
+    estimate = estimateEap(responses, items);
+    if (shouldStop(responses.length, estimate.se)) break;
+  }
+  return decide(estimate.theta, estimate.se, 100);
 }
