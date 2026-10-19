@@ -46,7 +46,8 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run test -- --coverage
+      # Unit tests only, fast; coverage is measured in the integration job.
+      - run: npm test
 
   integration:
     name: Integration tests
@@ -77,9 +78,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma migrate deploy
-      # Route handlers and finalizeSession against this database; every test
-      # starts from empty tables.
-      - run: npm run test:integration
+      # Unit and integration tests together, with one coverage number and its
+      # thresholds (vitest.config.mts). Every integration test starts from
+      # empty tables.
+      - run: npm run test:coverage
 
   build:
     name: Production build
