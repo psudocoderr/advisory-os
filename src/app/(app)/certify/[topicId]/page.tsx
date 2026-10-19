@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth";
 import { IRT } from "@/lib/irt";
 import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
 import { prisma } from "@/lib/prisma";
+import { ASKABLE } from "@/lib/certify-session";
 import { MINIMUM_BANK_SIZE } from "@/lib/question-bank";
 import { Card, HowThisWorks, PageHeader, StatusBadge } from "@/components/ui";
 import { ChapterStateIcon } from "@/components/knowledge";
@@ -17,7 +18,7 @@ export default async function TopicTestPage({ params }: { params: Promise<{ topi
 
   const [standing, questionCount] = await Promise.all([
     loadTrackProgress({ id: topic.module.trackId }, session.user),
-    prisma.questionItem.count({ where: { topicId, isActive: true } })
+    prisma.questionItem.count({ where: { topicId, ...ASKABLE } })
   ]);
   if (!standing) notFound();
   const index = standing.track.topics.findIndex((row) => row.id === topicId);

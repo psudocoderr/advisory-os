@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { estimateEap, isSessionExpired, IRT } from "@/lib/irt";
-import { finalizeSession, questionBank } from "@/lib/certify-session";
+import { ASKABLE, finalizeSession, questionBank } from "@/lib/certify-session";
 import { loadTrackProgress } from "@/lib/knowledge";
 
 /** A topic test. There is no final exam (decisions.md 2026-10-17). */
@@ -95,9 +95,7 @@ export async function POST(request: Request) {
   }
 
   // A test needs at least its minimum length in questions to be answerable.
-  const questionCount = await prisma.questionItem.count({
-    where: { isActive: true, topicId }
-  });
+  const questionCount = await prisma.questionItem.count({ where: { topicId, ...ASKABLE } });
   if (questionCount < IRT.minQuestions) {
     return NextResponse.json(
       {
