@@ -12,8 +12,7 @@
  * `npm test`; run with `npm run test:sim`.
  *
  * Cases 5 (time-outs: ABANDONED, cooldowns) and 8 (stored session, badge and
- * pages agree) need the database and routes; they are `it.todo` here and go
- * through the API on a local database.
+ * pages agree) need the database and routes: see engine-db.sim.ts.
  */
 import { describe, expect, it } from "vitest";
 import { badgeLevel, decide, estimateEap, IRT, selectNextQuestion, shouldStop } from "@/lib/irt";
@@ -262,14 +261,6 @@ describe("D15.4 stopping", () => {
   });
 });
 
-// --- 5. Short attempts (database) -----------------------------------------
-
-describe("D15.5 short attempts", () => {
-  it.todo("a time-out below the minimum is ABANDONED: no fail, no cooldown (finalizeSession, local DB)");
-  it.todo("a time-out at or above the minimum is decided normally (finalizeSession, local DB)");
-  it.todo("an INCONCLUSIVE result never starts the retry cooldown (start route, local DB)");
-});
-
 // --- 6. Degenerate items --------------------------------------------------
 
 describe("D15.6 degenerate items", () => {
@@ -312,12 +303,4 @@ describe("D15.7 numerics", () => {
       expect(simulate(BANKS.large, answer).se).toBeGreaterThan(0.0101);
     }
   });
-});
-
-// --- 8. Consistency (database + pages) ------------------------------------
-
-describe("D15.8 consistency", () => {
-  it.todo("the stored session (theta, SE, status) matches the simulated decision for the same answers");
-  it.todo("the badge row (level, percent) matches decide() on the stored theta, SE and percent");
-  it.todo("the result page and the admin report show the same outcome and level");
 });
