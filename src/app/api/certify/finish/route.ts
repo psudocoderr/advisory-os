@@ -48,7 +48,8 @@ export async function POST(request: Request) {
       const next = selectNextQuestion(
         testSession.abilityEstimate,
         bank,
-        testSession.responses.map((response) => response.questionId)
+        testSession.responses.map((response) => response.questionId),
+        testSession.id
       );
       if (next) return NextResponse.json({ error: "There are questions left in this test." }, { status: 409 });
     }

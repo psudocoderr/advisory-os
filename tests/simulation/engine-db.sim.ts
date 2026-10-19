@@ -210,7 +210,8 @@ describe.skipIf(!disposable)("D15 on a local database", () => {
   // --- 8. Consistency -----------------------------------------------------
 
   /** The pure answer-route loop (as in engine.sim.ts) for the same script. */
-  async function simulated(topicId: string, correct: (n: number) => boolean) {
+  /** The same loop with the session's seed, so it picks what the routes picked (D4). */
+  async function simulated(topicId: string, correct: (n: number) => boolean, seed: string) {
     const bank = await prisma.questionItem.findMany({ where: { topicId, isActive: true } });
     const responses: { questionId: string; isCorrect: boolean }[] = [];
     let estimate = irt.estimateEap([], bank);
@@ -218,7 +219,8 @@ describe.skipIf(!disposable)("D15 on a local database", () => {
       const item = irt.selectNextQuestion(
         estimate.theta,
         bank,
-        responses.map((r) => r.questionId)
+        responses.map((r) => r.questionId),
+        seed
       );
       if (!item) break;
       responses.push({ questionId: item.id, isCorrect: correct(responses.length) });
@@ -256,7 +258,7 @@ describe.skipIf(!disposable)("D15 on a local database", () => {
         const topic = which === "main" ? main : easy;
         const user = await trainee();
         const { sessionId } = await sit(user, topic.topicId, correct);
-        const expected = await simulated(topic.topicId, correct);
+        const expected = await simulated(topic.topicId, correct, sessionId);
 
         // The stored session is the simulated decision.
         const stored = await prisma.testSession.findUniqueOrThrow({

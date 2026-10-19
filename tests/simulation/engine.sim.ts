@@ -92,10 +92,12 @@ function simulate(items: Item[], answer: Answer, seed = 1): Run {
   let estimate = estimateEap([], items);
 
   for (;;) {
+    // Seeded per run, as the routes seed per session (D4).
     const item = selectNextQuestion(
       estimate.theta,
       items,
-      responses.map((response) => response.questionId)
+      responses.map((response) => response.questionId),
+      `run-${seed}`
     );
     if (!item) return finish("BANK_EXHAUSTED");
     responses.push({ questionId: item.id, isCorrect: answer(item, estimate.theta, next) });
@@ -240,10 +242,18 @@ describe("D15.3 boundaries", () => {
     const rank = (run: Run) =>
       order.indexOf(run.decision.outcome === "PASS" ? run.decision.level : run.decision.outcome);
     const items = BANKS.large;
-    const flipLast: Answer = (item, theta, next) => (item.id === "q20" ? false : ability(1.2)(item, theta, next));
+    /** Answers like ability 1.2, but gets the 10th answer (always given) the other way round. */
+    const flipTenth = (): Answer => {
+      let count = 0;
+      return (item, theta, next) => {
+        count += 1;
+        const right = ability(1.2)(item, theta, next);
+        return count === IRT.minQuestions ? !right : right;
+      };
+    };
     for (let seed = 1; seed <= 50; seed += 1) {
       const a = simulate(items, ability(1.2), seed);
-      const b = simulate(items, flipLast, seed);
+      const b = simulate(items, flipTenth(), seed);
       expect(Math.abs(rank(a) - rank(b))).toBeLessThanOrEqual(1);
     }
   });

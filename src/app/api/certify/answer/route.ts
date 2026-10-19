@@ -69,12 +69,14 @@ export async function POST(request: Request) {
   const bank = await questionBank(testSession);
 
   // Only the question the session is on can be answered. Selection is
-  // deterministic, so this is the one the question route released. Without
+  // repeatable for a session (seeded by its id, D4), so this is the one the
+  // question route released. Without
   // it, anyone who knew question ids could choose which ones to answer.
   const question = selectNextQuestion(
     testSession.abilityEstimate,
     bank,
-    testSession.responses.map((response) => response.questionId)
+    testSession.responses.map((response) => response.questionId),
+    testSession.id
   );
   if (!question || question.id !== input.questionId) {
     return NextResponse.json({ error: "That is not the current question." }, { status: 409 });
@@ -115,7 +117,7 @@ export async function POST(request: Request) {
   });
 
   const usedIds = responseHistory.map((response) => response.questionId);
-  const next = selectNextQuestion(estimate.theta, bank, usedIds);
+  const next = selectNextQuestion(estimate.theta, bank, usedIds, testSession.id);
 
   // Running out of questions ends the test. It used to return HTTP 500 and
   // leave the session IN_PROGRESS, which permanently bricked the topic: the

@@ -14,7 +14,8 @@ import {
   information,
   probability,
   selectNextQuestion,
-  shouldStop
+  shouldStop,
+  SELECTION_POOL
 } from "./irt";
 
 /**
@@ -153,6 +154,53 @@ describe("selectNextQuestion", () => {
     ];
     expect(selectNextQuestion(0, twins, []).id).toBe("q-a");
     expect(selectNextQuestion(0, [...twins].reverse(), []).id).toBe("q-a");
+  });
+});
+
+describe("selectNextQuestion with a session seed (D4)", () => {
+  const ranked = (theta: number, used: string[] = []) =>
+    bank
+      .filter((q) => !used.includes(q.id))
+      .sort((a, b) => information(theta, b) - information(theta, a) || a.id.localeCompare(b.id))
+      .map((q) => q.id);
+
+  it("is repeatable: the same session and state always give the same question", () => {
+    for (const seed of ["s1", "s2", "cmvf9x2730015v38ilptmq8bj"]) {
+      const used = [bank[0].id];
+      expect(selectNextQuestion(0.3, bank, used, seed)).toBe(selectNextQuestion(0.3, [...bank].reverse(), used, seed));
+    }
+  });
+
+  it(`only ever picks among the ${SELECTION_POOL} most informative unanswered questions`, () => {
+    for (let i = 0; i < 100; i += 1) {
+      const used = bank.slice(0, i % 5).map((q) => q.id);
+      const theta = (i % 9) - 4;
+      const pick = selectNextQuestion(theta, bank, used, `seed-${i}`)!;
+      expect(used).not.toContain(pick.id);
+      expect(ranked(theta, used).slice(0, SELECTION_POOL)).toContain(pick.id);
+    }
+  });
+
+  it("gives different sessions different tests: a retake does not replay the order", () => {
+    const firsts = new Set(Array.from({ length: 30 }, (_, i) => selectNextQuestion(0, bank, [], `attempt-${i}`)!.id));
+    expect(firsts.size).toBe(SELECTION_POOL);
+    const order = (seed: string) => {
+      const used: string[] = [];
+      for (let n = 0; n < bank.length; n += 1) used.push(selectNextQuestion(0, bank, used, seed)!.id);
+      return used.join();
+    };
+    expect(new Set(["a", "b", "c", "d", "e"].map(order)).size).toBeGreaterThan(1);
+  });
+
+  it("still returns nothing once the bank is exhausted", () => {
+    expect(
+      selectNextQuestion(
+        0,
+        bank,
+        bank.map((q) => q.id),
+        "seed"
+      )
+    ).toBeUndefined();
   });
 });
 
