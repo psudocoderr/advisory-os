@@ -278,7 +278,8 @@ describe("validation", () => {
       actions.createUser(form({ name: "New person", email, password, role: "ADVISOR" }));
     await expect(user("short", "one@test.local")).rejects.toThrow("Use at least");
     await expect(user("ChangeMeAdmin123!", "two@test.local")).rejects.toThrow("published");
-    await user("a long enough passphrase", "Three@Test.local");
+    await expect(user("a long enough passphrase", "not an email")).rejects.toThrow("Invalid email");
+    await user("a long enough passphrase", "  Three@Test.local ");
     const created = await prisma.user.findUniqueOrThrow({ where: { email: "three@test.local" } });
     expect(created.passwordHash).not.toContain("passphrase");
     expect(await bcrypt.compare("a long enough passphrase", created.passwordHash)).toBe(true);

@@ -94,10 +94,9 @@ const questionSchema = z.object({
 
 const userSchema = z.object({
   name: z.string().min(2).max(120),
-  email: z
-    .string()
-    .email()
-    .transform((value) => value.toLowerCase().trim()),
+  // Normalised before the format check, so a pasted " Name@Firm.com " is
+  // accepted and stored the way sign-in looks it up (lowercased, trimmed).
+  email: z.string().trim().toLowerCase().email(),
   password: z.string().superRefine((value, ctx) => {
     const problem = passwordProblem(value);
     if (problem) ctx.addIssue({ code: "custom", message: problem });
