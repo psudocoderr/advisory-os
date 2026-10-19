@@ -522,3 +522,39 @@ describe("plan status changes (O22)", () => {
     expect(await prisma.auditLog.count({ where: { entityId: p.id } })).toBe(0);
   });
 });
+
+describe("unpublishing a chapter while its topic's test is being taken (D11)", () => {
+  async function chapterUnderTest(timerStartedAt: Date | null) {
+    const topic = await createTopic({ size: 0 });
+    await prisma.testSession.create({
+      data: { userId: a.id, trackId: topic.trackId, topicId: topic.topicId, timerStartedAt }
+    });
+    return topic;
+  }
+  const save = (chapterId: string, publish: boolean) =>
+    actions.saveChapter(
+      NONE,
+      form({ id: chapterId, title: "Chapter", body: "# Body", ...(publish ? { isPublished: "on" } : {}) })
+    );
+
+  it("waits while a test is running, with a message saying why", async () => {
+    const topic = await chapterUnderTest(new Date());
+    signIn(admin);
+    expect(await save(topic.chapterId, false)).toEqual({
+      error: "1 test is being taken on this topic right now. Unpublish in up to 20 minutes, once it ends."
+    });
+    expect((await prisma.chapter.findUniqueOrThrow({ where: { id: topic.chapterId } })).isPublished).toBe(true);
+    // Saving it published is not blocked.
+    expect((await save(topic.chapterId, true)).ok).toBeDefined();
+  });
+
+  it.each([
+    ["whose clock ran out", new Date(Date.now() - 21 * 60_000)],
+    ["whose clock never started", null]
+  ])("goes ahead past an open attempt %s", async (_label, timerStartedAt) => {
+    const topic = await chapterUnderTest(timerStartedAt);
+    signIn(admin);
+    expect((await save(topic.chapterId, false)).ok).toBeDefined();
+    expect((await prisma.chapter.findUniqueOrThrow({ where: { id: topic.chapterId } })).isPublished).toBe(false);
+  });
+});

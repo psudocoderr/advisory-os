@@ -27,6 +27,7 @@ import {
   type Issue,
   type QuestionDraft
 } from "../src/lib/question-bank";
+import { IRT, liveSessionWhere } from "../src/lib/irt";
 
 const prisma = new PrismaClient();
 
@@ -333,6 +334,21 @@ async function importFile(path: string, apply: boolean, replace: boolean) {
     }
     process.exitCode = 1;
     return;
+  }
+
+  // Retiring questions under a test being sat pulls the question off the
+  // candidate's screen (flags D11). Checked on a dry run too, to warn early.
+  if (replace) {
+    const live = await prisma.testSession.count({ where: { topicId: { in: topicIdsCovered }, ...liveSessionWhere() } });
+    if (live) {
+      console.log(
+        `\n  ${live} test${live === 1 ? " is" : "s are"} being taken in ${[...topicsCovered].sort().join(", ")} right now.` +
+          `\n  --replace would retire questions under ${live === 1 ? "it" : "them"}. Try again in up to` +
+          ` ${IRT.timeLimitMinutes} minutes.`
+      );
+      process.exitCode = 1;
+      return;
+    }
   }
 
   if (!apply) {

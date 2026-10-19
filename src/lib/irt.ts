@@ -44,6 +44,20 @@ export function isSessionExpired(timerStartedAt: Date | null, now: Date = new Da
   return timerStartedAt !== null && isExpired(timerStartedAt, now);
 }
 
+/**
+ * Sessions being sat right now: open, with a clock started and not yet run
+ * out. Retiring a topic's questions or unpublishing its chapter under one of
+ * these would pull the question off the candidate's screen (flags D11), so
+ * both wait until there are none; at most the time limit. An open session
+ * whose clock never started, or ran out, has nothing on screen.
+ */
+export function liveSessionWhere(now: Date = new Date()) {
+  return {
+    status: "IN_PROGRESS" as const,
+    timerStartedAt: { gte: new Date(now.getTime() - IRT.timeLimitMinutes * 60 * 1000 - 2000) }
+  };
+}
+
 export function probability(theta: number, question: QuestionLike) {
   const a = question.discrimination;
   const b = question.difficulty;

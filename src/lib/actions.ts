@@ -6,6 +6,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { Prisma, ProspectStage, KycStatus, PlanStatus } from "@prisma/client";
 import { requireAdmin, requireSession } from "@/lib/auth";
+import { IRT, liveSessionWhere } from "@/lib/irt";
 import { prisma } from "@/lib/prisma";
 import { formError, type FormState } from "@/lib/form-state";
 import { panSchema, phoneShape, toE164 } from "@/lib/identifiers";
@@ -692,6 +693,21 @@ export async function saveChapter(_prev: FormState, formData: FormData): Promise
   if (!result.success) return formError(result.error);
   const { id, title, body } = result.data;
   const isPublished = result.data.isPublished === "on";
+  // Unpublishing takes the chapter's questions out of tests, including one
+  // on a candidate's screen (flags D11): wait until none is being sat.
+  if (!isPublished) {
+    const current = await prisma.chapter.findUnique({ where: { id }, select: { isPublished: true, topicId: true } });
+    if (current?.isPublished) {
+      const live = await prisma.testSession.count({ where: { topicId: current.topicId, ...liveSessionWhere() } });
+      if (live) {
+        return {
+          error:
+            `${live} test${live === 1 ? " is" : "s are"} being taken on this topic right now. ` +
+            `Unpublish in up to ${IRT.timeLimitMinutes} minutes, once ${live === 1 ? "it ends" : "they end"}.`
+        };
+      }
+    }
+  }
   try {
     const chapter = await prisma.chapter.update({
       where: { id },
