@@ -5,6 +5,7 @@ import { dateLabel } from "@/lib/format";
 import { LEVEL_LABEL } from "@/lib/irt";
 import { loadTrackProgress } from "@/lib/knowledge";
 import { prisma } from "@/lib/prisma";
+import { ASKABLE } from "@/lib/certify-session";
 import { Card, PageHeader, StatusBadge } from "@/components/ui";
 
 export default async function CertifyPage() {
@@ -17,7 +18,7 @@ export default async function CertifyPage() {
       orderBy: { issuedAt: "desc" },
       include: { user: true, topic: true, track: true }
     }),
-    prisma.questionItem.groupBy({ by: ["topicId"], where: { isActive: true }, _count: true })
+    prisma.questionItem.groupBy({ by: ["topicId"], where: ASKABLE, _count: true })
   ]);
 
   return (

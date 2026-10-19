@@ -8,8 +8,8 @@ import { POST as question } from "@/app/api/certify/question/route";
 import { POST as answer } from "@/app/api/certify/answer/route";
 import { POST as finish } from "@/app/api/certify/finish/route";
 import { POST as integrity } from "@/app/api/certify/integrity/route";
-import { finalizeSession, type FinishReason } from "@/lib/certify-session";
-import { IRT } from "@/lib/irt";
+import { finalizeSession, weakestChapters, type FinishReason } from "@/lib/certify-session";
+import { estimateEap, IRT } from "@/lib/irt";
 import { prisma } from "@/lib/prisma";
 import { completeChapters, createTopic, createUser, expire, post, signIn, wrongKey, type TestUser } from "./fixtures";
 
@@ -386,5 +386,94 @@ describe("finalizeSession", () => {
     expect(result).toMatchObject({ passed: true, level: "Satisfactory" });
     const badges = await prisma.certification.findMany({ where: { userId: first.user.id } });
     expect(badges.map((badge) => [badge.badgeLevel, badge.sessionId])).toEqual([["EXPERT", first.sessionId]]);
+  });
+});
+
+describe("D5: only published chapters' questions are asked", () => {
+  /** A second chapter in the topic, with `size` questions at difficulty 0 and high discrimination, so selection wants them. */
+  async function chapterWithQuestions(topic: Topic, isPublished: boolean, size: number) {
+    const chapter = await prisma.chapter.create({
+      data: { topicId: topic.topicId, slug: `extra-${isPublished}`, title: "Extra", order: 2, isPublished }
+    });
+    const author = await prisma.user.findFirstOrThrow({ where: { role: "ADMIN" } });
+    await prisma.questionItem.createMany({
+      data: Array.from({ length: size }, (_, i) => ({
+        topicId: topic.topicId,
+        chapterId: chapter.id,
+        content: `Extra question ${i}?`,
+        options: ["A", "B", "C", "D"].map((key) => ({ key, text: `${key}${i}` })),
+        correctKey: "B",
+        explanation: "Because.",
+        difficulty: 0,
+        discrimination: 2.5,
+        createdById: author.id
+      }))
+    });
+    return chapter;
+  }
+
+  it("does not count a draft chapter's questions toward the minimum", async () => {
+    const topic = await createTopic({ size: IRT.minQuestions - 2 });
+    await chapterWithQuestions(topic, false, 5);
+    await readyTrainee(topic);
+    expect((await post(start, { topicId: topic.topicId })).status).toBe(422);
+  });
+
+  it("never asks a draft chapter's question, however well it would fit", async () => {
+    const topic = await createTopic();
+    const draft = await chapterWithQuestions(topic, false, 10);
+    await readyTrainee(topic);
+    const sessionId = await begin(topic);
+    for (let i = 0; i < IRT.maxQuestions; i += 1) {
+      const result = await answerNext(sessionId, i % 2 === 0);
+      if (result.body.complete) break;
+    }
+    const asked = await prisma.responseLog.findMany({ where: { sessionId }, include: { question: true } });
+    expect(asked.length).toBeGreaterThanOrEqual(IRT.minQuestions);
+    expect(asked.filter((row) => row.question.chapterId === draft.id)).toHaveLength(0);
+  });
+
+  it("keeps an answered question in the score when its chapter is unpublished mid-attempt", async () => {
+    const topic = await createTopic();
+    const extra = await chapterWithQuestions(topic, true, 1);
+    const user = await readyTrainee(topic);
+    await prisma.chapterCompletion.create({ data: { userId: user.id, chapterId: extra.id } });
+    const sessionId = await begin(topic);
+
+    await answerNext(sessionId, false);
+    const [first] = await prisma.responseLog.findMany({ where: { sessionId }, include: { question: true } });
+    expect(first.question.chapterId).toBe(extra.id); // the most informative item went first
+    await prisma.chapter.update({ where: { id: extra.id }, data: { isPublished: false } });
+    await answerNext(sessionId, true);
+
+    const responses = await prisma.responseLog.findMany({ where: { sessionId }, include: { question: true } });
+    expect(responses).toHaveLength(2);
+    const full = estimateEap(
+      responses,
+      responses.map((row) => row.question)
+    );
+    const stored = await session(sessionId);
+    expect(stored.abilityEstimate).toBeCloseTo(full.theta, 10);
+    expect(stored.standardError).toBeCloseTo(full.se, 10);
+
+    // And the result never links to the chapter that is no longer readable.
+    expect((await weakestChapters(sessionId)).map((row) => row.title)).not.toContain("Extra");
+  });
+
+  it("D11: keeps an answered question in the score when it is retired mid-attempt", async () => {
+    const topic = await createTopic();
+    await readyTrainee(topic);
+    const sessionId = await begin(topic);
+    await answerNext(sessionId, true);
+    const [first] = await prisma.responseLog.findMany({ where: { sessionId } });
+    await prisma.questionItem.update({ where: { id: first.questionId }, data: { isActive: false } });
+    await answerNext(sessionId, false);
+
+    const responses = await prisma.responseLog.findMany({ where: { sessionId }, include: { question: true } });
+    const full = estimateEap(
+      responses,
+      responses.map((row) => row.question)
+    );
+    expect((await session(sessionId)).abilityEstimate).toBeCloseTo(full.theta, 10);
   });
 });

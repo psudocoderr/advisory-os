@@ -63,13 +63,26 @@ export async function candidateOnExamSurface(sessionId: string): Promise<boolean
 }
 
 /**
- * The active questions a session draws from: its topic's. A session with no
- * topic (an old final exam; none can be started since 2026-10-17) gets none,
- * so it ends as soon as it is touched instead of drawing from every topic.
+ * Questions a test may ask: active, and in a chapter trainees can open (D5).
+ * A draft chapter's questions wait until it is published, so no one is
+ * tested on material they could not read. Used for every count of a topic's
+ * questions as well as the draw.
  */
-export async function questionBank(session: { topicId: string | null }) {
+export const ASKABLE = { isActive: true, chapter: { isPublished: true } } satisfies Prisma.QuestionItemWhereInput;
+
+/**
+ * The questions a session works with: its topic's askable ones, plus any it
+ * has already answered. Selection skips the answered ones, so they are never
+ * asked again; keeping them means a question retired or a chapter unpublished
+ * mid-attempt still counts toward the score instead of silently dropping out
+ * of it (D11). A session with no topic (an old final exam; none can be
+ * started since 2026-10-17) gets none, so it ends as soon as it is touched.
+ */
+export async function questionBank(session: { id: string; topicId: string | null }) {
   if (!session.topicId) return [];
-  return prisma.questionItem.findMany({ where: { topicId: session.topicId, isActive: true } });
+  return prisma.questionItem.findMany({
+    where: { topicId: session.topicId, OR: [ASKABLE, { responses: { some: { sessionId: session.id } } }] }
+  });
 }
 
 /** The three chapters behind the most wrong answers, for remediation links. */
@@ -94,7 +107,8 @@ export async function weakestChapters(sessionId: string): Promise<Remediation[]>
   const counts = new Map<string, Remediation>();
   for (const row of incorrect) {
     const chapter = row.question.chapter;
-    if (!chapter) continue;
+    // A chapter unpublished since would be a link to a 404.
+    if (!chapter?.isPublished) continue;
     const current = counts.get(chapter.id) || {
       title: chapter.title,
       href: chapterHref(chapter.topic.module.track.slug, chapter.topic.module.slug, chapter.topic.slug, chapter.slug),
