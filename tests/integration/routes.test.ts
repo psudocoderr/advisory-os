@@ -217,9 +217,14 @@ describe("GET /api/reports/[userId]", () => {
 describe("GET /api/health", () => {
   it("reports the database reachable, or 503 without detail when it is not", async () => {
     expect(await (await health()).json()).toEqual({ ok: true, database: "reachable" });
-    vi.spyOn(prisma.user, "count").mockRejectedValueOnce(new Error("connection refused at 10.0.0.1"));
+    const failure = new Error("connection refused at 10.0.0.1");
+    vi.spyOn(prisma.user, "count").mockRejectedValueOnce(failure);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
     const down = await health();
     expect(down.status).toBe(503);
     expect(await down.json()).toEqual({ ok: false, database: "unreachable" });
+    // The cause goes to the server log (S6), never into the response.
+    expect(log).toHaveBeenCalledWith("[health] database check failed:", failure);
+    log.mockRestore();
   });
 });
