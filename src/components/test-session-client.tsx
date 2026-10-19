@@ -21,11 +21,16 @@ type Result = {
   passed: boolean;
   terminated?: boolean;
   inconclusive?: boolean;
+  /** Timed out before enough questions to count: no record, no cooldown. */
+  abandoned?: boolean;
   level: string;
   reason: FinishReason;
   answered: number;
   remediation: { title: string; href: string; count: number }[];
 };
+
+/** How long to wait before trying again to close a test after a network error. */
+const FINISH_RETRY_MS = 5000;
 
 const REASON_NOTE: Record<FinishReason, string> = {
   STOP_RULE: "The estimate reached the required confidence.",
@@ -90,19 +95,31 @@ export function TestSessionClient({
       if (finishRequested.current) return;
       finishRequested.current = true;
 
-      const response = await fetch("/api/certify/finish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, reason })
-      });
-      const payload = await response.json();
+      let response: Response;
+      let payload;
+      try {
+        response = await fetch("/api/certify/finish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, reason })
+        });
+        payload = await response.json();
+      } catch {
+        // A network blip used to leave the page on "Closing this test..."
+        // for good (flags O13). Closing is safe to repeat, so keep trying.
+        finishRequested.current = false;
+        setError("Connection lost while closing the test. Retrying...");
+        // Retries run from a timer, long after `finish` is declared.
+        // eslint-disable-next-line react-hooks/immutability
+        window.setTimeout(() => void finish(reason), FINISH_RETRY_MS);
+        return;
+      }
+      setError("");
       if (!response.ok) {
         finishRequested.current = false;
         // This browser's clock ran ahead of the server's. Ask again when the
         // server says time is really up.
         if (typeof payload.remainingMs === "number") {
-          // The retry runs from a timer, long after `finish` is declared.
-          // eslint-disable-next-line react-hooks/immutability
           window.setTimeout(() => void finish(reason), payload.remainingMs + 1000);
           return;
         }
@@ -198,20 +215,33 @@ export function TestSessionClient({
     }
     setError("");
     startTransition(async () => {
-      const response = await fetch("/api/certify/answer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId,
-          questionId: question.id,
-          selectedKey: selected,
-          responseTimeMs: Date.now() - (shownAt.current?.at ?? Date.now())
-        })
-      });
-      const payload = await response.json();
+      let response: Response;
+      let payload;
+      try {
+        response = await fetch("/api/certify/answer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            questionId: question.id,
+            selectedKey: selected,
+            responseTimeMs: Date.now() - (shownAt.current?.at ?? Date.now())
+          })
+        });
+        payload = await response.json();
+      } catch {
+        // Not sent, or the reply was lost (flags O13). The choice stays
+        // selected; submitting again is safe, as an answer is only counted once.
+        setError("Your answer was not sent. Check your connection and submit again.");
+        return;
+      }
       if (!response.ok) {
         if (payload.needsFullscreen) {
           setQuestion(null);
+          // The browser is in fullscreen but the server's record says not:
+          // the entry report was lost. Report it again and fetch the same
+          // question back, instead of leaving "Preparing..." (flags D10).
+          if (onExamSurface()) retry();
           return;
         }
         setError(payload.error || "Unable to submit answer.");
@@ -232,14 +262,18 @@ export function TestSessionClient({
     return (
       <Card className="p-5">
         <div className="flex flex-wrap items-center gap-3">
-          <StatusBadge tone={result.passed ? "teal" : result.inconclusive ? "amber" : "rose"}>
+          <StatusBadge
+            tone={result.passed ? "teal" : result.inconclusive ? "amber" : result.abandoned ? "slate" : "rose"}
+          >
             {result.terminated
               ? "Attempt terminated"
               : result.passed
                 ? "Certified"
                 : result.inconclusive
                   ? "Inconclusive"
-                  : "Not certified"}
+                  : result.abandoned
+                    ? "Not counted"
+                    : "Not certified"}
           </StatusBadge>
         </div>
         <h2 className="mt-4 text-xl font-semibold text-ink">{result.level}</h2>
@@ -250,10 +284,12 @@ export function TestSessionClient({
           {result.terminated
             ? "This attempt was ended by the system and does not count as a pass. It is recorded on your attempt history and flagged for review."
             : result.passed
-              ? `You passed ${testName}. Your badge is on the Tests & badges page.`
+              ? `You passed ${testName}. Your badge is under Certification in the menu.`
               : result.inconclusive
                 ? "Too close to call: no badge, and nothing on your record. Review these chapters and retake whenever you are ready."
-                : "Review these chapters before retrying after the cooldown window."}
+                : result.abandoned
+                  ? "Time ran out before enough questions were answered, so this does not count as an attempt: nothing on your record, and you can start again whenever you are ready."
+                  : "Review these chapters before retrying after the cooldown window."}
         </p>
         <div className="mt-2">
           <HowThisWorks section="levels" />

@@ -45,7 +45,8 @@ export default async function TopicTestPage({ params }: { params: Promise<{ topi
           <div className="grid gap-3 sm:grid-cols-3">
             <Metric label="Questions" value={`${IRT.minQuestions}–${IRT.maxQuestions}`} />
             <Metric label="Time" value={`${IRT.timeLimitMinutes} min`} />
-            <Metric label="Retry after fail" value={`${IRT.cooldownHours} h`} />
+            {/* After a pass, a fail or a termination alike (flags O15). */}
+            <Metric label="Wait between attempts" value={`${IRT.cooldownHours} h`} />
           </div>
           <div className="mt-5">
             <StartTestButton test={{ topicId }} blocked={blocked} />
