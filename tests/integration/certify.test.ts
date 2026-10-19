@@ -392,6 +392,20 @@ describe("finalizeSession", () => {
     expect(await prisma.certification.count({ where: { userId: attempt.user.id } })).toBe(1);
   });
 
+  it.each([
+    ["TERMINATED", 2, 0.2, "INTEGRITY_TERMINATED", "Terminated", "INTEGRITY_TERMINATED"],
+    ["INCONCLUSIVE", 0.6, 0.3, "BANK_EXHAUSTED", "Inconclusive", "TIMED_OUT"]
+  ] as const)(
+    "D12: closing a %s attempt again reports what was stored, not the late caller's details",
+    async (_status, theta, se, firstReason, level, laterReason) => {
+      const attempt = await openAttempt(10, true);
+      await finalize(attempt, theta, se, 10, firstReason);
+      const late = await finalize(attempt, -3, 0.1, 99, "TIMED_OUT");
+      expect(late).toMatchObject({ level, answered: 10, reason: laterReason });
+      expect(await audits(attempt.sessionId)).toHaveLength(1);
+    }
+  );
+
   it("D3: a passing finish racing a termination leaves one consistent ending", async () => {
     for (let round = 0; round < 10; round += 1) {
       const attempt = await openAttempt(10, true);
