@@ -8,11 +8,93 @@ const today = new Date();
 const daysAgo = (days: number) => new Date(today.getTime() - days * 24 * 60 * 60 * 1000);
 const daysFromNow = (days: number) => new Date(today.getTime() + days * 24 * 60 * 60 * 1000);
 
+/** Demo prospects: each owned by the seeded admin or advisor. */
+const DEMO_PROSPECTS = [
+  {
+    owner: "advisor",
+    data: {
+      name: "Meera Iyer",
+      phone: "+919876543210",
+      source: "REFERRAL",
+      firstContactDate: daysAgo(18),
+      stage: "PLAN_SENT",
+      notes: "Interested in ELSS and SIP split for tax planning before March.",
+      followUpDate: daysFromNow(2)
+    }
+  },
+  {
+    owner: "advisor",
+    data: {
+      name: "Sanjay Kulkarni",
+      phone: "+919822011144",
+      source: "EVENT",
+      firstContactDate: daysAgo(9),
+      stage: "MEETING_HELD",
+      notes: "Prefers conservative allocation. Needs PAN/KRA verification before onboarding.",
+      followUpDate: daysFromNow(5)
+    }
+  },
+  {
+    owner: "admin",
+    data: {
+      name: "Neha Shah",
+      phone: "+919988776655",
+      source: "ONLINE",
+      firstContactDate: daysAgo(3),
+      stage: "LEAD",
+      notes: "Asked for retirement planning consultation.",
+      followUpDate: daysFromNow(1)
+    }
+  }
+] satisfies { owner: "admin" | "advisor"; data: Omit<Prisma.ProspectUncheckedCreateInput, "assignedToId"> }[];
+
+/** Demo clients: each owned by the seeded admin or advisor. */
+const DEMO_CLIENTS = [
+  {
+    owner: "advisor",
+    data: {
+      name: "Arvind Nair",
+      phone: "+919898981122",
+      pan: "ABCDE1234F",
+      kycStatus: "VERIFIED",
+      aum: new Prisma.Decimal(4250000),
+      onboardingDate: daysAgo(420)
+    }
+  },
+  {
+    owner: "advisor",
+    data: {
+      name: "Priya Menon",
+      phone: "+919811122233",
+      pan: "PQRSX2345L",
+      kycStatus: "PENDING",
+      aum: new Prisma.Decimal(1850000),
+      onboardingDate: daysAgo(120)
+    }
+  },
+  {
+    owner: "admin",
+    data: {
+      name: "Devendra Joshi",
+      phone: "+919765432109",
+      pan: "LMNOP9876Q",
+      kycStatus: "EXPIRED",
+      aum: new Prisma.Decimal(7200000),
+      onboardingDate: daysAgo(760)
+    }
+  }
+] satisfies { owner: "admin" | "advisor"; data: Omit<Prisma.ClientUncheckedCreateInput, "assignedToId"> }[];
+
 /**
  * What this seed creates. If the target database holds more than this, it is
- * not a database this seed produced.
+ * not a database this seed produced. Counted from the demo data itself, so
+ * adding a demo record cannot make the seed refuse its own database (flags O3).
  */
-const SEED_VOLUMES = { users: 2, clients: 3, prospects: 3 };
+const SEED_VOLUMES = {
+  users: 2 /* the admin and the advisor below */,
+  clients: DEMO_CLIENTS.length,
+  prospects: DEMO_PROSPECTS.length
+};
 
 /** Internal keys for the five demo topics; not stored anywhere. */
 type TopicCode = "M1" | "M2" | "M3" | "M4" | "M5";
@@ -126,80 +208,14 @@ async function main() {
     }
   });
 
-  const prospects = await Promise.all([
-    prisma.prospect.create({
-      data: {
-        name: "Meera Iyer",
-        phone: "+919876543210",
-        source: "REFERRAL",
-        firstContactDate: daysAgo(18),
-        stage: "PLAN_SENT",
-        notes: "Interested in ELSS and SIP split for tax planning before March.",
-        followUpDate: daysFromNow(2),
-        assignedToId: advisor.id
-      }
-    }),
-    prisma.prospect.create({
-      data: {
-        name: "Sanjay Kulkarni",
-        phone: "+919822011144",
-        source: "EVENT",
-        firstContactDate: daysAgo(9),
-        stage: "MEETING_HELD",
-        notes: "Prefers conservative allocation. Needs PAN/KRA verification before onboarding.",
-        followUpDate: daysFromNow(5),
-        assignedToId: advisor.id
-      }
-    }),
-    prisma.prospect.create({
-      data: {
-        name: "Neha Shah",
-        phone: "+919988776655",
-        source: "ONLINE",
-        firstContactDate: daysAgo(3),
-        stage: "LEAD",
-        notes: "Asked for retirement planning consultation.",
-        followUpDate: daysFromNow(1),
-        assignedToId: admin.id
-      }
-    })
-  ]);
+  const owners = { admin: admin.id, advisor: advisor.id };
+  const prospects = await Promise.all(
+    DEMO_PROSPECTS.map(({ owner, data }) => prisma.prospect.create({ data: { ...data, assignedToId: owners[owner] } }))
+  );
 
-  const clients = await Promise.all([
-    prisma.client.create({
-      data: {
-        name: "Arvind Nair",
-        phone: "+919898981122",
-        pan: "ABCDE1234F",
-        kycStatus: "VERIFIED",
-        aum: new Prisma.Decimal(4250000),
-        onboardingDate: daysAgo(420),
-        assignedToId: advisor.id
-      }
-    }),
-    prisma.client.create({
-      data: {
-        name: "Priya Menon",
-        phone: "+919811122233",
-        pan: "PQRSX2345L",
-        kycStatus: "PENDING",
-        aum: new Prisma.Decimal(1850000),
-        onboardingDate: daysAgo(120),
-        assignedToId: advisor.id
-      }
-    }),
-    prisma.client.create({
-      data: {
-        name: "Devendra Joshi",
-        phone: "+919765432109",
-        pan: "LMNOP9876Q",
-        kycStatus: "EXPIRED",
-        aum: new Prisma.Decimal(7200000),
-        onboardingDate: daysAgo(760),
-        assignedToId: admin.id
-      }
-    })
-  ]);
+  const clients = await Promise.all(
+    DEMO_CLIENTS.map(({ owner, data }) => prisma.client.create({ data: { ...data, assignedToId: owners[owner] } }))
+  );
 
   await prisma.meetingLog.createMany({
     data: [
