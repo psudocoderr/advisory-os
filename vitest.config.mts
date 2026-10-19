@@ -33,8 +33,8 @@ export default defineConfig({
       provider: "v8",
       include: ["src/lib/**", "src/app/api/**"],
       reporter: ["text-summary", "lcov"],
-      // Measured 2026-10-19 (unit + integration), rounded down.
-      thresholds: { statements: 60, branches: 63, functions: 62, lines: 61 }
+      // Measured 2026-10-19 with the action and auth tests (#79), rounded down.
+      thresholds: { statements: 82, branches: 75, functions: 85, lines: 85 }
     }
   }
 });
