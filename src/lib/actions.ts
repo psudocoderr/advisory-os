@@ -12,6 +12,7 @@ import { panSchema, phoneShape, toE164 } from "@/lib/identifiers";
 import { passwordProblem } from "@/lib/password-policy";
 import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
 import { deleteObject, storageConfig } from "@/lib/storage";
+import { errorsFromAdding } from "@/lib/question-bank";
 
 const optionalDate = z
   .string()
@@ -332,27 +333,61 @@ export async function createMeeting(_prev: FormState, formData: FormData): Promi
   return done();
 }
 
-export async function createQuestionItem(formData: FormData) {
+/**
+ * Adds one question from the admin page. Held to the same checks as an
+ * import: the question's own, and the bank problems it would introduce in
+ * its topic (errorsFromAdding). The first problem is shown on the form.
+ */
+export async function createQuestionItem(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireAdmin();
-  const parsed = questionSchema.parse(Object.fromEntries(formData));
+  const result = questionSchema.safeParse(Object.fromEntries(formData));
+  if (!result.success) return formError(result.error);
+  const parsed = result.data;
   // The chapter decides the topic, so the two cannot disagree.
   const chapter = await prisma.chapter.findUnique({
     where: { id: parsed.chapterId },
-    include: { topic: { select: { title: true } } }
+    include: { topic: { select: { title: true, slug: true } } }
   });
-  if (!chapter) throw new Error("Chapter not found");
+  if (!chapter) return { error: "Chapter not found" };
+
+  const options = (["A", "B", "C", "D"] as const).map((key) => ({ key, text: parsed[`option${key}`] }));
+  const added = {
+    topic: chapter.topic.slug,
+    chapterSlug: chapter.slug,
+    content: parsed.content,
+    options,
+    correctKey: parsed.correctKey,
+    explanation: parsed.explanation,
+    difficulty: parsed.difficulty,
+    discrimination: parsed.discrimination,
+    guessing: parsed.guessing
+  };
+  const existing = await prisma.questionItem.findMany({
+    where: { topicId: chapter.topicId, isActive: true },
+    include: { chapter: { select: { slug: true } } }
+  });
+  const [problem] = errorsFromAdding(
+    existing.map((row) => ({
+      topic: chapter.topic.slug,
+      chapterSlug: row.chapter.slug,
+      content: row.content,
+      options: row.options as { key: string; text: string }[],
+      correctKey: row.correctKey,
+      explanation: row.explanation,
+      difficulty: row.difficulty,
+      discrimination: row.discrimination,
+      guessing: row.guessing
+    })),
+    added
+  );
+  if (problem) return { error: problem.message.charAt(0).toUpperCase() + problem.message.slice(1) };
 
   const question = await prisma.questionItem.create({
     data: {
       topicId: chapter.topicId,
       chapterId: chapter.id,
       content: parsed.content,
-      options: [
-        { key: "A", text: parsed.optionA },
-        { key: "B", text: parsed.optionB },
-        { key: "C", text: parsed.optionC },
-        { key: "D", text: parsed.optionD }
-      ],
+      options,
       correctKey: parsed.correctKey,
       explanation: parsed.explanation,
       difficulty: parsed.difficulty,
@@ -365,6 +400,7 @@ export async function createQuestionItem(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/certify");
   revalidatePath(`/certify/${chapter.topicId}`);
+  return done();
 }
 
 /**
