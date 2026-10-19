@@ -408,6 +408,11 @@ runs `tests/integration` against a real Postgres whose database name ends in
 `_test`: route handlers and server actions with only the sign-in faked, every test
 on empty tables. `npm run test:coverage` runs both and enforces the coverage
 thresholds in `vitest.config.mts`; CI runs it in the `integration` job.
+`npm run test:e2e` drives a running production build over HTTP (`tests/e2e/run.ts`):
+every page and API route as signed out, two advisors, an admin and a user
+deactivated mid-session; server actions over their wire format; security headers;
+and a leak scan of the HTML, RSC payload included. It creates its own records on
+an emptied `_test` database; CI runs it in the `e2e` job.
 
 **Coverage ratchet.** The thresholds are the measured numbers, rounded down. A PR
 that raises coverage raises them to the new numbers, rounded down; no PR lowers

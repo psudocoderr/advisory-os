@@ -16,6 +16,7 @@
     "test:integration": "vitest run --project integration",
     "test:coverage": "vitest run --coverage",
     "test:sim": "vitest run -c vitest.simulation.config.mts",
+    "test:e2e": "tsx tests/e2e/run.ts",
     "db:generate": "node scripts/with-env.mjs prisma generate",
     "db:migrate": "node scripts/with-env.mjs --local-only prisma migrate dev",
     "db:deploy": "node scripts/with-env.mjs --writes prisma migrate deploy",
