@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   const auth = await getServerSession(authOptions);
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const parsed = schema.safeParse(await request.json());
+  const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
 
   const testSession = await prisma.testSession.findUnique({

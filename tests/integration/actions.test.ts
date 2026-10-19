@@ -229,6 +229,18 @@ describe("validation", () => {
     });
   });
 
+  it("explains an invalid date instead of failing (O12)", async () => {
+    signIn(a);
+    const prospect = { name: "Valid Name", phone: identifiers().phone, source: "EVENT", stage: "LEAD" };
+    expect(await actions.createProspect(NONE, form({ ...prospect, firstContactDate: "31/13/2026" }))).toEqual({
+      error: "First contact date: enter a valid date"
+    });
+    expect(
+      await actions.createProspect(NONE, form({ ...prospect, firstContactDate: today, followUpDate: "soon" }))
+    ).toEqual({ error: "Follow-up date: enter a valid date" });
+    expect(await prisma.prospect.count()).toBe(0);
+  });
+
   it("refuses a second prospect or client with the same mobile number or PAN", async () => {
     signIn(a);
     const { phone, pan } = identifiers();

@@ -193,6 +193,20 @@ describe("D4: each attempt draws its own order", () => {
   });
 });
 
+describe("O12: malformed request bodies", () => {
+  it.each([
+    ["question", question],
+    ["answer", answer],
+    ["finish", finish],
+    ["integrity", integrity],
+    ["start", start]
+  ])("POST /api/certify/%s answers 400, not 500, to a body that is not JSON", async (_name, handler) => {
+    signIn(await createUser());
+    const response = await handler(new Request("http://test.local/api", { method: "POST", body: "{not json" }));
+    expect(response.status).toBe(400);
+  });
+});
+
 describe("POST /api/certify/answer", () => {
   it("records a right answer and moves on", async () => {
     const topic = await createTopic();
