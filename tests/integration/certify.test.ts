@@ -323,11 +323,49 @@ describe("POST /api/certify/integrity", () => {
     const current = (await post(question, { sessionId })).status;
     expect(current).toBe(409); // out of fullscreen: no question
 
+    // Back on the exam, three more acts end it.
+    await post(integrity, { sessionId, kind: "FULLSCREEN_ENTER" });
     let last;
     for (const kind of ["TAB_HIDDEN", "COPY", "PASTE"]) last = await post(integrity, { sessionId, kind });
     expect(last!.body).toMatchObject({ strikes: 4, terminated: true });
     expect((await session(sessionId)).status).toBe("TERMINATED");
     expect(await prisma.certification.count({ where: { userId: user.id } })).toBe(0);
+  });
+});
+
+describe("D6: one time away counts once", () => {
+  /** A started test, in fullscreen, with the first question on screen. */
+  async function onExam() {
+    const topic = await createTopic();
+    await readyTrainee(topic);
+    const sessionId = await begin(topic);
+    await post(question, { sessionId });
+    return sessionId;
+  }
+  const report = async (sessionId: string, kind: string) => (await post(integrity, { sessionId, kind })).body;
+
+  it("leaving fullscreen and then switching tabs is one strike, not two", async () => {
+    const sessionId = await onExam();
+    await report(sessionId, "FULLSCREEN_EXIT");
+    expect(await report(sessionId, "TAB_HIDDEN")).toMatchObject({ recorded: true, strikes: 1 });
+    expect(await report(sessionId, "COPY")).toMatchObject({ recorded: true, strikes: 1 });
+  });
+
+  it("switching tabs straight from fullscreen is one strike, whichever event arrives first", async () => {
+    const sessionId = await onExam();
+    await report(sessionId, "TAB_HIDDEN");
+    expect(await report(sessionId, "FULLSCREEN_EXIT")).toMatchObject({ strikes: 1 });
+  });
+
+  it("each return and leave again is a new strike, and the fourth absence ends the attempt", async () => {
+    const sessionId = await onExam();
+    for (let away = 1; away <= 3; away += 1) {
+      // Quick returns too: each leave after a return counts.
+      expect(await report(sessionId, "FULLSCREEN_EXIT")).toMatchObject({ strikes: away, terminated: false });
+      await report(sessionId, "TAB_HIDDEN");
+      await report(sessionId, "FULLSCREEN_ENTER");
+    }
+    expect(await report(sessionId, "FULLSCREEN_EXIT")).toMatchObject({ strikes: 4, terminated: true });
   });
 });
 

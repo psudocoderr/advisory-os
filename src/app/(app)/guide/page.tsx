@@ -68,8 +68,9 @@ export default async function GuidePage() {
               </li>
               <li>The test runs in fullscreen. The clock starts when the first question appears.</li>
               <li>
-                Leaving fullscreen, switching tabs, copying, pasting or right-clicking each count as a warning. After{" "}
-                {STRIKE_LIMIT} warnings, the next one ends the attempt.
+                Leaving fullscreen, switching tabs, copying, pasting or right-clicking each count as a warning. One time
+                away counts once: nothing more is counted until you are back in fullscreen. After {STRIKE_LIMIT}{" "}
+                warnings, the next one ends the attempt.
               </li>
               <li>If time runs out, the test ends with the answers you have given.</li>
             </ul>
