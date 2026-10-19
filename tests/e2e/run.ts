@@ -430,6 +430,13 @@ async function main() {
     "camera=(), microphone=(), geolocation=()",
     dashboard.headers.get("permissions-policy")
   );
+  check("4 headers", "no X-Powered-By on pages", null, dashboard.headers.get("x-powered-by"));
+  check(
+    "4 headers",
+    "no X-Powered-By on the API",
+    null,
+    (await api(null, "GET", "/api/health")).headers.get("x-powered-by")
+  );
   check(
     "4 headers",
     "API responses nosniff",
