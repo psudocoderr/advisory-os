@@ -60,6 +60,47 @@ export function isStrike(kind: IntegrityKind): boolean {
   return (STRIKE_KINDS as readonly string[]).includes(kind);
 }
 
+/**
+ * The strikes in an attempt's events, in time order from when its clock
+ * started: one time away from the exam counts once (flags D6).
+ *
+ * - Leaving fullscreen is a strike. Until the candidate is back in
+ *   fullscreen, nothing else counts: the question is already hidden, and a
+ *   tab switch or copy in that time is the same absence, not a new one.
+ *   Every return and leave again is a new strike.
+ * - On the exam surface every strike kind counts, except that a fullscreen
+ *   exit within DEDUPE_WINDOW_MS of a strike just counted, with no return in
+ *   between, is the same act (switching tabs straight from fullscreen fires
+ *   both, in either order).
+ *
+ * The clock starts only once a question is released, which needs fullscreen,
+ * so the candidate starts on the surface.
+ */
+export function countStrikes(events: { kind: IntegrityKind; occurredAt: Date }[]): number {
+  let onSurface = true;
+  let strikes = 0;
+  let lastCounted = -Infinity;
+  for (const { kind, occurredAt } of events) {
+    const at = occurredAt.getTime();
+    if (kind === "FULLSCREEN_ENTER") {
+      onSurface = true;
+      // A return starts afresh: only an exit with no return in between can be
+      // merged with the strike before it.
+      lastCounted = -Infinity;
+    } else if (kind === "FULLSCREEN_EXIT") {
+      if (onSurface && at - lastCounted >= DEDUPE_WINDOW_MS) {
+        strikes += 1;
+        lastCounted = at;
+      }
+      onSurface = false;
+    } else if (isStrike(kind) && onSurface) {
+      strikes += 1;
+      lastCounted = at;
+    }
+  }
+  return strikes;
+}
+
 /** Whether this strike total ends the attempt. */
 export function shouldTerminate(strikes: number): boolean {
   return strikes > STRIKE_LIMIT;

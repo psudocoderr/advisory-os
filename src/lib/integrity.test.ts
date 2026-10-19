@@ -8,7 +8,9 @@ import {
   isOnExamSurface,
   isRedundantEvent,
   isStrike,
-  shouldTerminate
+  shouldTerminate,
+  countStrikes,
+  type IntegrityKind
 } from "./integrity";
 
 /**
@@ -131,5 +133,34 @@ describe("isCappable", () => {
 
   it("still caps the informational blur once the clock runs", () => {
     expect(isCappable("WINDOW_BLUR", true)).toBe(true);
+  });
+});
+
+describe("countStrikes (D6: one time away counts once)", () => {
+  const at = (seconds: number) => new Date(Date.UTC(2026, 9, 19, 10, 0, seconds));
+  const strikes = (...events: [IntegrityKind, number][]) =>
+    countStrikes(events.map(([kind, seconds]) => ({ kind, occurredAt: at(seconds) })));
+
+  it("counts leaving fullscreen, and nothing more until the return", () => {
+    expect(strikes(["FULLSCREEN_EXIT", 0], ["TAB_HIDDEN", 5], ["COPY", 9], ["DEVTOOLS_ATTEMPT", 20])).toBe(1);
+  });
+
+  it("merges a tab switch straight from fullscreen, in either order", () => {
+    expect(strikes(["TAB_HIDDEN", 0], ["FULLSCREEN_EXIT", 1])).toBe(1);
+    expect(strikes(["FULLSCREEN_EXIT", 0], ["TAB_HIDDEN", 1])).toBe(1);
+  });
+
+  it("counts every leave after a return, however quick", () => {
+    expect(strikes(["FULLSCREEN_EXIT", 0], ["FULLSCREEN_ENTER", 1], ["FULLSCREEN_EXIT", 2])).toBe(2);
+  });
+
+  it("counts each act on the exam surface", () => {
+    expect(strikes(["COPY", 0], ["PASTE", 1], ["CONTEXT_MENU", 2])).toBe(3);
+    // A strike on the surface and a later separate exit are two.
+    expect(strikes(["COPY", 0], ["FULLSCREEN_EXIT", 10])).toBe(2);
+  });
+
+  it("does not count a window blur or a return", () => {
+    expect(strikes(["WINDOW_BLUR", 0], ["FULLSCREEN_ENTER", 1])).toBe(0);
   });
 });

@@ -7,7 +7,7 @@ import { finalizeSession, latestFullscreenKind, questionBank } from "@/lib/certi
 import { prisma } from "@/lib/prisma";
 import {
   INTEGRITY_KINDS,
-  STRIKE_KINDS,
+  countStrikes,
   STRIKE_LIMIT,
   isCappable,
   isRedundantEvent,
@@ -83,9 +83,13 @@ export async function POST(request: Request) {
   // question the candidate is still getting into fullscreen, and an alt-tab
   // then has nothing to gain from.
   const strikes = testSession.timerStartedAt
-    ? await prisma.integrityEvent.count({
-        where: { sessionId, kind: { in: [...STRIKE_KINDS] }, occurredAt: { gte: testSession.timerStartedAt } }
-      })
+    ? countStrikes(
+        await prisma.integrityEvent.findMany({
+          where: { sessionId, occurredAt: { gte: testSession.timerStartedAt } },
+          orderBy: { occurredAt: "asc" },
+          select: { kind: true, occurredAt: true }
+        })
+      )
     : 0;
 
   if (!shouldTerminate(strikes)) {
