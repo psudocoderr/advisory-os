@@ -95,8 +95,14 @@ describe("POST /api/certify/start", () => {
     for (let i = 0; i < IRT.minQuestions; i += 1) await answerNext(failed, false);
     await expire(failed);
     await post(finish, { sessionId: failed, reason: "TIMED_OUT" });
-    expect((await session(failed)).status).toBe("FAILED");
-    expect((await post(start, { topicId: topic.topicId })).status).toBe(429);
+    const closed = await session(failed);
+    expect(closed.status).toBe("FAILED");
+    const refused = await post(start, { topicId: topic.topicId });
+    expect(refused.status).toBe(429);
+    // Shown in India time, labelled (O14).
+    const retryAt = new Date(closed.completedAt!.getTime() + IRT.cooldownHours * 3600_000);
+    const ist = retryAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+    expect(refused.body.error).toBe(`Retry available after ${ist} IST`);
 
     // Another trainee who walks away after one question can start again.
     const other = await readyTrainee(topic);
