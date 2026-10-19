@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { MINIMUM_BANK_SIZE, validateBank, validateQuestion, type Issue, type QuestionDraft } from "./question-bank";
+import {
+  MINIMUM_BANK_SIZE,
+  perfectRun,
+  validateBank,
+  validateQuestion,
+  type Issue,
+  type QuestionDraft
+} from "./question-bank";
 
 const q = (over: Partial<QuestionDraft> = {}, i = 0): QuestionDraft => ({
   topic: "m1",
@@ -152,5 +159,34 @@ describe("validateBank size checks", () => {
         .map((e) => e.message)
         .join()
     ).toMatch(/appears 3 times/);
+  });
+});
+
+describe("validateBank ceiling", () => {
+  const messages = (issues: Issue[]) => issues.map((i) => `${i.severity}: ${i.message}`).join("\n");
+
+  it("blocks a bank where even a perfect run cannot pass (D15.1 easy bank)", () => {
+    const easy = bank(12, (i) => ({ difficulty: -2 + (1.5 * i) / 11 }));
+    expect(perfectRun(easy).outcome).toBe("INCONCLUSIVE");
+    expect(messages(errors(validateBank(easy)))).toMatch(/answers every question correctly does not pass/);
+  });
+
+  it("warns when a perfect run cannot reach Expert", () => {
+    const capped = bank(12, (i) => ({ difficulty: -2 + (3.05 * i) / 11 }));
+    const best = perfectRun(capped);
+    expect(best.outcome).toBe("PASS");
+    expect(best).not.toEqual({ outcome: "PASS", level: "EXPERT" });
+    const issues = validateBank(capped);
+    expect(errors(issues)).toHaveLength(0);
+    expect(messages(issues)).toMatch(/warning: .*no one can earn Expert/);
+  });
+
+  it("says nothing when a perfect run reaches Expert", () => {
+    expect(messages(validateBank(bank(40)))).not.toMatch(/perfect|correctly/);
+  });
+
+  it("is skipped for a partial import file", () => {
+    const easy = bank(12, (i) => ({ difficulty: -2 + (1.5 * i) / 11 }));
+    expect(messages(validateBank(easy, "f", { checkSize: false }))).not.toMatch(/perfect|correctly/);
   });
 });
