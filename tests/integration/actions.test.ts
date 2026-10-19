@@ -229,6 +229,18 @@ describe("validation", () => {
     });
   });
 
+  it("explains an invalid date instead of failing (O12)", async () => {
+    signIn(a);
+    const prospect = { name: "Valid Name", phone: identifiers().phone, source: "EVENT", stage: "LEAD" };
+    expect(await actions.createProspect(NONE, form({ ...prospect, firstContactDate: "31/13/2026" }))).toEqual({
+      error: "First contact date: enter a valid date"
+    });
+    expect(
+      await actions.createProspect(NONE, form({ ...prospect, firstContactDate: today, followUpDate: "soon" }))
+    ).toEqual({ error: "Follow-up date: enter a valid date" });
+    expect(await prisma.prospect.count()).toBe(0);
+  });
+
   it("refuses a second prospect or client with the same mobile number or PAN", async () => {
     signIn(a);
     const { phone, pan } = identifiers();
@@ -411,6 +423,8 @@ describe("adding a question in the editor", () => {
       ).toBeDefined();
     }
     expect(await prisma.questionItem.count()).toBe(3);
+    // No guessing value sent: the one default, as the schema and import template use (O16).
+    expect((await prisma.questionItem.findFirstOrThrow()).guessing).toBe(0.25);
   });
 
   it("refuses a question that would make the answer key passable by always choosing one letter", async () => {

@@ -90,7 +90,13 @@ export async function POST(request: Request) {
   if (latestAttempt?.completedAt) {
     const retryAt = new Date(latestAttempt.completedAt.getTime() + IRT.cooldownHours * 60 * 60 * 1000);
     if (retryAt > new Date()) {
-      return NextResponse.json({ error: `Retry available after ${retryAt.toLocaleString("en-IN")}` }, { status: 429 });
+      // In India time: the server runs in UTC, which read 5h30 early (flags O14).
+      const when = retryAt.toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+        dateStyle: "medium",
+        timeStyle: "short"
+      });
+      return NextResponse.json({ error: `Retry available after ${when} IST` }, { status: 429 });
     }
   }
 

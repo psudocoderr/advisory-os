@@ -249,7 +249,15 @@ export default async function AdminPage() {
                 max="2.5"
                 defaultValue="1"
               />
-              <input className="field" name="guessing" type="number" step="0.01" min="0" max="0.5" defaultValue="0.2" />
+              <input
+                className="field"
+                name="guessing"
+                type="number"
+                step="0.01"
+                min="0"
+                max="0.5"
+                defaultValue="0.25"
+              />
             </div>
             <button className="rounded bg-navy px-4 py-2 text-sm font-semibold text-white">Add question</button>
           </div>

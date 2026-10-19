@@ -14,10 +14,20 @@ import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
 import { deleteObject, storageConfig } from "@/lib/storage";
 import { errorsFromAdding } from "@/lib/question-bank";
 
-const optionalDate = z
-  .string()
-  .optional()
-  .transform((value) => (value ? new Date(value) : undefined));
+/** A form date ("YYYY-MM-DD"). An invalid one is a message, not a 500 (flags O12). */
+const isDate = (value: string) => !Number.isNaN(Date.parse(value));
+const formDate = (label: string) =>
+  z
+    .string()
+    .refine(isDate, `${label}: enter a valid date`)
+    .transform((value) => new Date(value));
+
+const optionalDate = (label: string) =>
+  z
+    .string()
+    .optional()
+    .refine((value) => !value || isDate(value), `${label}: enter a valid date`)
+    .transform((value) => (value ? new Date(value) : undefined));
 
 const prospectSchema = z
   .object({
@@ -26,8 +36,8 @@ const prospectSchema = z
     source: z.enum(["REFERRAL", "WALK_IN", "EVENT", "ONLINE"]),
     stage: z.enum(["LEAD", "MEETING_HELD", "PLAN_SENT", "ONBOARDED", "DROPPED"]),
     notes: z.string().max(2000).default(""),
-    firstContactDate: z.string().transform((value) => new Date(value)),
-    followUpDate: optionalDate
+    firstContactDate: formDate("First contact date"),
+    followUpDate: optionalDate("Follow-up date")
   })
   .transform(toE164);
 
@@ -38,7 +48,7 @@ const clientSchema = z
     pan: panSchema,
     kycStatus: z.enum(["VERIFIED", "PENDING", "EXPIRED"]),
     aum: z.coerce.number().positive(),
-    onboardingDate: z.string().transform((value) => new Date(value))
+    onboardingDate: formDate("Onboarding date")
   })
   .transform(toE164);
 
@@ -47,7 +57,7 @@ const prospectOnboardingSchema = z.object({
   pan: panSchema,
   kycStatus: z.enum(["VERIFIED", "PENDING", "EXPIRED"]),
   aum: z.coerce.number().positive(),
-  onboardingDate: z.string().transform((value) => new Date(value))
+  onboardingDate: formDate("Onboarding date")
 });
 
 const planSchema = z.object({
@@ -62,11 +72,11 @@ const planSchema = z.object({
 
 const reviewSchema = z.object({
   clientId: z.string(),
-  reviewDate: z.string().transform((value) => new Date(value)),
+  reviewDate: formDate("Review date"),
   currentAum: z.coerce.number().positive(),
   returns: z.coerce.number(),
   actions: z.string().min(5).max(2000),
-  nextReviewDate: z.string().transform((value) => new Date(value)),
+  nextReviewDate: formDate("Next review date"),
   attachmentNote: z.string().max(500).optional()
 });
 
@@ -75,8 +85,8 @@ const meetingSchema = z.object({
   party: z.string().regex(/^(prospect|client):[^:]+$/, "Choose who the meeting was with"),
   summary: z.string().min(3).max(180),
   notes: z.string().max(2000).default(""),
-  meetingDate: z.string().transform((value) => new Date(value)),
-  followUpDate: optionalDate
+  meetingDate: formDate("Meeting date"),
+  followUpDate: optionalDate("Follow-up date")
 });
 
 const questionSchema = z.object({
@@ -90,7 +100,8 @@ const questionSchema = z.object({
   explanation: z.string().min(10).max(1000),
   difficulty: z.coerce.number().min(-4).max(4).default(0),
   discrimination: z.coerce.number().min(0.25).max(3).default(1),
-  guessing: z.coerce.number().min(0).max(0.5).default(0.2)
+  // One default everywhere: 0.25, the blind-hit chance on four options (O16).
+  guessing: z.coerce.number().min(0).max(0.5).default(0.25)
 });
 
 const userSchema = z.object({
