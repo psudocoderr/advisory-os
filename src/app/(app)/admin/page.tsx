@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { MIN_PASSWORD_LENGTH } from "@/lib/password-policy";
 import { createQuestionItem, createUser, updateUserActive } from "@/lib/actions";
+import { ActionForm } from "@/components/action-form";
 import { requireAdmin } from "@/lib/auth";
 import { compactInr, dateLabel, titleCase } from "@/lib/format";
 import { LEVEL_LABEL } from "@/lib/irt";
@@ -197,7 +198,7 @@ export default async function AdminPage() {
 
       <Card className="mt-5 p-4">
         <SectionTitle title="Add certification question" flush />
-        <form action={createQuestionItem} className="mt-4 grid gap-3 lg:grid-cols-2">
+        <ActionForm action={createQuestionItem} className="mt-4 grid gap-3 lg:grid-cols-2">
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <select className="field col-span-2" name="chapterId" required defaultValue="">
@@ -238,21 +239,21 @@ export default async function AdminPage() {
                   </option>
                 ))}
               </select>
-              <input className="field" name="difficulty" type="number" step="0.1" min="-4" max="4" defaultValue="0" />
+              <input className="field" name="difficulty" type="number" step="0.1" min="-3" max="3" defaultValue="0" />
               <input
                 className="field"
                 name="discrimination"
                 type="number"
                 step="0.1"
-                min="0.25"
-                max="3"
+                min="0.3"
+                max="2.5"
                 defaultValue="1"
               />
               <input className="field" name="guessing" type="number" step="0.01" min="0" max="0.5" defaultValue="0.2" />
             </div>
             <button className="rounded bg-navy px-4 py-2 text-sm font-semibold text-white">Add question</button>
           </div>
-        </form>
+        </ActionForm>
       </Card>
 
       <Card className="mt-5 overflow-hidden">

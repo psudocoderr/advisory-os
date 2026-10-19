@@ -159,6 +159,7 @@ describe("admin-only actions refuse advisors and signed-out callers", () => {
         "createQuestionItem",
         () =>
           actions.createQuestionItem(
+            NONE,
             form({
               chapterId: topic.chapterId,
               content: "A question long enough?",
@@ -297,6 +298,7 @@ describe("validation", () => {
     const [first, second] = [await createTopic({ size: 0 }), await createTopic({ size: 0 })];
     signIn(admin);
     await actions.createQuestionItem(
+      NONE,
       form({
         chapterId: first.chapterId,
         topicId: second.topicId,
@@ -356,5 +358,97 @@ describe("markChapterComplete", () => {
     });
     signIn(a);
     await expect(actions.markChapterComplete(form({ chapterId: chapter.id }))).rejects.toThrow("locked");
+  });
+});
+
+describe("adding a question in the editor", () => {
+  const fields = (chapterId: string, over: Record<string, string | number> = {}) => ({
+    chapterId,
+    content: `A distinct question ${Math.random()}?`,
+    optionA: "first answer",
+    optionB: "second answer",
+    optionC: "third answer",
+    optionD: "fourth answer",
+    correctKey: "A",
+    explanation: "Because it is so.",
+    difficulty: 0,
+    ...over
+  });
+  /** Puts `keys.length` questions straight into the topic's bank. */
+  const seed = (topic: { topicId: string; chapterId: string }, keys: string[], difficulty = (i: number) => i * 0.3) =>
+    prisma.questionItem.createMany({
+      data: keys.map((correctKey, i) => ({
+        topicId: topic.topicId,
+        chapterId: topic.chapterId,
+        content: `Seeded question ${i}?`,
+        options: ["A", "B", "C", "D"].map((key) => ({ key, text: `${key} ${i}` })),
+        correctKey,
+        explanation: "Seeded.",
+        difficulty: difficulty(i),
+        createdById: admin.id
+      }))
+    });
+
+  it("shows the question's own problem and adds nothing", async () => {
+    const topic = await createTopic({ size: 0 });
+    signIn(admin);
+    expect(await actions.createQuestionItem(NONE, form(fields(topic.chapterId, { optionD: "First Answer" })))).toEqual({
+      error: "Options are not all distinct"
+    });
+    expect(await actions.createQuestionItem(NONE, form(fields(topic.chapterId, { difficulty: 3.5 })))).toEqual({
+      error: "Difficulty 3.5 is outside the usable range -3 to 3"
+    });
+    expect(await prisma.questionItem.count()).toBe(0);
+  });
+
+  it("lets a bank be built one question at a time, below the minimum size", async () => {
+    const topic = await createTopic({ size: 0 });
+    signIn(admin);
+    for (const key of ["A", "B", "C"]) {
+      expect(
+        (await actions.createQuestionItem(NONE, form(fields(topic.chapterId, { correctKey: key })))).ok
+      ).toBeDefined();
+    }
+    expect(await prisma.questionItem.count()).toBe(3);
+  });
+
+  it("refuses a question that would make the answer key passable by always choosing one letter", async () => {
+    const topic = await createTopic({ size: 0 });
+    await seed(topic, ["A", "A", "A", "A", "A", "B", "C"]);
+    signIn(admin);
+    const result = await actions.createQuestionItem(NONE, form(fields(topic.chapterId, { correctKey: "A" })));
+    expect(result.error).toMatch(/75% of correct answers are "A".*always choosing A/);
+    expect(await prisma.questionItem.count({ where: { topicId: topic.topicId } })).toBe(7);
+  });
+
+  it("refuses a repeated question", async () => {
+    const topic = await createTopic({ size: 0 });
+    await seed(topic, ["A", "B"]);
+    signIn(admin);
+    const result = await actions.createQuestionItem(
+      NONE,
+      form(fields(topic.chapterId, { content: "seeded QUESTION 1?" }))
+    );
+    expect(result.error).toMatch(/^The same question appears 2 times/);
+  });
+
+  it("refuses the question that would leave a bank a perfect candidate cannot pass", async () => {
+    const topic = await createTopic({ size: 0 });
+    await seed(topic, ["A", "B", "C", "D", "A", "B", "C", "D", "A"], (i) => -2 + i * 0.15);
+    signIn(admin);
+    const easy = await actions.createQuestionItem(
+      NONE,
+      form(fields(topic.chapterId, { correctKey: "B", difficulty: -0.5 }))
+    );
+    expect(easy.error).toMatch(/answers every question correctly does not pass/);
+    expect(await prisma.questionItem.count({ where: { topicId: topic.topicId } })).toBe(9);
+  });
+
+  it("does not blame a new question for a problem the bank already has", async () => {
+    const topic = await createTopic({ size: 0 });
+    await seed(topic, Array(9).fill("A"));
+    signIn(admin);
+    const result = await actions.createQuestionItem(NONE, form(fields(topic.chapterId, { correctKey: "B" })));
+    expect(result.ok).toBeDefined();
   });
 });

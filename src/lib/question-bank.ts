@@ -41,9 +41,12 @@ export type QuestionDraft = {
   guessing: number;
 };
 
-export type Issue = { severity: "error" | "warning"; where: string; message: string };
+/** Which bank-level check raised an issue; per-question issues have none. */
+export type BankCheck = "duplicate" | "skew" | "distractors" | "spread" | "size" | "ceiling";
 
-const RANGES = {
+export type Issue = { severity: "error" | "warning"; where: string; message: string; check?: BankCheck };
+
+export const RANGES = {
   difficulty: [-3, 3],
   discrimination: [0.3, 2.5],
   guessing: [0, 0.5]
@@ -96,7 +99,8 @@ export function validateBank(
 ): Issue[] {
   const { checkSize = true, topics = [] } = options;
   const issues: Issue[] = [];
-  const add = (severity: Issue["severity"], message: string) => issues.push({ severity, where: label, message });
+  const add = (severity: Issue["severity"], message: string, check: BankCheck) =>
+    issues.push({ severity, where: label, message, check });
 
   const byTopic = new Map<string, QuestionDraft[]>();
   for (const q of questions) {
@@ -112,7 +116,7 @@ export function validateBank(
     seen.set(key, (seen.get(key) ?? 0) + 1);
   }
   for (const [stem, n] of seen) {
-    if (n > 1) add("error", `the same question appears ${n} times: "${stem.slice(0, 60)}"`);
+    if (n > 1) add("error", `the same question appears ${n} times: "${stem.slice(0, 60)}"`, "duplicate");
   }
 
   for (const [code, list] of byTopic) {
@@ -126,7 +130,8 @@ export function validateBank(
         add(
           share > 0.6 ? "error" : "warning",
           `${code}: ${Math.round(share * 100)}% of correct answers are "${key}" (${n} of ${list.length}). ` +
-            `A candidate can pass by always choosing ${key}. Aim for roughly 25% per key.`
+            `A candidate can pass by always choosing ${key}. Aim for roughly 25% per key.`,
+          "skew"
         );
       }
     }
@@ -147,7 +152,8 @@ export function validateBank(
         add(
           share > 0.5 ? "error" : "warning",
           `${code}: the distractor "${text.slice(0, 44)}" is reused in ${n} of ${list.length} questions. ` +
-            `Repeated filler is recognisable without knowing the answer.`
+            `Repeated filler is recognisable without knowing the answer.`,
+          "distractors"
         );
       }
     }
@@ -158,15 +164,20 @@ export function validateBank(
       add(
         "warning",
         `${code}: difficulty spans only ${(Math.max(...diffs) - Math.min(...diffs)).toFixed(2)}. ` +
-          `Adaptive selection has little to choose between; spread items from about -2 to +2.`
+          `Adaptive selection has little to choose between; spread items from about -2 to +2.`,
+        "spread"
       );
     }
 
     if (checkSize) {
       if (list.length < MINIMUM_BANK_SIZE) {
-        add("error", `${code}: ${list.length} questions is below the ${MINIMUM_BANK_SIZE} needed to certify at all.`);
+        add(
+          "error",
+          `${code}: ${list.length} questions is below the ${MINIMUM_BANK_SIZE} needed to certify at all.`,
+          "size"
+        );
       } else if (list.length < TARGET_BANK_SIZE) {
-        add("warning", `${code}: ${list.length} of ${TARGET_BANK_SIZE} target questions.`);
+        add("warning", `${code}: ${list.length} of ${TARGET_BANK_SIZE} target questions.`, "size");
       }
 
       // Ceiling. Right answers to easy questions cannot prove ability above
@@ -180,14 +191,16 @@ export function validateBank(
             "error",
             `${code}: a candidate who answers every question correctly does not pass (${best.outcome}); ` +
               `${list.length} questions, the hardest at ${hardest}. Add questions, especially at difficulty ` +
-              `${IRT.passTheta} or above.`
+              `${IRT.passTheta} or above.`,
+            "ceiling"
           );
         } else if (best.level !== "EXPERT") {
           add(
             "warning",
             `${code}: a perfect run reaches only ${LEVEL_LABEL[best.level]}, so no one can earn Expert ` +
               `(${list.length} questions, the hardest at ${hardest}). More questions, especially hard ones ` +
-              `(about 1.5 to 2.5), raise the ceiling.`
+              `(about 1.5 to 2.5), raise the ceiling.`,
+            "ceiling"
           );
         }
       }
@@ -196,7 +209,7 @@ export function validateBank(
 
   if (checkSize) {
     for (const code of topics) {
-      if (!byTopic.has(code)) add("warning", `${code}: no questions supplied.`);
+      if (!byTopic.has(code)) add("warning", `${code}: no questions supplied.`, "size");
     }
   }
 
@@ -224,4 +237,20 @@ export function perfectRun(questions: QuestionDraft[]): Decision {
     if (shouldStop(responses.length, estimate.se)) break;
   }
   return decide(estimate.theta, estimate.se, 100);
+}
+
+/**
+ * The errors adding `added` to a topic's bank would introduce: bank errors of
+ * a kind the bank does not already have, plus the question's own errors.
+ * Size is left out, so a bank can be built one question at a time; problems
+ * the bank already had are `questions:check`'s to report, not this add's.
+ */
+export function errorsFromAdding(existing: QuestionDraft[], added: QuestionDraft): Issue[] {
+  const errors = (issues: Issue[]) => issues.filter((issue) => issue.severity === "error");
+  const own = errors(validateQuestion(added, "this question"));
+  if (own.length) return own;
+  const before = new Set(errors(validateBank(existing)).map((issue) => issue.check));
+  return errors(validateBank([...existing, added], "this topic")).filter(
+    (issue) => issue.check !== "size" && !before.has(issue.check)
+  );
 }
