@@ -16,6 +16,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { badgeLevel, decide, estimateEap, IRT, selectNextQuestion, shouldStop } from "@/lib/irt";
+import { validateBank } from "@/lib/question-bank";
 
 // --- Fixtures -------------------------------------------------------------
 
@@ -127,12 +128,34 @@ const rate = (results: Run[], outcome: string) =>
 
 describe("D15.1 extremes", () => {
   for (const [name, items] of Object.entries(BANKS)) {
+    if (name === "easy") continue; // below
     it(`a perfect run passes on the ${name} bank`, () => {
       const run = simulate(items, allCorrect);
       expect(run.percent).toBe(100);
       expect(run.decision.outcome).toBe("PASS");
     });
+  }
 
+  it("a perfect run on an all-easy bank is INCONCLUSIVE, so the import refuses such a bank", () => {
+    // Found by this simulation on 2026-10-19: right answers to easy questions
+    // never lift theta - SE to the pass mark. Decided: keep the rule, refuse
+    // the bank (validateBank, PR #75).
+    const run = simulate(BANKS.easy, allCorrect);
+    expect(run.percent).toBe(100);
+    expect(run.decision.outcome).toBe("INCONCLUSIVE");
+    const drafts = BANKS.easy.map((item, i) => ({
+      ...item,
+      topic: "easy",
+      chapterSlug: "chapter",
+      content: `Easy question number ${i}?`,
+      options: ["A", "B", "C", "D"].map((key) => ({ key, text: `${key}${i}` })),
+      explanation: "Because."
+    }));
+    const refused = validateBank(drafts).filter((issue) => issue.severity === "error");
+    expect(refused.map((issue) => issue.message).join()).toMatch(/does not pass/);
+  });
+
+  for (const [name, items] of Object.entries(BANKS)) {
     it(`an all-wrong run fails on the ${name} bank`, () => {
       const run = simulate(items, allWrong);
       expect(run.percent).toBe(0);
