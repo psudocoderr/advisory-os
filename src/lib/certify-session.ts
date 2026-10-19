@@ -166,22 +166,36 @@ export async function finalizeSession(params: {
   const label = current.topic?.title ?? `${current.track.title} final exam`;
   const percentCorrect = await sessionPercentCorrect(sessionId);
 
-  /** What an already-finished session recorded, reported instead of finishing it again. */
+  /**
+   * What an already-finished session recorded, reported instead of finishing
+   * it again (D12): the level and answer count come from the stored attempt,
+   * the same way the first finish worked them out. The reason is stored only
+   * through the status, so it is derived where the status decides it
+   * (TERMINATED, ABANDONED) and otherwise left as the caller's.
+   */
   const storedResult = async (stored: {
     status: string;
     certified: boolean;
     abilityEstimate: number;
     standardError: number;
-  }): Promise<SessionResult> => ({
-    passed: stored.certified,
-    abandoned: stored.status === "ABANDONED",
-    terminated: stored.status === "TERMINATED",
-    inconclusive: stored.status === "INCONCLUSIVE",
-    level: levelLabel(stored.certified ? decide(stored.abilityEstimate, stored.standardError, percentCorrect) : null),
-    reason,
-    answered,
-    remediation: stored.certified ? [] : await weakestChapters(sessionId)
-  });
+  }): Promise<SessionResult> => {
+    const wasTerminated = stored.status === "TERMINATED";
+    const wasAbandoned = stored.status === "ABANDONED";
+    return {
+      passed: stored.certified,
+      abandoned: wasAbandoned,
+      terminated: wasTerminated,
+      inconclusive: stored.status === "INCONCLUSIVE",
+      level: wasTerminated
+        ? "Terminated"
+        : wasAbandoned
+          ? "Not attempted"
+          : levelLabel(decide(stored.abilityEstimate, stored.standardError, percentCorrect)),
+      reason: wasTerminated ? "INTEGRITY_TERMINATED" : wasAbandoned ? "TIMED_OUT" : reason,
+      answered: await prisma.responseLog.count({ where: { sessionId } }),
+      remediation: stored.certified || wasTerminated || wasAbandoned ? [] : await weakestChapters(sessionId)
+    };
+  };
 
   // Idempotent. A timeout racing a final answer must not certify twice.
   if (current.status !== "IN_PROGRESS") return storedResult(current);

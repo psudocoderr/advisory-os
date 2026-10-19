@@ -1,4 +1,5 @@
 import { createPlan, updatePlanStatus } from "@/lib/actions";
+import { planStatusChoices } from "@/lib/plan-status";
 import { requireSession, scopedUserFilter } from "@/lib/auth";
 import { compactInr, dateLabel, titleCase } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
@@ -148,7 +149,7 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
                     <form action={updatePlanStatus} className="flex gap-2">
                       <input type="hidden" name="id" value={plan.id} />
                       <select className="field min-w-32" name="status" defaultValue={plan.status}>
-                        {statuses.map((value) => (
+                        {planStatusChoices(plan.status).map((value) => (
                           <option key={value} value={value}>
                             {titleCase(value)}
                           </option>

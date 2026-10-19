@@ -467,3 +467,58 @@ describe("adding a question in the editor", () => {
     expect(result.ok).toBeDefined();
   });
 });
+
+describe("plan status changes (O22)", () => {
+  async function plan(status: "DRAFT" | "SENT" | "ACCEPTED" | "ACTIVE" | "CLOSED") {
+    const client = await createClientFor(a);
+    return prisma.investmentPlan.create({
+      data: {
+        clientId: client.id,
+        planType: "SIP",
+        amount: 1000,
+        frequency: "MONTHLY",
+        goal: "WEALTH",
+        notes: "",
+        status
+      }
+    });
+  }
+  const move = (id: string, status: string) => actions.updatePlanStatus(form({ id, status }));
+  const stored = (id: string) => prisma.investmentPlan.findUniqueOrThrow({ where: { id } });
+
+  it("moves forward and fills the dates; pulling back to draft clears the sent date", async () => {
+    const p = await plan("DRAFT");
+    signIn(a);
+    await move(p.id, "SENT");
+    expect((await stored(p.id)).sentDate).not.toBeNull();
+    await move(p.id, "DRAFT");
+    expect(await stored(p.id)).toMatchObject({ status: "DRAFT", sentDate: null });
+    await move(p.id, "SENT");
+    await move(p.id, "ACCEPTED");
+    await move(p.id, "ACTIVE");
+    await move(p.id, "CLOSED");
+    const done = await stored(p.id);
+    expect(done.status).toBe("CLOSED");
+    expect(done.acceptedDate).not.toBeNull();
+  });
+
+  it.each([
+    ["CLOSED", "SENT"],
+    ["ACTIVE", "DRAFT"],
+    ["DRAFT", "ACTIVE"],
+    ["ACCEPTED", "SENT"]
+  ] as const)("refuses %s to %s and changes nothing", async (from, to) => {
+    const p = await plan(from);
+    signIn(a);
+    await expect(move(p.id, to)).rejects.toThrow("cannot become");
+    expect((await stored(p.id)).status).toBe(from);
+    expect(await prisma.auditLog.count({ where: { entityId: p.id } })).toBe(0);
+  });
+
+  it("choosing the status it already has does nothing", async () => {
+    const p = await plan("SENT");
+    signIn(a);
+    await move(p.id, "SENT");
+    expect(await prisma.auditLog.count({ where: { entityId: p.id } })).toBe(0);
+  });
+});

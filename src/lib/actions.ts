@@ -13,6 +13,7 @@ import { passwordProblem } from "@/lib/password-policy";
 import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
 import { deleteObject, storageConfig } from "@/lib/storage";
 import { errorsFromAdding } from "@/lib/question-bank";
+import { PLAN_TRANSITIONS } from "@/lib/plan-status";
 
 /** A form date ("YYYY-MM-DD"). An invalid one is a message, not a 500 (flags O12). */
 const isDate = (value: string) => !Number.isNaN(Date.parse(value));
@@ -268,16 +269,24 @@ export async function updatePlanStatus(formData: FormData) {
     where: { id, client: session.user.role === "ADMIN" ? {} : { assignedToId: session.user.id } }
   });
   if (!plan) throw new Error("Plan not found");
+  if (status === plan.status) return;
+  if (!PLAN_TRANSITIONS[plan.status].includes(status)) {
+    throw new Error(`A ${plan.status.toLowerCase()} plan cannot become ${status.toLowerCase()}`);
+  }
   const now = new Date();
-  await prisma.investmentPlan.update({
-    where: { id },
+  // Conditional on the status just checked, so two changes at once cannot
+  // both pass the check.
+  const { count } = await prisma.investmentPlan.updateMany({
+    where: { id, status: plan.status },
     data: {
       status,
-      sentDate: status === "SENT" && !plan.sentDate ? now : undefined,
+      // Pulled back to draft: it is no longer sent.
+      sentDate: status === "DRAFT" ? null : status === "SENT" && !plan.sentDate ? now : undefined,
       acceptedDate: (status === "ACCEPTED" || status === "ACTIVE") && !plan.acceptedDate ? now : undefined
     }
   });
-  await log(session.user.id, "UPDATE", "InvestmentPlan", `Status changed to ${status}`, id);
+  if (count === 0) throw new Error("This plan was changed elsewhere; reload and try again");
+  await log(session.user.id, "UPDATE", "InvestmentPlan", `Status changed from ${plan.status} to ${status}`, id);
   revalidatePath("/plans");
   revalidatePath("/dashboard");
 }
