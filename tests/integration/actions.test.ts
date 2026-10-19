@@ -423,6 +423,8 @@ describe("adding a question in the editor", () => {
       ).toBeDefined();
     }
     expect(await prisma.questionItem.count()).toBe(3);
+    // No guessing value sent: the one default, as the schema and import template use (O16).
+    expect((await prisma.questionItem.findFirstOrThrow()).guessing).toBe(0.25);
   });
 
   it("refuses a question that would make the answer key passable by always choosing one letter", async () => {

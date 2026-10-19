@@ -100,7 +100,8 @@ const questionSchema = z.object({
   explanation: z.string().min(10).max(1000),
   difficulty: z.coerce.number().min(-4).max(4).default(0),
   discrimination: z.coerce.number().min(0.25).max(3).default(1),
-  guessing: z.coerce.number().min(0).max(0.5).default(0.2)
+  // One default everywhere: 0.25, the blind-hit chance on four options (O16).
+  guessing: z.coerce.number().min(0).max(0.5).default(0.25)
 });
 
 const userSchema = z.object({
