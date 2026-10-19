@@ -7,12 +7,16 @@ import { Card, PageHeader, StatCard, StatusBadge } from "@/components/ui";
 import { LogMeetingDialog } from "@/components/log-meeting-dialog";
 import { LEVEL_LABEL } from "@/lib/irt";
 import { loadTrackProgress, nextStep } from "@/lib/knowledge";
+import { loadFollowUps, startOfTodayIst } from "@/lib/follow-ups";
+
+/** How many follow-ups the dashboard lists before "and N more". */
+const FOLLOW_UPS_SHOWN = 6;
 
 export default async function DashboardPage() {
   const session = await requireSession();
   const scope = scopedUserFilter(session);
   const meetingScope = session.user.role === "ADMIN" ? {} : { ownerId: session.user.id };
-  const now = new Date();
+  const today = startOfTodayIst();
 
   const firstTrack = await prisma.track.findFirst({ where: { isActive: true }, orderBy: { order: "asc" } });
   const [meetings, prospects, prospectNames, clients, plans, reviews, recent, upcoming, reviewDue, certs, standing] =
@@ -33,16 +37,11 @@ export default async function DashboardPage() {
         take: 7,
         include: { prospect: true, client: true, owner: true }
       }),
-      prisma.meetingLog.findMany({
-        where: { ...meetingScope, followUpDate: { gte: now } },
-        orderBy: { followUpDate: "asc" },
-        take: 5,
-        include: { prospect: true, client: true }
-      }),
+      loadFollowUps(scope),
       prisma.portfolioReview.findMany({
         where: {
           client: scope,
-          nextReviewDate: { gte: now }
+          nextReviewDate: { gte: today }
         },
         orderBy: { nextReviewDate: "asc" },
         take: 5,
@@ -195,22 +194,32 @@ export default async function DashboardPage() {
         <div className="space-y-5">
           <Card>
             <div className="border-b border-line px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted">
-              Upcoming follow-ups
+              Follow-ups
             </div>
             <div className="divide-y divide-line">
               {upcoming.length ? (
-                upcoming.map((item) => (
-                  <div key={item.id} className="flex items-center gap-3 px-4 py-3">
-                    <Clock size={16} className="text-amber" />
-                    <div>
-                      <div className="text-sm font-semibold text-ink">{item.prospect?.name || item.client?.name}</div>
-                      <div className="text-xs text-muted">{item.followUpDate ? dateLabel(item.followUpDate) : ""}</div>
+                upcoming.slice(0, FOLLOW_UPS_SHOWN).map((item) => (
+                  <Link key={item.key} href={item.href} className="flex items-center gap-3 px-4 py-3 hover:bg-wash">
+                    <Clock size={16} className={item.when === "overdue" ? "text-rose" : "text-amber"} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-ink">{item.name}</div>
+                      <div className="text-xs text-muted">
+                        {dateLabel(item.date)} · {item.kind === "prospect" ? "Prospect" : "Client"}
+                      </div>
                     </div>
-                  </div>
+                    {item.when === "upcoming" ? null : (
+                      <StatusBadge tone={item.when === "overdue" ? "rose" : "amber"}>
+                        {item.when === "overdue" ? "Overdue" : "Today"}
+                      </StatusBadge>
+                    )}
+                  </Link>
                 ))
               ) : (
-                <div className="px-4 py-6 text-sm text-muted">No upcoming follow-ups.</div>
+                <div className="px-4 py-6 text-sm text-muted">No follow-ups due.</div>
               )}
+              {upcoming.length > FOLLOW_UPS_SHOWN ? (
+                <div className="px-4 py-2 text-xs text-muted">and {upcoming.length - FOLLOW_UPS_SHOWN} more</div>
+              ) : null}
             </div>
           </Card>
           <Card>
