@@ -94,17 +94,47 @@ export function estimateEap(responses: ResponseLike[], questions: QuestionLike[]
  * The most informative unused question. Deterministic: the answer route
  * recomputes this to check which question is current.
  */
-export function selectNextQuestion<T extends QuestionLike>(theta: number, questions: T[], usedQuestionIds: string[]) {
+/**
+ * How many of the most informative questions the next one is drawn from when
+ * a session seed is given. Drawing among a few rather than always taking the
+ * single best costs a little precision and makes a retake a different test
+ * (D4): same answers, different questions.
+ */
+export const SELECTION_POOL = 3;
+
+/**
+ * The next question: the most informative unanswered one at `theta`, or with
+ * a `seed` (the session id), one of the top SELECTION_POOL chosen by the seed
+ * and how many have been answered. Either way the same state always yields
+ * the same question, which the routes rely on: the answer route recomputes
+ * which question is current, and a candidate who leaves and re-enters
+ * fullscreen is handed back the one they left. Without a seed (simulations,
+ * the bank ceiling check) it is the single best.
+ */
+export function selectNextQuestion<T extends QuestionLike>(
+  theta: number,
+  questions: T[],
+  usedQuestionIds: string[],
+  seed?: string
+) {
   const used = new Set(usedQuestionIds);
-  return (
-    questions
-      .filter((question) => !used.has(question.id))
-      // Ties broken by id so the same state always yields the same question.
-      // The bank arrives in no guaranteed order, and a candidate who leaves and
-      // re-enters fullscreen must be handed back the question they left, not a
-      // different one of equal information.
-      .sort((a, b) => information(theta, b) - information(theta, a) || a.id.localeCompare(b.id))[0]
-  );
+  const ranked = questions
+    .filter((question) => !used.has(question.id))
+    // Ties broken by id: the bank arrives in no guaranteed order.
+    .sort((a, b) => information(theta, b) - information(theta, a) || a.id.localeCompare(b.id));
+  if (seed === undefined) return ranked[0];
+  const pool = Math.min(SELECTION_POOL, ranked.length);
+  return ranked[pool && fnv1a(`${seed}:${used.size}`) % pool];
+}
+
+/** 32-bit FNV-1a: a small, stable string hash. Not a secret; it only has to vary per session. */
+function fnv1a(text: string) {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
 }
 
 export function shouldStop(answered: number, se: number) {

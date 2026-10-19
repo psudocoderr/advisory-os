@@ -9,7 +9,7 @@ import { POST as answer } from "@/app/api/certify/answer/route";
 import { POST as finish } from "@/app/api/certify/finish/route";
 import { POST as integrity } from "@/app/api/certify/integrity/route";
 import { finalizeSession, weakestChapters, type FinishReason } from "@/lib/certify-session";
-import { estimateEap, IRT } from "@/lib/irt";
+import { estimateEap, IRT, selectNextQuestion } from "@/lib/irt";
 import { prisma } from "@/lib/prisma";
 import { completeChapters, createTopic, createUser, expire, post, signIn, wrongKey, type TestUser } from "./fixtures";
 
@@ -161,6 +161,35 @@ describe("POST /api/certify/question", () => {
     await readyTrainee(topic);
     expect((await post(question, { sessionId })).status).toBe(404);
     expect((await post(finish, { sessionId, reason: "TIMED_OUT" })).status).toBe(404);
+  });
+});
+
+describe("D4: each attempt draws its own order", () => {
+  it("the routes serve the session's seeded pick, not always the single best question", async () => {
+    const topic = await createTopic();
+    const bank = await prisma.questionItem.findMany({ where: { topicId: topic.topicId } });
+    // Find an attempt whose seeded first pick is not the best one (2 in 3 are).
+    let sessionId = "";
+    for (let tries = 0; tries < 10 && !sessionId; tries += 1) {
+      await readyTrainee(topic);
+      const candidate = await begin(topic);
+      if (selectNextQuestion(0, bank, [], candidate)!.id !== selectNextQuestion(0, bank, [])!.id) sessionId = candidate;
+    }
+    expect(sessionId).not.toBe("");
+
+    const first = (await post(question, { sessionId })).body.question.id;
+    expect(first).toBe(selectNextQuestion(0, bank, [], sessionId)!.id);
+    const item = bank.find((q) => q.id === first)!;
+    const answered = await post(answer, {
+      sessionId,
+      questionId: first,
+      selectedKey: item.correctKey,
+      responseTimeMs: 1
+    });
+    const theta = (await session(sessionId)).abilityEstimate;
+    expect(answered.body.question.id).toBe(selectNextQuestion(theta, bank, [first], sessionId)!.id);
+    // And the question route agrees with what the answer route handed out.
+    expect((await post(question, { sessionId })).body.question.id).toBe(answered.body.question.id);
   });
 });
 
@@ -441,8 +470,10 @@ describe("D5: only published chapters' questions are asked", () => {
     const sessionId = await begin(topic);
 
     await answerNext(sessionId, false);
-    const [first] = await prisma.responseLog.findMany({ where: { sessionId }, include: { question: true } });
-    expect(first.question.chapterId).toBe(extra.id); // the most informative item went first
+    // Whichever question came first (selection varies per attempt, D4), move it
+    // into the extra chapter, then take that chapter away.
+    const [first] = await prisma.responseLog.findMany({ where: { sessionId } });
+    await prisma.questionItem.update({ where: { id: first.questionId }, data: { chapterId: extra.id } });
     await prisma.chapter.update({ where: { id: extra.id }, data: { isPublished: false } });
     await answerNext(sessionId, true);
 

@@ -65,7 +65,8 @@ export async function POST(request: Request) {
   const next = selectNextQuestion(
     testSession.abilityEstimate,
     bank,
-    testSession.responses.map((response) => response.questionId)
+    testSession.responses.map((response) => response.questionId),
+    testSession.id
   );
   if (!next) {
     const estimate = estimateEap(testSession.responses, bank);

@@ -81,7 +81,8 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
   const next = selectNextQuestion(
     session.abilityEstimate,
     bank,
-    session.responses.map((response) => response.questionId)
+    session.responses.map((response) => response.questionId),
+    session.id
   );
   // An exhausted bank is a finished test, not a missing page. Returning 404
   // here is what made the old exhaustion bug unrecoverable: the start route
