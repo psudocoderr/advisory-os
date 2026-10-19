@@ -294,8 +294,9 @@ npm run db:drift         # does the database match schema.prisma?
 npm run lint             # eslint
 npm run typecheck        # tsc --noEmit
 npm run format:check     # prettier
-npm run test             # vitest
+npm run test             # unit tests (vitest)
 npm run test:integration # route handlers on a real database (name must end in _test)
+npm run test:coverage    # both, with the coverage thresholds (needs that database)
 ```
 
 Health check: `GET /api/health` returns `{ ok, database }`, 503 when the

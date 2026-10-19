@@ -4,11 +4,13 @@ import { defineConfig } from "vitest/config";
 /**
  * Integration tests: route handlers and lib code against a real Postgres.
  * Every test starts from empty tables, so the database must be disposable
- * (see tests/integration/setup.ts). Run with `npm run test:integration`.
+ * (see tests/integration/setup.ts). A project of vitest.config.mts;
+ * run with `npm run test:integration`.
  */
 export default defineConfig({
   resolve: { alias: { "@": resolve(import.meta.dirname, "./src") } },
   test: {
+    name: "integration",
     environment: "node",
     include: ["tests/integration/**/*.test.ts"],
     setupFiles: ["tests/integration/setup.ts"],

@@ -61,8 +61,9 @@ instance should use `npm run bootstrap:admin`.
 ```bash
 npm run dev              # development server
 npm run build            # production build
-npm run test             # vitest
+npm run test             # unit tests (vitest)
 npm run test:integration # route handlers on a real database (name must end in _test)
+npm run test:coverage    # both, with the coverage thresholds (needs that database)
 npm run lint             # eslint
 npm run typecheck        # tsc --noEmit
 npm run format           # prettier

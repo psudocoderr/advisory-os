@@ -22,6 +22,10 @@ if (!isEphemeral(target) || !name.endsWith("_test")) {
   );
 }
 
+// No test may reach a real bucket: local.sh exports the dev R2 keys. A test
+// that needs storage sets fake values and mocks the network calls.
+for (const name of Object.keys(process.env)) if (name.startsWith("STORAGE_")) delete process.env[name];
+
 vi.mock("next-auth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next-auth")>()),
   getServerSession: vi.fn(async () => auth.session)

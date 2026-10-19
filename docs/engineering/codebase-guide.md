@@ -403,6 +403,16 @@ file beside it.
 | Change what ends a test | `FinishReason` and `finalizeSession` in `certify-session.ts` |
 | Add an audit event | call `log()` from `actions.ts` — every mutation already does |
 
+**Tests.** `npm test` runs the unit tests (no database). `npm run test:integration`
+runs `tests/integration` against a real Postgres whose database name ends in
+`_test`: route handlers and server actions with only the sign-in faked, every test
+on empty tables. `npm run test:coverage` runs both and enforces the coverage
+thresholds in `vitest.config.mts`; CI runs it in the `integration` job.
+
+**Coverage ratchet.** The thresholds are the measured numbers, rounded down. A PR
+that raises coverage raises them to the new numbers, rounded down; no PR lowers
+them. If a change genuinely removes covered code, say so in the PR instead.
+
 ---
 
 ## 8. Gotchas
