@@ -4,6 +4,7 @@ import { requireSession, scopedUserFilter } from "@/lib/auth";
 import { compactInr, dateLabel, titleCase } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { FilePlus } from "lucide-react";
+import { ActionForm } from "@/components/action-form";
 import { FormDialog } from "@/components/form-dialog";
 import { Card, PageHeader, StatusBadge, SubmitButton, TableScroll } from "@/components/ui";
 
@@ -146,7 +147,7 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
                     Accepted: {plan.acceptedDate ? dateLabel(plan.acceptedDate) : "None"}
                   </td>
                   <td className="px-4 py-3">
-                    <form action={updatePlanStatus} className="flex gap-2">
+                    <ActionForm action={updatePlanStatus} className="flex flex-wrap gap-2">
                       <input type="hidden" name="id" value={plan.id} />
                       <select className="field min-w-32" name="status" defaultValue={plan.status}>
                         {planStatusChoices(plan.status).map((value) => (
@@ -156,7 +157,7 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
                         ))}
                       </select>
                       <button className="rounded border border-line px-2 text-xs font-bold">Update</button>
-                    </form>
+                    </ActionForm>
                   </td>
                 </tr>
               ))}

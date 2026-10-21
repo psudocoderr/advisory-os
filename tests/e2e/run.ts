@@ -373,7 +373,7 @@ async function main() {
     cookies.a,
     "createUser",
     { name: "Intruder", email: "intruder@e2e.local", password: "long enough password", role: "ADMIN" },
-    false
+    true
   );
   check("3 actions", "advisor creating an admin account", "redirect /dashboard", created);
   check("3 actions", "no account created", 0, await db.user.count({ where: { email: "intruder@e2e.local" } }));
@@ -401,7 +401,7 @@ async function main() {
     await db.prospect.count({ where: { name: "Ghost" } })
   );
   // Positive control: the same wire format works for someone allowed to.
-  await action(cookies.admin, "updateUserActive", { id: spare.id, isActive: "false" }, false);
+  await action(cookies.admin, "updateUserActive", { id: spare.id, isActive: "false" }, true);
   check(
     "3 actions",
     "admin deactivates an account",
