@@ -1,7 +1,7 @@
 import { decide, IRT, LEVEL_LABEL, outranks, type Decision } from "@/lib/irt";
 import { chapterHref } from "@/lib/knowledge";
 import { FULLSCREEN_KINDS, isOnExamSurface, type IntegrityKind } from "@/lib/integrity";
-import { Prisma } from "@prisma/client";
+import { Prisma, type BadgeLevel } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -168,16 +168,14 @@ export async function finalizeSession(params: {
 
   /**
    * What an already-finished session recorded, reported instead of finishing
-   * it again (D12): the level and answer count come from the stored attempt,
-   * the same way the first finish worked them out. The reason is stored only
+   * it again (D12): the level and answer count come from the stored attempt. The reason is stored only
    * through the status, so it is derived where the status decides it
    * (TERMINATED, ABANDONED) and otherwise left as the caller's.
    */
   const storedResult = async (stored: {
     status: string;
     certified: boolean;
-    abilityEstimate: number;
-    standardError: number;
+    badgeLevel: BadgeLevel | null;
   }): Promise<SessionResult> => {
     const wasTerminated = stored.status === "TERMINATED";
     const wasAbandoned = stored.status === "ABANDONED";
@@ -190,7 +188,11 @@ export async function finalizeSession(params: {
         ? "Terminated"
         : wasAbandoned
           ? "Not attempted"
-          : levelLabel(decide(stored.abilityEstimate, stored.standardError, percentCorrect)),
+          : stored.badgeLevel
+            ? LEVEL_LABEL[stored.badgeLevel]
+            : stored.status === "INCONCLUSIVE"
+              ? "Inconclusive"
+              : "Not certified",
       reason: wasTerminated ? "INTEGRITY_TERMINATED" : wasAbandoned ? "TIMED_OUT" : reason,
       answered: await prisma.responseLog.count({ where: { sessionId } }),
       remediation: stored.certified || wasTerminated || wasAbandoned ? [] : await weakestChapters(sessionId)
@@ -216,6 +218,7 @@ export async function finalizeSession(params: {
       abilityEstimate: theta,
       standardError: se,
       certified: passed,
+      badgeLevel,
       status: terminated
         ? "TERMINATED"
         : abandoned
