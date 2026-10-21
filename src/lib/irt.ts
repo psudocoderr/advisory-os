@@ -174,7 +174,7 @@ const LEVELS: BadgeLevel[] = ["SATISFACTORY", "PROFICIENT", "EXPERT"];
  * roughly the same range and cannot rank people; theta does that. The floor
  * only stops a lucky theta from carrying a badge alongside a poor hit rate.
  */
-export const LEVEL_FLOOR: Record<BadgeLevel, number> = { SATISFACTORY: 50, PROFICIENT: 60, EXPERT: 70 };
+export const LEVEL_FLOOR: Record<BadgeLevel, number> = { SATISFACTORY: 60, PROFICIENT: 70, EXPERT: 80 };
 
 /**
  * The badge an attempt earns: the highest level whose theta band and percent

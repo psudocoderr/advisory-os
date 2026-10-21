@@ -250,8 +250,8 @@ describe("badgeLevel", () => {
   });
 
   it("keeps dropping until a floor is met, rather than stopping one band down", () => {
-    // Expert theta at 55%: Proficient needs 60 too, so the badge is Satisfactory.
-    expect(badgeLevel(1.6, 55)).toBe("SATISFACTORY");
+    // Expert theta at 65%: Proficient needs 70 too, so the badge is Satisfactory.
+    expect(badgeLevel(1.6, 65)).toBe("SATISFACTORY");
   });
 
   it("awards nothing when even the lowest floor is missed", () => {
@@ -290,8 +290,8 @@ describe("decide", () => {
   });
 
   it("still applies the percent floors", () => {
-    expect(decide(2.5, 0.2, 65)).toEqual({ outcome: "PASS", level: "PROFICIENT" });
-    expect(decide(2.5, 0.2, 40)).toEqual({ outcome: "FAIL" });
+    expect(decide(2.5, 0.2, 75)).toEqual({ outcome: "PASS", level: "PROFICIENT" });
+    expect(decide(2.5, 0.2, 50)).toEqual({ outcome: "FAIL" });
   });
 
   it("reproduces flags.md D2: the shaky Expert is no longer certified as Expert", () => {
