@@ -420,6 +420,10 @@ model TestSession {
   abilityEstimate Float             @default(0)
   standardError   Float             @default(99)
   certified       Boolean           @default(false)
+  /// The level this attempt passed at, fixed when it finished, so changing
+  /// the level floors later does not relabel past results. Null unless
+  /// certified.
+  badgeLevel      BadgeLevel?
   attemptNumber   Int               @default(1)
   status          TestSessionStatus @default(IN_PROGRESS)
   createdAt       DateTime          @default(now())

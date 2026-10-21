@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
-import { decide, deadlineFor, IRT, LEVEL_LABEL, selectNextQuestion } from "@/lib/irt";
+import { deadlineFor, IRT, LEVEL_LABEL, selectNextQuestion } from "@/lib/irt";
 import { questionBank, sessionPercentCorrect, weakestChapters } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
 import { Card, HowThisWorks, PageHeader, StatusBadge } from "@/components/ui";
@@ -25,8 +25,7 @@ export default async function TestSessionPage({ params }: { params: Promise<{ se
     // From the attempt itself, not the badge row: a retake that scores lower
     // than the badge already held passes without replacing it.
     const percentCorrect = await sessionPercentCorrect(session.id);
-    const decision = decide(session.abilityEstimate, session.standardError, percentCorrect);
-    const level = decision.outcome === "PASS" ? decision.level : null;
+    const level = session.badgeLevel;
     return (
       <>
         <PageHeader

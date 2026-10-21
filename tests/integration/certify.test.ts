@@ -9,7 +9,8 @@ import { POST as answer } from "@/app/api/certify/answer/route";
 import { POST as finish } from "@/app/api/certify/finish/route";
 import { POST as integrity } from "@/app/api/certify/integrity/route";
 import { finalizeSession, weakestChapters, type FinishReason } from "@/lib/certify-session";
-import { estimateEap, IRT, selectNextQuestion } from "@/lib/irt";
+import { estimateEap, IRT, LEVEL_FLOOR, selectNextQuestion } from "@/lib/irt";
+import { loadTraineeReport } from "@/lib/trainee-report";
 import { prisma } from "@/lib/prisma";
 import { completeChapters, createTopic, createUser, expire, post, signIn, wrongKey, type TestUser } from "./fixtures";
 
@@ -419,6 +420,21 @@ describe("finalizeSession", () => {
     const badges = await prisma.certification.findMany({ where: { userId: attempt.user.id } });
     expect(badges.map((badge) => badge.badgeLevel)).toEqual(status === "PASSED" ? ["EXPERT"] : []);
     expect(stored.certified).toBe(status === "PASSED");
+    expect(stored.badgeLevel).toBe(status === "PASSED" ? "EXPERT" : null);
+  });
+
+  it("reports the level stored at finish, even after the floors change", async () => {
+    const attempt = await openAttempt(10, true);
+    await finalize(attempt, 2, 0.2, 10, "STOP_RULE");
+    const floor = LEVEL_FLOOR.EXPERT;
+    LEVEL_FLOOR.EXPERT = 101; // no attempt could reach Expert now
+    try {
+      const again = await finalize(attempt, 2, 0.2, 10, "STOP_RULE");
+      expect(again).toMatchObject({ passed: true, level: "Expert" });
+      expect((await loadTraineeReport(attempt.user.id))?.attempts[0].level).toBe("Expert");
+    } finally {
+      LEVEL_FLOOR.EXPERT = floor;
+    }
   });
 
   it("is idempotent: a second call reports the stored result and issues nothing", async () => {
@@ -485,6 +501,7 @@ describe("finalizeSession", () => {
     });
     const result = await finalize({ user: first.user, sessionId: retake.id }, 1.0, 0.2, 10, "STOP_RULE");
     expect(result).toMatchObject({ passed: true, level: "Satisfactory" });
+    expect((await session(retake.id)).badgeLevel).toBe("SATISFACTORY");
     const badges = await prisma.certification.findMany({ where: { userId: first.user.id } });
     expect(badges.map((badge) => [badge.badgeLevel, badge.sessionId])).toEqual([["EXPERT", first.sessionId]]);
   });

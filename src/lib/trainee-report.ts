@@ -1,5 +1,5 @@
 import type { TestSessionStatus } from "@prisma/client";
-import { decide, LEVEL_LABEL } from "@/lib/irt";
+import { LEVEL_LABEL } from "@/lib/irt";
 import { prisma } from "@/lib/prisma";
 
 export type AttemptRow = {
@@ -36,18 +36,15 @@ export async function loadTraineeReport(userId: string) {
     const percentCorrect = answered
       ? (100 * session.responses.filter((response) => response.isCorrect).length) / answered
       : null;
-    // Recomputed per attempt, as on the result page: a retake can pass below
-    // the badge already held, so the badge row is not this attempt's level.
-    const decision = session.certified
-      ? decide(session.abilityEstimate, session.standardError, percentCorrect ?? 0)
-      : null;
+    // The attempt's own level, not the badge row's: a retake can pass below
+    // the badge already held.
     return {
       id: session.id,
       test: session.topic?.title ?? `${session.track.title} final exam`,
       attemptNumber: session.attemptNumber,
       date: session.completedAt ?? session.startedAt,
       status: session.status,
-      level: decision?.outcome === "PASS" ? LEVEL_LABEL[decision.level] : null,
+      level: session.badgeLevel ? LEVEL_LABEL[session.badgeLevel] : null,
       theta: answered ? session.abilityEstimate : null,
       se: answered ? session.standardError : null,
       percentCorrect,
