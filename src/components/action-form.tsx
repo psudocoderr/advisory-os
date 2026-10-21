@@ -27,6 +27,9 @@ export function ActionForm({
   return (
     <form
       ref={formRef}
+      // Only for a submit before hydration: without it the browser sends a GET
+      // and puts every field, a new user's password included, in the URL.
+      method="post"
       // Submitted by hand: React resets a form after its `action` runs, which
       // would wipe the fields on an error.
       onSubmit={(event) => {
