@@ -30,6 +30,7 @@ prisma/generated/
 # they ARE the schema's source of truth and must be committed and reviewed.
 *.sql
 !prisma/migrations/**/*.sql
+!tests/migrations/**/*.sql
 *.dump
 backups/
 

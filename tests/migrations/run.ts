@@ -72,6 +72,8 @@ async function main() {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
+  // A case left untracked (as *.sql once was by .gitignore) would pass by not running.
+  if (cases.length === 0) throw new Error(`${CASES}: no cases found`);
   const db = new PrismaClient();
   let failures = 0;
 
