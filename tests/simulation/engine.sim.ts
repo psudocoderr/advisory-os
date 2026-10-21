@@ -226,13 +226,13 @@ describe("D15.3 boundaries", () => {
     expect(at(1.5)).toEqual({ outcome: "PASS", level: "EXPERT" });
   });
 
-  it("applies the percent floors exactly at 50, 60 and 70", () => {
-    expect(badgeLevel(2, 70)).toBe("EXPERT");
-    expect(badgeLevel(2, 69.99)).toBe("PROFICIENT");
-    expect(badgeLevel(2, 60)).toBe("PROFICIENT");
-    expect(badgeLevel(2, 59.99)).toBe("SATISFACTORY");
-    expect(badgeLevel(2, 50)).toBe("SATISFACTORY");
-    expect(badgeLevel(2, 49.99)).toBeNull();
+  it("applies the percent floors exactly at 60, 70 and 80", () => {
+    expect(badgeLevel(2, 80)).toBe("EXPERT");
+    expect(badgeLevel(2, 79.99)).toBe("PROFICIENT");
+    expect(badgeLevel(2, 70)).toBe("PROFICIENT");
+    expect(badgeLevel(2, 69.99)).toBe("SATISFACTORY");
+    expect(badgeLevel(2, 60)).toBe("SATISFACTORY");
+    expect(badgeLevel(2, 59.99)).toBeNull();
   });
 
   it("does not move a result across a cut through the 0.1 grid alone", () => {
