@@ -262,17 +262,20 @@ export async function createPlan(_prev: FormState, formData: FormData): Promise<
   return done();
 }
 
-export async function updatePlanStatus(formData: FormData) {
+export async function updatePlanStatus(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireSession();
   const id = z.string().parse(formData.get("id"));
   const status = z.nativeEnum(PlanStatus).parse(formData.get("status"));
   const plan = await prisma.investmentPlan.findFirst({
     where: { id, client: session.user.role === "ADMIN" ? {} : { assignedToId: session.user.id } }
   });
-  if (!plan) throw new Error("Plan not found");
-  if (status === plan.status) return;
+  if (!plan) return { error: "Plan not found" };
+  if (status === plan.status) return done();
+  // Reachable from a page left open while the plan changed elsewhere.
   if (!PLAN_TRANSITIONS[plan.status].includes(status)) {
-    throw new Error(`A ${plan.status.toLowerCase()} plan cannot become ${status.toLowerCase()}`);
+    return {
+      error: `This plan is now ${plan.status.toLowerCase()} and cannot become ${status.toLowerCase()}; reload the page`
+    };
   }
   const now = new Date();
   // Conditional on the status just checked, so two changes at once cannot
@@ -286,10 +289,11 @@ export async function updatePlanStatus(formData: FormData) {
       acceptedDate: (status === "ACCEPTED" || status === "ACTIVE") && !plan.acceptedDate ? now : undefined
     }
   });
-  if (count === 0) throw new Error("This plan was changed elsewhere; reload and try again");
+  if (count === 0) return { error: "This plan was changed elsewhere; reload and try again" };
   await log(session.user.id, "UPDATE", "InvestmentPlan", `Status changed from ${plan.status} to ${status}`, id);
   revalidatePath("/plans");
   revalidatePath("/dashboard");
+  return done();
 }
 
 export async function createReview(_prev: FormState, formData: FormData): Promise<FormState> {
@@ -430,14 +434,15 @@ export async function createQuestionItem(_prev: FormState, formData: FormData): 
  * Checks the chapter is open to them. The page only shows the button on an
  * open chapter, but a form post can name any chapter id.
  */
-export async function markChapterComplete(formData: FormData) {
+export async function markChapterComplete(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireSession();
   const chapterId = z.string().min(1).parse(formData.get("chapterId"));
   const chapter = await prisma.chapter.findUnique({
     where: { id: chapterId },
     include: { topic: { include: { module: { include: { track: true } } } } }
   });
-  if (!chapter || !chapter.isPublished) throw new Error("Chapter not found");
+  // Reachable from a page left open while the chapter was unpublished.
+  if (!chapter || !chapter.isPublished) return { error: "This chapter is no longer published; reload the page" };
   const { topic } = chapter;
   const { track } = topic.module;
 
@@ -445,7 +450,7 @@ export async function markChapterComplete(formData: FormData) {
   const state = standing?.progress
     .find((row) => row.id === topic.id)
     ?.chapters.find((row) => row.id === chapterId)?.state;
-  if (state !== "open" && state !== "complete") throw new Error("This chapter is locked");
+  if (state !== "open" && state !== "complete") return { error: "This chapter is locked; reload the page" };
 
   await prisma.chapterCompletion.upsert({
     where: { userId_chapterId: { userId: session.user.id, chapterId } },
@@ -454,6 +459,7 @@ export async function markChapterComplete(formData: FormData) {
   });
   revalidatePath(chapterHref(track.slug, topic.module.slug, topic.slug, chapter.slug));
   revalidatePath(`/knowledge/${track.slug}`);
+  return done();
 }
 
 // --- Knowledge editor (admin) -------------------------------------------------
@@ -771,32 +777,40 @@ async function nextOrder(kind: "track" | "topic" | "chapter", where: { moduleId?
   return (max._max.order ?? 0) + 1;
 }
 
-export async function createUser(formData: FormData) {
+export async function createUser(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireAdmin();
-  const parsed = userSchema.parse(Object.fromEntries(formData));
+  const result = userSchema.safeParse(Object.fromEntries(formData));
+  if (!result.success) return formError(result.error);
+  const parsed = result.data;
   const existing = await prisma.user.findUnique({ where: { email: parsed.email } });
-  if (existing) throw new Error("A user with this email already exists");
+  if (existing) return { error: DUPLICATE.userEmail };
 
-  const user = await prisma.user.create({
-    data: {
-      name: parsed.name,
-      email: parsed.email,
-      role: parsed.role,
-      passwordHash: await bcrypt.hash(parsed.password, 12)
-    }
-  });
+  let user;
+  try {
+    user = await prisma.user.create({
+      data: {
+        name: parsed.name,
+        email: parsed.email,
+        role: parsed.role,
+        passwordHash: await bcrypt.hash(parsed.password, 12)
+      }
+    });
+  } catch (error) {
+    return duplicateError(error, { email: DUPLICATE.userEmail });
+  }
   await log(session.user.id, "CREATE", "User", `${user.name} added`, user.id);
   revalidatePath("/admin");
+  return done();
 }
 
-export async function updateUserActive(formData: FormData) {
+export async function updateUserActive(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requireAdmin();
   const id = z.string().parse(formData.get("id"));
   const isActive = z
     .enum(["true", "false"])
     .transform((value) => value === "true")
     .parse(formData.get("isActive"));
-  if (id === session.user.id && !isActive) throw new Error("You cannot deactivate your own account");
+  if (id === session.user.id && !isActive) return { error: "You cannot deactivate your own account" };
 
   const user = await prisma.user.update({
     where: { id },
@@ -804,6 +818,7 @@ export async function updateUserActive(formData: FormData) {
   });
   await log(session.user.id, "UPDATE", "User", `${user.name} ${isActive ? "activated" : "deactivated"}`, user.id);
   revalidatePath("/admin");
+  return done();
 }
 
 export async function signInRedirect() {
@@ -817,7 +832,8 @@ async function log(actorId: string, action: string, entity: string, summary: str
 const DUPLICATE = {
   prospectPhone: "A prospect with this mobile number already exists",
   clientPhone: "A client with this mobile number already exists",
-  clientPan: "A client with this PAN already exists"
+  clientPan: "A client with this PAN already exists",
+  userEmail: "A user with this email already exists"
 };
 
 function done(): FormState {
@@ -825,12 +841,12 @@ function done(): FormState {
 }
 
 /**
- * Turns a unique-constraint race (two people saving the same PAN or mobile at
- * once, after both passed the lookup) into the same message the lookup gives.
+ * Turns a unique-constraint race (two people saving the same PAN, mobile or
+ * email at once, after both passed the lookup) into the same message the lookup gives.
  */
-function duplicateError(error: unknown, messages: Partial<Record<"pan" | "phone", string>>): FormState {
+function duplicateError(error: unknown, messages: Partial<Record<"pan" | "phone" | "email", string>>): FormState {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
   const target = String(error.meta?.target ?? "");
-  const field = (["pan", "phone"] as const).find((name) => target.includes(name) && messages[name]);
+  const field = (["pan", "phone", "email"] as const).find((name) => target.includes(name) && messages[name]);
   return { error: field ? messages[field] : "This record already exists" };
 }

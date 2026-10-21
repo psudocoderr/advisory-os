@@ -108,13 +108,13 @@ export default async function AdminPage() {
                       );
                     })}
                     <td className="px-4 py-3">
-                      <form action={updateUserActive}>
+                      <ActionForm action={updateUserActive}>
                         <input type="hidden" name="id" value={user.id} />
                         <input type="hidden" name="isActive" value={user.isActive ? "false" : "true"} />
                         <button className="rounded border border-line px-2 py-1 text-xs font-bold">
                           {user.isActive ? "Deactivate" : "Activate"}
                         </button>
-                      </form>
+                      </ActionForm>
                     </td>
                   </tr>
                 ))}
@@ -125,7 +125,7 @@ export default async function AdminPage() {
 
         <Card className="p-4">
           <SectionTitle title="Add team user" flush />
-          <form action={createUser} className="mt-4 space-y-3">
+          <ActionForm action={createUser} className="mt-4 space-y-3">
             <input className="field" name="name" placeholder="Full name" required />
             <input className="field" name="email" type="email" placeholder="email@company.com" required />
             <div className="grid grid-cols-2 gap-3">
@@ -143,7 +143,7 @@ export default async function AdminPage() {
               />
             </div>
             <button className="rounded bg-navy px-4 py-2 text-sm font-semibold text-white">Create user</button>
-          </form>
+          </ActionForm>
         </Card>
 
         <Card>

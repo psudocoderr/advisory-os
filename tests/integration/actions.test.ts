@@ -102,7 +102,9 @@ describe("records belong to their advisor", () => {
     const plan = await prisma.investmentPlan.findFirstOrThrow();
 
     signIn(b);
-    await expect(actions.updatePlanStatus(form({ id: plan.id, status: "CLOSED" }))).rejects.toThrow("Plan not found");
+    expect(await actions.updatePlanStatus(NONE, form({ id: plan.id, status: "CLOSED" }))).toEqual({
+      error: "Plan not found"
+    });
     expect((await prisma.investmentPlan.findUniqueOrThrow({ where: { id: plan.id } })).status).toBe("DRAFT");
   });
 
@@ -186,10 +188,11 @@ describe("admin-only actions refuse advisors and signed-out callers", () => {
         "createUser",
         () =>
           actions.createUser(
+            NONE,
             form({ name: "Intruder", email: "new@test.local", password: "long enough pass", role: "ADMIN" })
           )
       ],
-      ["updateUserActive", () => actions.updateUserActive(form({ id: a.id, isActive: "false" }))]
+      ["updateUserActive", () => actions.updateUserActive(NONE, form({ id: a.id, isActive: "false" }))]
     ] as const;
   }
 
@@ -288,22 +291,38 @@ describe("validation", () => {
   it("an admin cannot create an account with a short or published password, and the stored one is hashed", async () => {
     signIn(admin);
     const user = (password: string, email: string) =>
-      actions.createUser(form({ name: "New person", email, password, role: "ADVISOR" }));
-    await expect(user("short", "one@test.local")).rejects.toThrow("Use at least");
-    await expect(user("ChangeMeAdmin123!", "two@test.local")).rejects.toThrow("published");
-    await expect(user("a long enough passphrase", "not an email")).rejects.toThrow("Invalid email");
-    await user("a long enough passphrase", "  Three@Test.local ");
+      actions.createUser(NONE, form({ name: "New person", email, password, role: "ADVISOR" }));
+    // Shown on the form, not thrown to the error page (O1).
+    expect((await user("short", "one@test.local")).error).toMatch("Use at least");
+    expect((await user("ChangeMeAdmin123!", "two@test.local")).error).toMatch("published");
+    expect((await user("a long enough passphrase", "not an email")).error).toMatch(/email/i);
+    expect((await user("a long enough passphrase", "  Three@Test.local ")).ok).toBeDefined();
     const created = await prisma.user.findUniqueOrThrow({ where: { email: "three@test.local" } });
     expect(created.passwordHash).not.toContain("passphrase");
     expect(await bcrypt.compare("a long enough passphrase", created.passwordHash)).toBe(true);
-    await expect(user("another long passphrase", "three@test.local")).rejects.toThrow("already exists");
+    expect(await user("another long passphrase", "three@test.local")).toEqual({
+      error: "A user with this email already exists"
+    });
+  });
+
+  it("two admins adding the same email at once: one account, and the other sees a message", async () => {
+    signIn(admin);
+    const add = () =>
+      actions.createUser(
+        NONE,
+        form({ name: "Twice", email: "twice@test.local", password: "a long enough passphrase", role: "ADVISOR" })
+      );
+    const results = await Promise.all([add(), add(), add()]);
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.filter((result) => result.error === "A user with this email already exists")).toHaveLength(2);
+    expect(await prisma.user.count({ where: { email: "twice@test.local" } })).toBe(1);
   });
 
   it("an admin cannot deactivate their own account", async () => {
     signIn(admin);
-    await expect(actions.updateUserActive(form({ id: admin.id, isActive: "false" }))).rejects.toThrow(
-      "cannot deactivate your own"
-    );
+    expect(await actions.updateUserActive(NONE, form({ id: admin.id, isActive: "false" }))).toEqual({
+      error: "You cannot deactivate your own account"
+    });
     expect((await prisma.user.findUniqueOrThrow({ where: { id: admin.id } })).isActive).toBe(true);
   });
 
@@ -349,11 +368,11 @@ describe("markChapterComplete", () => {
     const draft = await prisma.chapter.create({
       data: { topicId: topic.topicId, slug: "draft", title: "Draft", order: 3 }
     });
-    const mark = (chapterId: string) => actions.markChapterComplete(form({ chapterId }));
+    const mark = (chapterId: string) => actions.markChapterComplete(NONE, form({ chapterId }));
     signIn(a);
 
-    await expect(mark(second.id)).rejects.toThrow("locked");
-    await expect(mark(draft.id)).rejects.toThrow("Chapter not found");
+    expect((await mark(second.id)).error).toMatch("locked");
+    expect((await mark(draft.id)).error).toMatch("no longer published");
     await mark(topic.chapterId);
     await mark(topic.chapterId); // twice is harmless
     await mark(second.id);
@@ -370,7 +389,7 @@ describe("markChapterComplete", () => {
       data: { topicId: later.id, slug: "c", title: "C", order: 1, isPublished: true }
     });
     signIn(a);
-    await expect(actions.markChapterComplete(form({ chapterId: chapter.id }))).rejects.toThrow("locked");
+    expect((await actions.markChapterComplete(NONE, form({ chapterId: chapter.id }))).error).toMatch("locked");
   });
 });
 
@@ -483,7 +502,7 @@ describe("plan status changes (O22)", () => {
       }
     });
   }
-  const move = (id: string, status: string) => actions.updatePlanStatus(form({ id, status }));
+  const move = (id: string, status: string) => actions.updatePlanStatus(NONE, form({ id, status }));
   const stored = (id: string) => prisma.investmentPlan.findUniqueOrThrow({ where: { id } });
 
   it("moves forward and fills the dates; pulling back to draft clears the sent date", async () => {
@@ -510,7 +529,7 @@ describe("plan status changes (O22)", () => {
   ] as const)("refuses %s to %s and changes nothing", async (from, to) => {
     const p = await plan(from);
     signIn(a);
-    await expect(move(p.id, to)).rejects.toThrow("cannot become");
+    expect((await move(p.id, to)).error).toMatch("cannot become");
     expect((await stored(p.id)).status).toBe(from);
     expect(await prisma.auditLog.count({ where: { entityId: p.id } })).toBe(0);
   });

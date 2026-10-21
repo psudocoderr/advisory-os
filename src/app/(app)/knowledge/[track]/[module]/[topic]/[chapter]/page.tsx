@@ -5,6 +5,7 @@ import { markChapterComplete } from "@/lib/actions";
 import { requireSession } from "@/lib/auth";
 import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
 import { prisma } from "@/lib/prisma";
+import { ActionForm } from "@/components/action-form";
 import { Card, HowThisWorks } from "@/components/ui";
 import { ChapterBody } from "@/components/chapter-body";
 import { ChapterStateIcon } from "@/components/knowledge";
@@ -134,12 +135,12 @@ export default async function ChapterPage({
                 Completed
               </span>
             ) : (
-              <form action={markChapterComplete}>
+              <ActionForm action={markChapterComplete} className="flex flex-col items-end gap-2">
                 <input type="hidden" name="chapterId" value={chapter.id} />
                 <button className="rounded bg-navy px-4 py-2 text-sm font-semibold text-white hover:bg-teal">
                   Mark as complete
                 </button>
-              </form>
+              </ActionForm>
             )}
             {next !== null && nextOpen ? (
               <Link
