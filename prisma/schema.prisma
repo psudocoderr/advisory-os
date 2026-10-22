@@ -217,6 +217,8 @@ model MeetingLog {
 
   @@index([meetingDate])
   @@index([ownerId])
+  /// Also, in SQL only: exactly one of prospectId and clientId is set
+  /// (meeting_logs_one_subject_check, migration 20261022090000_cross_table_rules).
   @@map("meeting_logs")
 }
 
@@ -296,6 +298,8 @@ model Module {
 
   @@unique([trackId, order])
   @@unique([trackId, slug])
+  /// Also, in SQL only: triggers refuse moving a module, or one of its topics,
+  /// to another track (migration 20261022090000_cross_table_rules).
   @@map("modules")
 }
 
@@ -344,6 +348,8 @@ model Chapter {
 
   @@unique([topicId, order])
   @@unique([topicId, slug])
+  /// Lets a question's (chapterId, topicId) reference a chapter of that topic.
+  @@unique([id, topicId])
   @@map("chapters")
 }
 
@@ -397,7 +403,8 @@ model QuestionItem {
   updatedAt      DateTime @updatedAt
 
   topic     Topic         @relation(fields: [topicId], references: [id], onDelete: Restrict)
-  chapter   Chapter       @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  /// Both columns, so the chapter must belong to the question's topic.
+  chapter   Chapter       @relation(fields: [chapterId, topicId], references: [id, topicId], onDelete: Restrict)
   createdBy User          @relation("QuestionAuthor", fields: [createdById], references: [id])
   responses ResponseLog[]
 
@@ -443,6 +450,8 @@ model TestSession {
   /// topicId IS NOT NULL, and test_sessions_one_open_final_exam_key, unique
   /// (userId, trackId) WHERE topicId IS NULL. See migrations
   /// 20261017120000_one_open_test_session and 20261018090000_topics.
+  /// A trigger also refuses a topicId outside trackId (migration
+  /// 20261022090000_cross_table_rules); certifications have the same one.
   @@map("test_sessions")
 }
 
