@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { PrismaClient, Prisma } from "@prisma/client";
 import { assertDestructiveAllowed, findExcessData } from "../scripts/db-target.mjs";
+import { deleteObject, storageConfig } from "../src/lib/storage";
 
 const prisma = new PrismaClient();
 
@@ -595,8 +596,11 @@ async function clear() {
   await prisma.testSession.deleteMany();
   await prisma.questionItem.deleteMany();
   await prisma.chapterCompletion.deleteMany();
-  // Rows only: files already in the bucket are not touched.
+  // Every key was generated for an upload into this database (objectKey is a
+  // fresh UUID), so its file belongs to no other environment sharing the bucket.
+  const keys = (await prisma.asset.findMany({ select: { key: true } })).map((row) => row.key);
   await prisma.asset.deleteMany();
+  await removeFiles(keys);
   await prisma.chapter.deleteMany();
   await prisma.topic.deleteMany();
   await prisma.module.deleteMany();
@@ -608,6 +612,23 @@ async function clear() {
   await prisma.prospect.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.user.deleteMany();
+}
+
+/** Deletes the bucket files of the asset rows clear() removed. A failure only warns: the reseed still finishes. */
+async function removeFiles(keys: string[]) {
+  if (keys.length === 0) return;
+  const config = storageConfig();
+  if (!config) {
+    console.warn(`!!  Storage is not configured: ${keys.length} files stay in the bucket.`);
+    return;
+  }
+  const results = await Promise.allSettled(keys.map((key) => deleteObject(config, key)));
+  const failed = keys.filter((_, i) => {
+    const result = results[i];
+    return result.status === "rejected" || !result.value.ok;
+  });
+  console.log(`Deleted ${keys.length - failed.length} of ${keys.length} files from the bucket.`);
+  if (failed.length) console.warn(`!!  Still in the bucket:\n  ${failed.join("\n  ")}`);
 }
 
 main()
