@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Award, Clock, Lock } from "lucide-react";
+import { Award, ChevronDown, Clock, Lock } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { LEVEL_LABEL } from "@/lib/irt";
 import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
@@ -30,28 +30,50 @@ export default async function TrackPage({ params }: { params: Promise<{ track: s
       <div className="space-y-8">
         {track.modules.map((module, moduleIndex) => {
           const moduleStanding = moduleProgress[moduleIndex];
+          // Nothing published to pass yet: the rules skip it, the page says so.
+          const comingSoon = moduleStanding.topicsCounted === 0;
           return (
-            <section key={module.id} className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-lg font-bold text-ink">
+            // Native <details>: folds without client JavaScript. The module
+            // being worked on starts open; locked and empty ones start closed.
+            <details
+              key={module.id}
+              className="group space-y-4"
+              open={moduleStanding.unlocked && !comingSoon ? true : undefined}
+            >
+              <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal [&::-webkit-details-marker]:hidden">
+                <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+                  <ChevronDown
+                    size={20}
+                    aria-hidden
+                    className="shrink-0 -rotate-90 text-muted transition-transform group-open:rotate-0"
+                  />
                   Module {module.number} · {module.title}
                 </h2>
                 <div className="flex items-center gap-2 text-xs text-muted">
                   {moduleStanding.badgeLevel ? (
                     <StatusBadge tone="teal">{LEVEL_LABEL[moduleStanding.badgeLevel]}</StatusBadge>
                   ) : null}
-                  {moduleStanding.unlocked ? (
-                    <span>
-                      {moduleStanding.topicsPassed}/{moduleStanding.topicsCounted} topics passed
-                    </span>
-                  ) : (
+                  {!moduleStanding.unlocked ? (
                     <span className="flex items-center gap-1.5">
                       <Lock size={14} aria-label="Locked" />
                       Earn the previous module badge
                     </span>
+                  ) : comingSoon ? (
+                    <span className="flex items-center gap-1.5">
+                      <Clock size={14} />
+                      Coming Soon....
+                    </span>
+                  ) : (
+                    <span>
+                      {moduleStanding.topicsPassed}/{moduleStanding.topicsCounted} topics passed
+                    </span>
                   )}
                 </div>
-              </div>
+              </summary>
+
+              {module.topics.length === 0 ? (
+                <Card className="p-5 text-sm text-muted opacity-70">Coming Soon....</Card>
+              ) : null}
 
               {module.topics.map((topic) => {
                 const standingHere = topicProgress.get(topic.id)!;
@@ -133,20 +155,22 @@ export default async function TrackPage({ params }: { params: Promise<{ track: s
                 );
               })}
 
-              <Card className={moduleStanding.badged ? "p-4" : "p-4 opacity-70"}>
-                <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-                  <span className="flex items-center gap-2 font-semibold text-ink">
-                    <Award size={16} className={moduleStanding.badged ? "text-teal" : "text-muted"} />
-                    Module {module.number} badge
-                  </span>
-                  <span className="text-muted">
-                    {moduleStanding.badgeLevel
-                      ? `Earned: ${LEVEL_LABEL[moduleStanding.badgeLevel]}`
-                      : "Pass every topic test in this module"}
-                  </span>
-                </div>
-              </Card>
-            </section>
+              {comingSoon ? null : (
+                <Card className={moduleStanding.badged ? "p-4" : "p-4 opacity-70"}>
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                    <span className="flex items-center gap-2 font-semibold text-ink">
+                      <Award size={16} className={moduleStanding.badged ? "text-teal" : "text-muted"} />
+                      Module {module.number} badge
+                    </span>
+                    <span className="text-muted">
+                      {moduleStanding.badgeLevel
+                        ? `Earned: ${LEVEL_LABEL[moduleStanding.badgeLevel]}`
+                        : "Pass every topic test in this module"}
+                    </span>
+                  </div>
+                </Card>
+              )}
+            </details>
           );
         })}
       </div>
