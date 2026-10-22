@@ -8,7 +8,8 @@ SELECT array_agg(id || ':' || "trackId" || ':' || slug ORDER BY id)
      = ARRAY['module_t2:t2:operational-excellence',
              'module_track_operational_excellence:track_operational_excellence:operational-excellence'] AS ok,
        array_agg(id ORDER BY id) AS detail
-FROM modules;
+-- (Later migrations add other modules, e.g. 20261022120000's Financial Transactions.)
+FROM modules WHERE slug <> 'financial-transactions';
 
 -- topics sit under their track's module, in their old order, all published
 SELECT bool_and("moduleId" = CASE WHEN id = 'm_keep' THEN 'module_t2' ELSE 'module_track_operational_excellence' END)
