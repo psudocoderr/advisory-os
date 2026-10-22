@@ -42,7 +42,9 @@ export default async function GuidePage() {
             </p>
             <p>
               A lock means something is not open yet. A topic marked <strong>Coming soon</strong> has no chapters yet;
-              you skip it for now. Your dashboard always shows the next thing to do.
+              you skip it for now. A module opens once you hold the badge of the module before it; one marked{" "}
+              <strong>Coming Soon....</strong> has nothing to study yet. Use the arrow beside a module&apos;s name to
+              fold it away or open it again. Your dashboard always shows the next thing to do.
             </p>
           </Section>
 
