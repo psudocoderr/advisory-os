@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   FileText,
   Gauge,
+  KeyRound,
   LayoutDashboard,
   PanelLeftClose,
   PanelLeftOpen,
@@ -32,6 +33,19 @@ const nav = [
 ];
 
 const adminNav = [{ href: "/admin", label: "Admin", icon: ShieldCheck }];
+
+function ChangePasswordLink() {
+  return (
+    <Link
+      href="/change-password"
+      title="Change password"
+      aria-label="Change password"
+      className="inline-flex h-8 w-8 items-center justify-center rounded border border-line text-muted hover:bg-wash hover:text-ink"
+    >
+      <KeyRound size={15} />
+    </Link>
+  );
+}
 
 /**
  * The application frame: sidebar, mobile top bar and content column.
@@ -125,6 +139,7 @@ export function AppFrame({
               >
                 {user.name.charAt(0)}
               </div>
+              <ChangePasswordLink />
               <LogoutButton />
             </div>
           ) : (
@@ -136,6 +151,7 @@ export function AppFrame({
                 <div className="truncate text-sm font-semibold text-ink">{user.name}</div>
                 <div className="mono text-[10px] uppercase text-muted">{user.role.toLowerCase()}</div>
               </div>
+              <ChangePasswordLink />
               <LogoutButton />
             </div>
           )}
@@ -153,7 +169,10 @@ export function AppFrame({
                 <div className="mono text-[10px] uppercase text-muted">{user.role.toLowerCase()}</div>
               </div>
             </div>
-            <LogoutButton />
+            <div className="flex items-center gap-2">
+              <ChangePasswordLink />
+              <LogoutButton />
+            </div>
           </div>
           <nav className="flex gap-2 overflow-x-auto px-4 pb-3">
             {items.map((item) => {
