@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -11,6 +12,8 @@ import { prisma } from "@/lib/prisma";
 import { formError, type FormState } from "@/lib/form-state";
 import { panSchema, phoneShape, toE164 } from "@/lib/identifiers";
 import { passwordProblem } from "@/lib/password-policy";
+import { clearLoginFailures, clientIp, loginBlocked, recordLoginFailure, throttleKeys } from "@/lib/login-throttle";
+import { LOGIN_LIMITS } from "@/lib/login-limits";
 import { chapterHref, loadTrackProgress } from "@/lib/knowledge";
 import { deleteObject, storageConfig } from "@/lib/storage";
 import { errorsFromAdding } from "@/lib/question-bank";
@@ -106,15 +109,22 @@ const questionSchema = z.object({
   guessing: z.coerce.number().min(0).max(0.5).default(0.25)
 });
 
+const newPassword = z.string().superRefine((value, ctx) => {
+  const problem = passwordProblem(value);
+  if (problem) ctx.addIssue({ code: "custom", message: problem });
+});
+
+const passwordChangeSchema = z
+  .object({ current: z.string(), password: newPassword, confirm: z.string() })
+  .refine((v) => v.confirm === v.password, { message: "The new passwords do not match.", path: ["confirm"] })
+  .refine((v) => v.current !== v.password, { message: "Choose a password different from the current one." });
+
 const userSchema = z.object({
   name: z.string().min(2).max(120),
   // Normalised before the format check, so a pasted " Name@Firm.com " is
   // accepted and stored the way sign-in looks it up (lowercased, trimmed).
   email: z.string().trim().toLowerCase().email(),
-  password: z.string().superRefine((value, ctx) => {
-    const problem = passwordProblem(value);
-    if (problem) ctx.addIssue({ code: "custom", message: problem });
-  }),
+  password: newPassword,
   role: z.enum(["ADMIN", "ADVISOR"])
 });
 
@@ -818,6 +828,35 @@ export async function updateUserActive(_prev: FormState, formData: FormData): Pr
   });
   await log(session.user.id, "UPDATE", "User", `${user.name} ${isActive ? "activated" : "deactivated"}`, user.id);
   revalidatePath("/admin");
+  return done();
+}
+
+/**
+ * A signed-in user replaces their own password. The current one is required,
+ * so a session left open on a shared computer cannot be used to take the
+ * account over. Wrong guesses count toward the sign-in throttle for the same
+ * email (flags S3), so this form is not a way around that limit.
+ */
+export async function changePassword(_prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requireSession();
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: session.user.id } });
+  const keys = throttleKeys(user.email, clientIp(Object.fromEntries((await headers()).entries())));
+  if (await loginBlocked(keys)) {
+    return { error: `Too many wrong passwords. Try again in ${LOGIN_LIMITS.windowMinutes} minutes.` };
+  }
+  if (!(await bcrypt.compare(String(formData.get("current") ?? ""), user.passwordHash))) {
+    await recordLoginFailure(keys);
+    return { error: "Your current password is not right." };
+  }
+  const result = passwordChangeSchema.safeParse(Object.fromEntries(formData));
+  if (!result.success) return formError(result.error);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash: await bcrypt.hash(result.data.password, 12) }
+  });
+  await clearLoginFailures(keys);
+  await log(user.id, "UPDATE", "User", `${user.name} changed their password`, user.id);
   return done();
 }
 
