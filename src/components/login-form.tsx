@@ -10,6 +10,7 @@ export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const [error, setError] = useState(params.get("error") ? "Please check your credentials." : "");
+  const changed = params.get("changed") === "1" && !error;
   const [pending, startTransition] = useTransition();
 
   function onSubmit(formData: FormData) {
@@ -47,6 +48,11 @@ export function LoginForm() {
           Password
           <input className="field" name="password" type="password" autoComplete="current-password" required />
         </label>
+        {changed ? (
+          <div role="status" className="rounded border border-teal/20 bg-mint px-3 py-2 text-sm text-teal">
+            Password changed. Sign in with your new password.
+          </div>
+        ) : null}
         {error ? (
           <div className="rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm text-rose">{error}</div>
         ) : null}

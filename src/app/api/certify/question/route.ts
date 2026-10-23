@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { z } from "zod";
-import { authOptions } from "@/lib/auth";
+import { apiSession } from "@/lib/auth";
 import { candidateOnExamSurface, finalizeSession, questionBank } from "@/lib/certify-session";
 import { deadlineFor, estimateEap, isSessionExpired, selectNextQuestion } from "@/lib/irt";
 import { prisma } from "@/lib/prisma";
@@ -23,7 +22,7 @@ type Option = { key: string; text: string };
 const schema = z.object({ sessionId: z.string() });
 
 export async function POST(request: Request) {
-  const auth = await getServerSession(authOptions);
+  const auth = await apiSession();
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const parsed = schema.safeParse(await request.json().catch(() => null));

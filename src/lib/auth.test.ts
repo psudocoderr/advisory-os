@@ -75,12 +75,14 @@ describe("jwt callback on an existing session", () => {
     expect(findUnique).not.toHaveBeenCalled();
   });
 
-  it("does not re-read the account at sign-in", async () => {
+  it("reads the account at sign-in too, so a temporary password is flagged from the first request", async () => {
+    findUnique.mockResolvedValue({ role: "ADMIN", isActive: true, passwordChangedAt: null });
     const token = await authOptions.callbacks!.jwt!({
       token: {},
       user: { id: "user-2", role: "ADMIN" }
     } as never);
-    expect(token).toMatchObject({ id: "user-2", role: "ADMIN" });
-    expect(findUnique).not.toHaveBeenCalled();
+    expect(token).toMatchObject({ id: "user-2", role: "ADMIN", mustChangePassword: true });
+    expect(token.signedInAt).toEqual(expect.any(Number));
+    expect(findUnique).toHaveBeenCalledTimes(1);
   });
 });

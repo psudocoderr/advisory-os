@@ -91,9 +91,14 @@ export default async function AdminPage() {
                     <td className="px-4 py-3 font-semibold text-ink">{user.name}</td>
                     <td className="px-4 py-3">{titleCase(user.role)}</td>
                     <td className="px-4 py-3">
-                      <StatusBadge tone={user.isActive ? "teal" : "rose"}>
-                        {user.isActive ? "Active" : "Inactive"}
-                      </StatusBadge>
+                      <div className="flex flex-wrap gap-1">
+                        <StatusBadge tone={user.isActive ? "teal" : "rose"}>
+                          {user.isActive ? "Active" : "Inactive"}
+                        </StatusBadge>
+                        {user.passwordChangedAt === null ? (
+                          <StatusBadge tone="amber">Temporary password</StatusBadge>
+                        ) : null}
+                      </div>
                     </td>
                     {topics.map((topic) => {
                       const cert = certs.find((item) => item.userId === user.id && item.topicId === topic.id);

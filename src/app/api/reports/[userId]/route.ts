@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { apiSession } from "@/lib/auth";
 import { csvCell, loadTraineeReport } from "@/lib/trainee-report";
 
 const HEADER = ["Test", "Attempt", "Date", "Status", "Level", "Theta", "SE", "Percent correct", "Questions"];
 
 /** Admin only: one trainee's attempts as CSV, the same rows as /admin/tracker/[userId]. */
 export async function GET(_request: Request, { params }: { params: Promise<{ userId: string }> }) {
-  const session = await getServerSession(authOptions);
+  const session = await apiSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (session.user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

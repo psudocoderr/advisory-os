@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { z } from "zod";
-import { authOptions } from "@/lib/auth";
+import { apiSession } from "@/lib/auth";
 import { estimateEap } from "@/lib/irt";
 import { finalizeSession, latestFullscreenKind, questionBank } from "@/lib/certify-session";
 import { prisma } from "@/lib/prisma";
@@ -38,7 +37,7 @@ const schema = z.object({
 const MAX_EVENTS_PER_SESSION = 200;
 
 export async function POST(request: Request) {
-  const auth = await getServerSession(authOptions);
+  const auth = await apiSession();
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const parsed = schema.safeParse(await request.json().catch(() => null));

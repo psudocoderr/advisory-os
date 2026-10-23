@@ -96,4 +96,28 @@ describe("the session re-check on every request", () => {
     await prisma.user.delete({ where: { id: user.id } });
     await expect(jwt({ token })).rejects.toThrow("Session revoked");
   });
+  it("ends a session begun before a password change, and keeps one begun after", async () => {
+    const user = await account();
+    const signIn = (await jwt({ token: {} as JWT, user: { id: user.id } } as never)) as JWT;
+    expect(signIn.signedInAt).toEqual(expect.any(Number));
+    await prisma.user.update({ where: { id: user.id }, data: { passwordChangedAt: new Date(signIn.signedInAt! + 1) } });
+    await expect(jwt({ token: signIn })).rejects.toThrow("password changed");
+    const later = { ...signIn, signedInAt: signIn.signedInAt! + 2 };
+    expect(await jwt({ token: later })).toMatchObject({ id: user.id });
+  });
+
+  it("keeps a token from before signedInAt existed; it expires on its own", async () => {
+    const user = await account();
+    await prisma.user.update({ where: { id: user.id }, data: { passwordChangedAt: new Date() } });
+    expect(await jwt({ token: { id: user.id, role: "ADVISOR" } as JWT })).toMatchObject({ id: user.id });
+  });
+
+  it("flags an account still on an admin-set password, from its first request", async () => {
+    const user = await account();
+    await prisma.user.update({ where: { id: user.id }, data: { passwordChangedAt: null } });
+    const signIn = (await jwt({ token: {} as JWT, user: { id: user.id } } as never)) as JWT;
+    expect(signIn.mustChangePassword).toBe(true);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordChangedAt: new Date(signIn.signedInAt! - 1) } });
+    expect((await jwt({ token: signIn })).mustChangePassword).toBe(false);
+  });
 });

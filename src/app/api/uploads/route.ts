@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { z } from "zod";
-import { authOptions } from "@/lib/auth";
+import { apiSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   MAX_UPLOAD_BYTES,
@@ -31,7 +30,7 @@ const schema = z.object({
  * this function's body-size limit.
  */
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await apiSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (session.user.role !== "ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
