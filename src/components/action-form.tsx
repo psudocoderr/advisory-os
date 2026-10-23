@@ -6,18 +6,15 @@ import type { FormState } from "@/lib/form-state";
 /**
  * An inline form for a server action that returns FormState: the action's
  * error appears above the fields, which keep what was typed; on success the
- * form clears and `success`, if given, is shown. FormDialog does the same
- * inside a modal.
+ * form clears. FormDialog does the same inside a modal.
  */
 export function ActionForm({
   action,
   className,
-  success,
   children
 }: {
   action: (prev: FormState, formData: FormData) => Promise<FormState>;
   className?: string;
-  success?: string;
   children: React.ReactNode;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -48,13 +45,6 @@ export function ActionForm({
             className="col-span-full rounded border border-rose/20 bg-rose/10 px-3 py-2 text-sm font-semibold text-rose"
           >
             {state.error}
-          </p>
-        ) : state.ok && success && !pending ? (
-          <p
-            role="status"
-            className="col-span-full rounded border border-teal/20 bg-mint px-3 py-2 text-sm font-semibold text-teal"
-          >
-            {success}
           </p>
         ) : null}
         {children}

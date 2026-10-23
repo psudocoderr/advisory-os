@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import { z } from "zod";
-import { authOptions } from "@/lib/auth";
+import { apiSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { estimateEap, isSessionExpired, IRT } from "@/lib/irt";
@@ -12,7 +11,7 @@ import { loadTrackProgress } from "@/lib/knowledge";
 const schema = z.object({ topicId: z.string().min(1) });
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
+  const session = await apiSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const parsed = schema.safeParse(await request.json().catch(() => null));

@@ -115,14 +115,18 @@ enum BadgeLevel {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  passwordHash String
-  role         Role     @default(ADVISOR)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String    @id @default(cuid())
+  email             String    @unique
+  name              String
+  passwordHash      String
+  role              Role      @default(ADVISOR)
+  isActive          Boolean   @default(true)
+  /// When the user last set their own password. Null means the password was
+  /// set by an admin (Admin › Users) and must be replaced at the next sign-in.
+  /// A session that began before this time is ended (src/lib/auth.ts).
+  passwordChangedAt DateTime? @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   assignedProspects  Prospect[]          @relation("ProspectAssignment")
   assignedClients    Client[]            @relation("ClientAssignment")

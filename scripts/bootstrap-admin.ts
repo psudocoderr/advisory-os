@@ -147,7 +147,9 @@ async function main() {
     }
     await prisma.user.update({
       where: { email },
-      data: { passwordHash, role: role as never, isActive: true }
+      // passwordChangedAt: not asked to change it again, and sessions opened
+      // before the reset end on their next request.
+      data: { passwordHash, passwordChangedAt: new Date(), role: role as never, isActive: true }
     });
     await prisma.auditLog.create({
       data: {

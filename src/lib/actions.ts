@@ -802,7 +802,9 @@ export async function createUser(_prev: FormState, formData: FormData): Promise<
         name: parsed.name,
         email: parsed.email,
         role: parsed.role,
-        passwordHash: await bcrypt.hash(parsed.password, 12)
+        passwordHash: await bcrypt.hash(parsed.password, 12),
+        // The admin knows this password: the user replaces it at first sign-in.
+        passwordChangedAt: null
       }
     });
   } catch (error) {
@@ -832,13 +834,14 @@ export async function updateUserActive(_prev: FormState, formData: FormData): Pr
 }
 
 /**
- * A signed-in user replaces their own password. The current one is required,
+ * A signed-in user replaces their own password, which an account created in
+ * Admin › Users must do before anything else. The current one is required,
  * so a session left open on a shared computer cannot be used to take the
  * account over. Wrong guesses count toward the sign-in throttle for the same
  * email (flags S3), so this form is not a way around that limit.
  */
 export async function changePassword(_prev: FormState, formData: FormData): Promise<FormState> {
-  const session = await requireSession();
+  const session = await requireSession({ allowPasswordChange: true });
   const user = await prisma.user.findUniqueOrThrow({ where: { id: session.user.id } });
   const keys = throttleKeys(user.email, clientIp(Object.fromEntries((await headers()).entries())));
   if (await loginBlocked(keys)) {
@@ -853,11 +856,13 @@ export async function changePassword(_prev: FormState, formData: FormData): Prom
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { passwordHash: await bcrypt.hash(result.data.password, 12) }
+    data: { passwordHash: await bcrypt.hash(result.data.password, 12), passwordChangedAt: new Date() }
   });
   await clearLoginFailures(keys);
   await log(user.id, "UPDATE", "User", `${user.name} changed their password`, user.id);
-  return done();
+  // passwordChangedAt ends every session begun before it, this one included,
+  // so the user signs in again with the new password.
+  redirect("/login?changed=1");
 }
 
 export async function signInRedirect() {

@@ -205,11 +205,12 @@ at is the failure mode, which is why overdue counts surface on the dashboard.
 
 ## 4a. Admin account recovery
 
-The application has **no password reset**. `passwordHash` is written in exactly
-two places -- `createUser()` in `src/lib/actions.ts` and `prisma/seed.ts` --
-both at creation time. There is no email provider and no reset flow, so a
-deployed instance with an unknown admin password has no recovery path through
-the UI.
+The application has **no "forgot password" reset**: there is no email
+provider. Passwords are set in three places: `createUser()` (Admin › Users,
+a temporary password the user must replace at first sign-in),
+`changePassword()` (the signed-in user, at `/change-password`), both in
+`src/lib/actions.ts`, and `prisma/seed.ts`. A user who has forgotten their
+password, including the only admin, has no recovery path through the UI.
 
 `scripts/bootstrap-admin.ts` is that path. It creates or resets **one** account
 and touches nothing else.
@@ -236,10 +237,10 @@ with real records that is unrecoverable without a backup restore.
 `prisma generate && next build`; it never seeds. Those variables are read only
 at the moment the seed runs, from whichever machine runs it.
 
-**After any password reset, rotate `NEXTAUTH_SECRET` too.** Sessions are
-8-hour JWTs and `isActive`/`role` are read only at login, so a password change
-does not end sessions already issued. Rotating the signing secret invalidates
-every issued token at once. See `docs/flags.md` S1/S2.
+**A reset ends that account's open sessions.** The script sets
+`passwordChangedAt`, and every session that began before it is refused on its
+next request (`src/lib/auth.ts`). Other accounts are untouched. Rotate
+`NEXTAUTH_SECRET` (§4b) only when every session must end.
 
 ---
 
@@ -248,14 +249,14 @@ every issued token at once. See `docs/flags.md` S1/S2.
 `NEXTAUTH_SECRET` signs the session JWTs. Changing it invalidates **every**
 issued token at once, so everyone is logged out immediately.
 
-That is the only way to end sessions on demand. Sessions are stateless JWTs
-with an 8-hour lifetime, and `isActive`/`role` are read only at login
-(`src/lib/auth.ts`), so deactivating a user, changing a password or demoting
-someone does **not** end a session already in progress. Rotating the secret
-does.
+Per account, sessions already end without it: the `jwt` callback re-reads the
+account on every request (`src/lib/auth.ts`), so deactivating a user ends
+their session, a role change applies on the next request, and a password
+change ends every session that began before it. Rotation is for ending
+**everyone's** sessions at once.
 
-Rotate when: a credential was exposed, someone leaves, a role is revoked and
-the change must take effect now, or the secret itself may have leaked.
+Rotate when: the secret itself may have leaked, or you cannot tell which
+accounts were exposed.
 
 ```bash
 # 1. Generate a new secret

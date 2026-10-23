@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { apiSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { loadTrackProgress } from "@/lib/knowledge";
 import { fetchObject, storageConfig } from "@/lib/storage";
@@ -11,7 +10,7 @@ import { fetchObject, storageConfig } from "@/lib/storage";
  * admins get every file. Anything else is a 404, so ids can't be probed.
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getServerSession(authOptions);
+  const session = await apiSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const config = storageConfig();
