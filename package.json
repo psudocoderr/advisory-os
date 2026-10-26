@@ -62,7 +62,7 @@
     "@vitest/coverage-v8": "^5.0.5",
     "eslint": "^9.17.0",
     "eslint-config-next": "16.4.2",
-    "eslint-config-prettier": "^9.1.0",
+    "eslint-config-prettier": "^10.1.8",
     "postcss": "^8.5.30",
     "prettier": "^3.9.10",
     "prisma": "^5.22.0",
