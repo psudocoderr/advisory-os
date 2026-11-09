@@ -54,14 +54,14 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/postcss": "^4.3.5",
     "@types/bcryptjs": "^3.0.0",
     "@types/node": "^24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@vitest/coverage-v8": "^5.0.5",
+    "@vitest/coverage-v8": "^5.1.0",
     "eslint": "^9.17.0",
-    "eslint-config-next": "16.4.2",
+    "eslint-config-next": "16.4.5",
     "eslint-config-prettier": "^9.1.0",
     "postcss": "^8.5.30",
     "prettier": "^3.9.10",
